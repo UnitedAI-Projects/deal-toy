@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="How Mantel handles Google sign-in, CAD workspace content and connected agents."
+    />
+    <title>Privacy policy · Mantel</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f5f3ee;
+        color: #252821;
+        font:
+          17px/1.7 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      header,
+      main,
+      footer {
+        max-width: 820px;
+        margin: auto;
+        padding: 28px 24px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #d9dcd2;
+        gap: 20px;
+      }
+      .brand {
+        font-weight: 750;
+        font-size: 24px;
+        color: #252821;
+        text-decoration: none;
+        letter-spacing: -1px;
+      }
+      nav {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+      }
+      a {
+        color: #345b40;
+        text-underline-offset: 4px;
+      }
+      h1 {
+        font-size: clamp(34px, 7vw, 56px);
+        line-height: 1.1;
+        letter-spacing: -2px;
+        margin: 24px 0;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.35;
+        margin-top: 36px;
+      }
+      p {
+        margin: 16px 0;
+      }
+      .eyebrow {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #59634f;
+      }
+      .muted {
+        color: #60675b;
+      }
+      .lead {
+        font-size: 21px;
+      }
+      .button {
+        display: inline-block;
+        background: #345b40;
+        color: #fff;
+        padding: 12px 22px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        margin: 14px 0;
+      }
+      footer {
+        border-top: 1px solid #d9dcd2;
+        font-size: 14px;
+        margin-top: 30px;
+      }
+      code {
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+      }
+      a:focus-visible {
+        outline: 3px solid #9c5f15;
+        outline-offset: 5px;
+      }
+      @media (max-width: 480px) {
+        header {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 12px;
+        }
+        header,
+        main,
+        footer {
+          padding: 22px;
+        }
+        nav {
+          gap: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/info/">Mantel</a>
+      <nav aria-label="Main">
+        <a href="/info/privacy/">Privacy</a><a href="/">Open workspace</a>
+      </nav>
+    </header>
+    <main>
+      <p class="eyebrow">Your information</p>
+      <h1>Privacy policy</h1>
+      <p class="muted">Effective October 28, 2026</p>
+      <p>
+        Mantel is an AI-assisted CAD workspace from United AI. This policy
+        explains how we handle information when you sign in, work on designs or
+        connect an AI client. For privacy questions or requests, contact
+        <strong>ivan27chen@gmail.com</strong>.
+      </p>
+      <h2>Information we collect and why</h2>
+      <p>
+        <strong>Google sign-in.</strong> We request only the
+        <code>openid</code>, <code>email</code> and
+        <code>profile</code> permissions. We use your Google account identifier,
+        verified email address and name to identify your Mantel account, sign
+        you in, associate your projects with you and enforce your access
+        permissions. Mantel does not request access to Gmail, Google Drive,
+        contacts or calendars. We do not receive your Google password or store a
+        Google refresh token.
+      </p>
+      <p>
+        <strong>Workspace content.</strong> We store the projects, model source,
+        revisions, build results, generated CAD files and documents you submit
+        or create. We process this information to run modeling jobs, show
+        previews, provide downloads and maintain your workspace history.
+      </p>
+      <p>
+        <strong>Account and security information.</strong> We store access
+        levels, permissions, administrative audit records, activity timestamps,
+        API-key labels and expiration dates, and browser information associated
+        with sessions. Stored session tokens and API keys are hashed. Hosting
+        and security services process network and diagnostic information, which
+        can include IP addresses, request details and error information, to
+        deliver, protect and troubleshoot Mantel.
+      </p>
+      <h2>Cookies and local storage</h2>
+      <p>
+        Essential cookies maintain your sign-in session and protect the Google
+        sign-in process. Mantel uses a 30-day session validity window; expiry,
+        sign-out or account restrictions can end access. Your browser also
+        stores interface preferences. Signing out ends the relevant Mantel
+        session; it does not delete your account or workspace.
+      </p>
+      <h2>Service providers and access to information</h2>
+      <p>
+        Google handles Google account authentication. Cloudflare hosts
+        Mantel&#x27;s application, database, file storage and CAD execution
+        services. These providers process information needed to deliver their
+        services under their own applicable terms and privacy policies.
+        Authorized operators may access stored information to administer, secure
+        and support Mantel. Data processing locations depend on the
+        providers&#x27; infrastructure and configuration; Mantel does not
+        currently promise storage in a particular country.
+      </p>
+      <p>
+        If you connect an external AI client using a Mantel API key, that client
+        can request information and perform actions allowed by your
+        account&#x27;s current permissions. Information returned to that client
+        is also subject to your agreement and settings with its provider.
+        Connect only clients you trust, and revoke unused keys in Settings.
+        Mantel does not automatically send designs to a manufacturer.
+      </p>
+      <p>
+        Projects explicitly marked as demos are visible to other signed-in users
+        with demo access. Demo access limits which content and actions are
+        available; it does not make that project&#x27;s visible content private
+        to its creator. Do not mark confidential projects as demos.
+      </p>
+      <h2>Limits on Google user data use</h2>
+      <p>
+        We use Google user data only to provide, secure and support Mantel. We
+        do not sell it, use it for advertising, or use it to train
+        general-purpose AI models. Mantel&#x27;s use and transfer of information
+        received from Google APIs follows the
+        <a
+          href="https://developers.google.com/terms/api-services-user-data-policy"
+          >Google API Services User Data Policy</a
+        >, including its Limited Use requirements.
+      </p>
+      <h2>Retention and deletion</h2>
+      <p>
+        Mantel is currently an early-access service. Account and workspace
+        records have no automatic deletion schedule and remain stored until the
+        operator removes them. Expired sessions and revoked keys cease to grant
+        access, but their database records may remain. Administrative and
+        diagnostic records may also be retained for security and operational
+        purposes.
+      </p>
+      <p>
+        To request access to, correction of or deletion of your information,
+        email <strong>ivan27chen@gmail.com</strong>. We may need to verify your
+        account ownership before acting. There is currently no self-service
+        account or project deletion control. Backup copies may remain until
+        their recovery retention expires, and some records may need to be
+        retained to meet legal obligations or address security issues. We will
+        explain any material limits affecting a deletion request.
+      </p>
+      <p>
+        You can revoke API keys and sign out of sessions in Settings. You can
+        also remove Mantel&#x27;s Google connection through your Google Account.
+        Disconnecting Google, signing out or revoking a key does not delete your
+        Mantel account or stored projects. Copies already obtained by a
+        connected client or downloaded by you are outside Mantel&#x27;s deletion
+        controls.
+      </p>
+      <h2>Updates</h2>
+      <p>
+        We will keep this policy available from Mantel and update its effective
+        date when it changes. Material changes to how we use Google user data
+        will be disclosed before the new use begins, with additional consent
+        where required.
+      </p>
+    </main>
+    <footer>
+      Mantel by United AI ·
+      <a href="mailto:ivan27chen@gmail.com">Contact us</a> ·
+      <a href="/info/privacy/">Privacy policy</a>
+    </footer>
+  </body>
+</html>
