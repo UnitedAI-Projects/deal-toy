@@ -1,6 +1,6 @@
 # Accounts, access levels and API keys
 
-Date: 2026-10-28. Status: approved direction; open items listed at the end.
+Date: 2026-10-28. Status: approved. The first release is Google sign-in only; email and password follow once the owner has a domain for sending email.
 
 ## Intent
 
@@ -10,7 +10,7 @@ Why now: Cloudflare Access is a perimeter for a fixed list of people. It cannot 
 
 ## Goals
 
-- In-app sign in and sign up, replacing Cloudflare Access for browser traffic.
+- In-app sign in and sign up with Google, replacing Cloudflare Access for browser traffic.
 - Access levels the owner edits: named sets of permissions, one level per person, plus per-person Allow and Revoke adjustments.
 - The lowest level (Demo) can only view a demo project and its build.
 - Self-service API keys in Settings for MCP clients.
@@ -19,7 +19,8 @@ Why now: Cloudflare Access is a perimeter for a fixed list of people. It cannot 
 ## Non-goals
 
 - Project sharing between members (still owner-only, plus the demo). Planned next.
-- Organizations or teams, invitations by email, SSO beyond Google, OAuth for MCP clients.
+- Email-and-password accounts in this release (see Later).
+- Organizations or teams, invitations by email, other identity providers, OAuth for MCP clients.
 - Billing or paid plans.
 
 ## Anti-goals (would be a failure even if it works)
@@ -31,23 +32,19 @@ Why now: Cloudflare Access is a perimeter for a fixed list of people. It cannot 
 
 ## Decisions
 
-### Sign-in methods
+### Sign-in
 
-Two ways in, as approved:
+**Continue with Google** is the only way in for this release. The owner decided this because email-and-password needs verification and reset emails, and those need a domain on Cloudflare, which Deal Toy does not have yet.
 
-1. **Continue with Google.** Standard OAuth 2.0 authorization-code flow with PKCE and `state`, using a Google OAuth client the owner creates. Only accounts whose Google email is verified are accepted. The member is linked by Google's stable subject id (`sub`), and the email is recorded at first link.
-2. **Email and password.** The password is hashed with PBKDF2-SHA256 using a random 16-byte salt and a versioned format (`pbkdf2-sha256$<iterations>$<salt>$<hash>`). The builder uses the highest iteration count Workers WebCrypto supports (believed to be 100,000; verify) so the count can be raised later without a migration. Passwords must be 10 to 200 characters long and are compared in constant time.
-
-Email ownership rules (these protect the owner's account):
-
-- A Google sign-in whose verified email matches an existing member links to that member.
-- An email-and-password signup for an email that already exists is refused with the same generic message as any other failure. It never links.
-- Email-and-password accounts need email verification (see open item 1). Until verified, an account stays at the Demo level, and an admin cannot raise its level.
+- The standard OAuth 2.0 authorization-code flow with PKCE, `state` and `nonce`, using a Google OAuth client the owner creates. The server exchanges the code with Google's token endpoint and validates the ID token: signature against Google's JWKS, issuer, audience, expiry and nonce.
+- Only accounts whose Google email is verified are accepted.
+- Members are linked by Google's stable subject id (`sub`). On first sign-in, a verified email that matches an existing member with no `sub` links to that member; this is how the owner's current account carries over. Otherwise a new member is created at the default level. A later sign-in with the same `sub` updates the stored email if Google's verified email changed.
+- Sign in and sign up are the same flow. The card's two tabs only change the wording ("Sign in with Google" or "Create an account with Google") and the short explanation under it.
 
 ### Sessions
 
 - On sign-in the server creates a random 32-byte session token and sets it as a cookie: `__Host-dt_session`, `HttpOnly; Secure; SameSite=Lax; Path=/`. Only the SHA-256 hash is stored in D1 (`auth_sessions`).
-- Sessions last 30 days, sliding. Sign-out deletes the session row. A password change and "Sign out everywhere" delete all of the member's sessions.
+- Sessions last 30 days, sliding. Sign-out deletes the session row. "Sign out everywhere" deletes all of the member's sessions.
 - Every request reloads the member and their effective permissions. A suspended member's existing sessions stop working at once.
 - State-changing requests that carry the cookie must have an `Origin` header that matches the app's own origin. The current check rejects a mismatched Origin; it will now also reject a missing one for cookie-authenticated writes.
 - The live WebSocket ticket flow is unchanged and is issued from the cookie session.
@@ -55,8 +52,8 @@ Email ownership rules (these protect the owner's account):
 ### Abuse controls
 
 - New accounts start at Demo, which cannot build or create projects, so open signup costs storage only.
-- Sign-in, signup and password-reset endpoints are rate-limited per IP and per email with the Workers rate-limiting binding.
-- Turnstile on the signup form (see open item 2).
+- The Google start and callback endpoints are rate-limited per IP with the Workers rate-limiting binding.
+- No Turnstile in this release. Google's own sign-in screens filter automated signups, and a new account costs nothing until it is promoted. Add Turnstile with email-and-password.
 - A per-member daily build cap protects against a promoted account running away. It is set by a Worker variable and defaults to 100 builds a day.
 
 ### Permissions
@@ -103,7 +100,7 @@ Rules:
 
 ### Data model (new migration `0003_accounts.sql`)
 
-- `members`: add `name`, `level_id`, `owner` (0/1), `status` (`active`|`suspended`), `password_hash`, `google_sub` (unique), `email_verified_at`, `created_at`, `last_active_at`. Remove the `role` and `active` columns, or retire them once their data is migrated:
+- `members`: add `name`, `picture` (Google avatar URL, optional), `level_id`, `owner` (0/1), `status` (`active`|`suspended`), `google_sub` (unique), `created_at`, `last_active_at`. Remove the `role` and `active` columns, or retire them once their data is migrated:
   - `role='admin'` becomes `owner=1` at the Admin level.
   - `role='maker'` becomes the Maker level.
   - `active=0` becomes `status='suspended'`.
@@ -115,7 +112,6 @@ Rules:
 - `auth_sessions` (`hash`, `email`, `created_at`, `expires_at`, `last_seen_at`, `user_agent` truncated).
 - `api_keys` (`id`, `email`, `name`, `prefix`, `hash` unique, `created_at`, `expires_at`, `last_used_at`, `revoked_at`).
 - `oauth_states` for the short-lived Google `state`, PKCE verifier and nonce, valid for 10 minutes and single use. Alternatively these can go in a signed, HttpOnly cookie, which is the builder's choice.
-- `email_tokens` (verification and reset tokens: hash, email, purpose, expiry, single use) if open item 1 is answered yes.
 - `audit_events`.
 - `projects`: add `demo` (0/1).
 - `tokens` is dropped after its rows move into `api_keys`.
@@ -124,7 +120,7 @@ Rules:
 
 - `Identity` becomes `{ email, name, owner, permissions: Set<Permission> }`. The `admin(c)` helper is replaced by `require(c, permission)`. Each tool declares the permission it needs, and `dispatch` checks it alongside the enablement check.
 - `projectAccess` gains a read variant that also admits demo projects for members with `demo.view`. Writes keep the owner check.
-- New routes under `/api/auth/*`: signup, sign in, sign out, Google start and callback, verify email and reset password. They are public apart from rate limits.
+- New routes under `/api/auth/*`: Google start, Google callback, and sign out. They are public apart from rate limits.
 - New routes under `/api/settings/*`: the account, keys, members, levels and audit write paths. These are HTTP JSON routes, not MCP tools: people manage accounts, agents don't.
 - The Cloudflare Access verification code and its `ACCESS_*` variables are removed. `/health` stays public.
 
@@ -132,7 +128,7 @@ Rules:
 
 - Sign-in screen as in `docs/design/2026-10-28-accounts-mockup.html` and its screenshots:
   - The canvas fills the screen and shows a draggable 3D name. It turns slowly when idle, with zoom and pan off.
-  - One card switches between sign in and sign up, with Google, email and password, and "Forgot password?".
+  - One card switches between sign in and sign up, with the Google button and one line explaining what a new account starts with. The mockup's email and password fields are left out of this release.
   - On phones the card docks at the bottom. Light and dark themes are supported.
   - Raise the name's contrast compared with the mockup.
 - The name model is a real Deal Toy output:
@@ -140,7 +136,7 @@ Rules:
   - The font file is checked in with its license; Inter (OFL) is the suggestion.
   - If the CAD runtime cannot render text from a bundled font, the builder may fall back to an outline traced at build time, and should say so.
 - Settings page with the sections Account, API keys, Members and Access levels, as in the mockup:
-  - **Account:** name, email, password change, and sign out everywhere.
+  - **Account:** name, email (from Google), and sign out everywhere.
   - **Members:** list, search, level, the per-person Level/Allow/Revoke editor, and suspend.
   - **Access levels:** the permission grid, a new level, rename, delete, and set default.
 - Sections are hidden when the member lacks the permission. The server enforces them regardless.
@@ -162,10 +158,8 @@ Rules:
 
 Worker tests, in the existing vitest-pool-workers suite:
 
-- Signup and sign-in success and failure.
-- An existing email can't be claimed by password signup.
-- Google callback: state, PKCE, a verified-email requirement and linking by `sub` (Google's token endpoint is mocked).
-- Session expiry, sign-out and suspension.
+- Google callback with Google's token endpoint and JWKS mocked: state and PKCE, ID-token signature, issuer, audience, expiry and nonce, the verified-email requirement, linking an existing member by email exactly once, and later linking by `sub`.
+- Session expiry, sign-out, sign out everywhere, and suspension.
 - Origin required for cookie writes.
 - The permission grid:
   - each tool and route is denied without its permission and allowed with it;
@@ -184,7 +178,17 @@ The browser is checked with Chrome DevTools in light and dark at 1440 px and 390
 
 The exact component structure, the error copy, the `oauth_states` storage choice, the PBKDF2 iteration count (as high as Workers allows), rate-limit numbers, how the demo project is chosen in the UI (a toggle in the project's ⋯ menu is suggested), and the name model's font and proportions.
 
-## Open items (need the owner)
+## Setup the owner does
 
-1. **Email sending.** Email-and-password signup needs verification and password-reset emails. Cloudflare Email Sending needs a domain the owner controls on Cloudflare; `workers.dev` can't send. Without a domain, email-and-password can't be offered safely, and the first release would be Google-only.
-2. **Google OAuth client and Turnstile widget.** Both are created by the owner in their consoles. The OAuth client takes a redirect URI `https://<host>/api/auth/google/callback`; the Turnstile widget is created for the hostname. Their secrets go into Worker secrets, never Git.
+1. Create a Google OAuth client (type: web application) with the authorized redirect URI `https://unitedai-deal-toy.ivan27chen.workers.dev/api/auth/google/callback`, plus `http://localhost:8787/api/auth/google/callback` for local development. Store the client ID as a Worker variable and the secret with `wrangler secret put GOOGLE_CLIENT_SECRET`. Never put the secret in Git.
+
+## Later
+
+- Email-and-password accounts, once a domain is on Cloudflare for Email Sending:
+  - PBKDF2-SHA256 with a versioned hash format and the highest iteration count Workers supports;
+  - verification and reset emails;
+  - Turnstile on signup.
+
+  An email-and-password signup for an email that already exists must be refused, never linked.
+
+- Project sharing with roles, OAuth for MCP clients, and a UI for the audit log.
