@@ -401,7 +401,11 @@ function App() {
             <>
               <button
                 className="breadcrumb quiet"
-                onClick={() => setPage("projects")}
+                onClick={() => {
+                  if (!leaveEditor()) return;
+                  setDirty(false);
+                  setPage("projects");
+                }}
               >
                 Projects / <strong>{workspace.project.name}</strong>
               </button>

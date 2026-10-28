@@ -297,6 +297,15 @@ describe("Build lifecycle", () => {
     } as unknown as Env;
     await consume(message, testEnv);
     await consume(message, testEnv);
+    const otherToken = "bob-test-token-with-at-least-thirty-two-characters";
+    await env.DB.prepare("INSERT INTO tokens VALUES (?,?,?,?)")
+      .bind(
+        await hash(otherToken),
+        bob.identity.email,
+        "test",
+        "2099-01-01T00:00:00.000Z",
+      )
+      .run();
     expect(container.fetch).toHaveBeenCalledTimes(1);
     expect(container.destroy).toHaveBeenCalledTimes(1);
     const result = (await execute(alice, "builds_get", { jobId })) as {
@@ -305,6 +314,15 @@ describe("Build lifecycle", () => {
     };
     expect(result.status).toBe("succeeded");
     expect(result.artifacts).toHaveLength(4);
+    expect(
+      (
+        await exports.default.fetch(
+          `https://example.test/api/artifacts/${result.artifacts[0].id}`,
+          { headers: { Authorization: `Bearer ${otherToken}` } },
+        )
+      ).status,
+    ).toBe(404);
+
     await expect(execute(bob, "builds_get", { jobId })).rejects.toThrow(
       "Revision not found",
     );

@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   checks:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/checks.yml
   production:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
