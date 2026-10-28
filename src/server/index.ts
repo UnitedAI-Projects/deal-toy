@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { authenticate } from "./auth";
+import {
+  authenticateBrowser,
+  authenticateKey,
+  readCookie,
+  redeemLink,
+  SESSION_COOKIE,
+  signOut,
+} from "./auth";
 import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
 import { consume } from "./builds";
 import { catalog, dispatch } from "./tools";
@@ -12,6 +19,11 @@ function secure(response: Response) {
   headers.set("Referrer-Policy", "no-referrer");
   headers.set("Cache-Control", "private, no-store");
   return new Response(response.body, { status: response.status, headers });
+}
+function redirect(location: string, setCookie?: string | null) {
+  const headers = new Headers({ Location: location });
+  if (setCookie) headers.set("Set-Cookie", setCookie);
+  return secure(new Response(null, { status: 302, headers }));
 }
 export default {
   async fetch(request, env): Promise<Response> {
@@ -33,7 +45,12 @@ export default {
         });
       }
       const origin = request.headers.get("Origin");
-      if (origin && origin !== url.origin)
+      // A cookie-authenticated write must prove it comes from this app's own pages.
+      const cookieWrite =
+        url.pathname.startsWith("/api/") &&
+        !["GET", "HEAD"].includes(request.method) &&
+        readCookie(request, SESSION_COOKIE) !== undefined;
+      if ((origin && origin !== url.origin) || (cookieWrite && !origin))
         throw new AppError(403, "Cross-origin requests are not allowed");
       // Browsers cannot send bearer headers on a WebSocket. The socket presents a single-use
       // ticket issued below over the authenticated API; the project's relay checks it.
@@ -47,7 +64,36 @@ export default {
           throw new AppError(401, "Ticket expired; request a new one");
         return env.LIVE.getByName(liveMatch[1]).fetch(request);
       }
-      const identity = await authenticate(request, env);
+      const userAgent = request.headers.get("User-Agent") ?? "";
+      if (url.pathname === "/api/auth/link" && request.method === "GET") {
+        const set = await redeemLink(
+          env,
+          url.searchParams.get("token") ?? "",
+          userAgent,
+        ).catch(() => null);
+        return redirect(set ? "/" : "/?auth_error=link", set);
+      }
+      if (url.pathname === "/api/auth/signout" && request.method === "POST") {
+        const body = z
+          .object({ everywhere: z.boolean().default(false) })
+          .strict()
+          .parse(JSON.parse((await boundedText(request, 1000)) || "{}"));
+        return secure(
+          Response.json(
+            { ok: true },
+            {
+              headers: {
+                "Set-Cookie": await signOut(request, env, body.everywhere),
+              },
+            },
+          ),
+        );
+      }
+      // API keys are accepted only by the MCP endpoint; the browser API takes only sessions.
+      const identity =
+        url.pathname === "/mcp"
+          ? await authenticateKey(request, env)
+          : await authenticateBrowser(request, env);
       const c = { env, identity };
       const ticketMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
@@ -73,13 +119,10 @@ export default {
       if (url.pathname === "/api/session" && request.method === "GET")
         return secure(
           Response.json({
-            ...identity,
-            authentication:
-              request.headers.has("Cf-Access-Jwt-Assertion") &&
-              env.ACCESS_AUD &&
-              env.ACCESS_TEAM_DOMAIN
-                ? "access"
-                : "token",
+            email: identity.email,
+            name: identity.name,
+            owner: identity.owner,
+            permissions: [...identity.permissions],
           }),
         );
       if (url.pathname === "/api/tools" && request.method === "GET")
