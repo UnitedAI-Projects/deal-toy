@@ -4,7 +4,7 @@ An internal CAD workspace for the United AI deal-toy service project. Organize d
 
 ## Status
 
-Initial foundation under development. The implemented slice includes project and model creation, immutable Python revisions, queued native OCCT builds, STEP/STL/GLB exports, a 3D viewer, draft manufacturing documents, versioned skills and registered tool controls. It is not a complete manufacturing automation service. See [validation](docs/validation.md) for tested paths and deployment status, and [roadmap](docs/roadmap.md) for remaining capabilities.
+Internal alpha at [Deal Toy Studio](https://unitedai-deal-toy.ivan27chen.workers.dev), requiring an administrator-issued app token. The implemented slice includes project and model creation, immutable Python revisions, queued native OCCT builds, STEP/STL/GLB exports, a 3D viewer, draft manufacturing documents, versioned skills and registered tool controls. It is not a complete manufacturing automation service. See [validation](docs/validation.md) for tested paths and deployment status, and [roadmap](docs/roadmap.md) for remaining capabilities.
 
 ![Modeling workspace](docs/images/workspace-desktop.jpg)
 

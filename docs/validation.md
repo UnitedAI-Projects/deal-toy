@@ -35,3 +35,9 @@ The scheduling fix uses a version-pinned named CAD image and the direct Durable 
 PR #6 passed hosted validation on retry and merged as `f88dcce`, but the main deployment checks reproduced a pre-existing native export timeout. An isolated Linux AMD64 box export with 64 same-user background threads consistently failed; a stack dump located the stall in OCCT’s STL mesher. Linux `RLIMIT_NPROC` counts other same-user tasks, so implicit parallel exporter thread creation can fail even for small models.
 
 The runner now selects OCCT’s own single-thread pool before applying its existing limits. The same Linux regression passed three times under the original memory, process, filesystem and network constraints. The regression is also in the hosted Python suite. No timeout or resource limit was increased. Production remains pending validation and deployment of this correction.
+
+## Live startup correction — 2026-10-28
+
+[Production deployment](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40708297053) succeeded for `c71e376`. The HTTPS app and authenticated session were verified from the MacBook; project/revision creation works. GitHub verified the release SHA and anonymous API denial. Initial live CAD jobs exposed a separate container startup failure: Python’s HTTPServer reverse-resolved Cloudflare’s long container hostname and raised `UnicodeError: label too long` before opening port 8080.
+
+The internal listener now binds without reverse DNS and uses the fixed service name `cad`. A regression injects the exact hostname error; the container smoke test starts the actual HTTP listener under a 64-character hostname and requests a build over loopback. Completed live CAD acceptance must be recorded after this correction is deployed. Earlier activation notes above are historical.
