@@ -139,6 +139,9 @@ function Account(props: {
     <>
       <h1>Account</h1>
       <p className="muted lede">You sign in with Google as {props.me.email}.</p>
+      <p className="muted small">
+        <a href="/info/privacy/">Privacy policy and data requests</a>
+      </p>
       <div className="panel">
         <form
           className="panel-body stack"

@@ -108,6 +108,10 @@ export function SignIn(props: {
             </p>
           </>
         )}
+        <p className="muted small">
+          <a href="/info/">About Mantel</a> ·{" "}
+          <a href="/info/privacy/">Privacy policy</a>
+        </p>
         {error && (
           <p className="inline-error" role="alert">
             {error}

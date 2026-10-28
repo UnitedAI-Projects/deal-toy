@@ -119,3 +119,9 @@ Pre-merge regressions reproduced two account failures: legacy migrated key IDs r
 Created the Mantel production web client in Google Cloud project `unitedai-mantel-prod`, with the production and localhost callback URLs requested by the owner. Set its public client ID in Wrangler and stored `GOOGLE_CLIENT_SECRET` directly in the Worker; the temporary plaintext file was removed after secret-list verification. No secret is committed.
 
 `npm run types` now uses `--strict-vars=false` so regenerated environment types support different test/deployment values. Full local `bash ci/run.sh` passed: 78 Worker tests, 8 Python tests with 1 existing skip, format/types/build/audit and Wrangler dry run. Real Google sign-in and this accounts release remain unverified in production. Google publishing is blocked until the required public branding pages and privacy-policy URL are available; the OAuth audience remains External / Testing. PR #13 is not yet merged.
+
+### Approved privacy publication — 2026-10-28
+
+The owner approved the policy for publication. PR #14 publishes the canonical HTML policy and public homepage under `/info/`, independently of the accounts migration. Desktop and 400px mobile rendering were inspected, and a paragraph comparison verified preservation of the approved policy text. A dedicated Access application and reusable Bypass policy expose only `/info/*`; anonymous `/api/session` and `/infox` still return the Access redirect, and `/mcp` still returns 401.
+
+Integrated the public-page release into the accounts branch and linked the policy from Sign in and Settings → Account. Replaced the draft with a pointer to the approved canonical HTML. Full local `bash ci/run.sh` passed again: 78 Worker tests, 8 Python tests / 1 existing skip, formatting, types, build, audit and dry run. Google publishing and live accounts acceptance are pending at this checkpoint.

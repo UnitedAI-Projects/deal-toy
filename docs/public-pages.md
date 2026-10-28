@@ -7,7 +7,7 @@ Production URLs:
 - https://unitedai-deal-toy.ivan27chen.workers.dev/info/
 - https://unitedai-deal-toy.ivan27chen.workers.dev/info/privacy/
 
-Cloudflare Access must exempt only this information-page prefix using a dedicated `Mantel public information` application for `unitedai-deal-toy.ivan27chen.workers.dev/info/*` and the reusable `Mantel - public homepage and privacy` Bypass/Everyone policy. The workspace, `/api/`, and neighboring `/infox` must retain their existing protection. The machine endpoint exceptions are separate. Verify anonymous HTTP routing after any Access change.
+Cloudflare Access must exempt only this information-page prefix using a dedicated `Mantel public information` application for `unitedai-deal-toy.ivan27chen.workers.dev/info/*` and the reusable `Mantel - public homepage and privacy` Bypass/Everyone policy. The application ID is `03878ed6-cc4b-4215-903a-47ca0c2441ec`; the reusable policy ID is `399195f7-cce8-4300-a566-e3f5b3b13d4e`. The workspace, `/api/`, and neighboring `/infox` must retain their existing protection. The machine endpoint exceptions are separate. Verify anonymous HTTP routing after any Access change.
 
 The pages support Google OAuth production branding before the accounts release deploys. Google Cloud project `unitedai-mantel-prod` should use these homepage/privacy URLs. Publishing OAuth does not by itself establish brand verification.
 
