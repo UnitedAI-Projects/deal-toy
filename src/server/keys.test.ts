@@ -91,6 +91,20 @@ describe("API keys", () => {
     expect((await mcp(b.key)).status).toBe(401);
     expect(await (await settings(cookie, "/keys")).json()).toEqual([]);
   });
+  it("lets members revoke migrated keys with legacy IDs", async () => {
+    await member("legacy@k.test", { level: "Maker" });
+    const cookie = await cookieFor("legacy@k.test");
+    const created = await create(cookie);
+    const legacyId = created.id.replaceAll("-", "");
+    await env.DB.prepare("UPDATE api_keys SET id=?,prefix='legacy' WHERE id=?")
+      .bind(legacyId, created.id)
+      .run();
+    expect((await mcp(created.key)).status).toBe(200);
+    expect((await settings(cookie, `/keys/${legacyId}`, "DELETE")).status).toBe(
+      200,
+    );
+    expect((await mcp(created.key)).status).toBe(401);
+  });
   it("are limited to ten active keys", async () => {
     await member("many@k.test", { level: "Maker" });
     const cookie = await cookieFor("many@k.test");

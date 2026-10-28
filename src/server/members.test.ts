@@ -191,6 +191,28 @@ describe("Members", () => {
         .status,
     ).toBe(200);
   });
+  it("enforces the last-owner invariant inside the database transaction", async () => {
+    await member("second@m.test", { owner: true, level: "Admin" });
+    try {
+      await expect(
+        env.DB.batch([
+          env.DB.prepare(
+            "UPDATE members SET owner=0 WHERE email='second@m.test'",
+          ),
+          env.DB.prepare(
+            "UPDATE members SET status='suspended' WHERE email='owner@m.test'",
+          ),
+        ]),
+      ).rejects.toThrow("last_active_owner");
+      const row = await env.DB.prepare(
+        "SELECT count(*) AS n FROM members WHERE owner=1 AND status='active'",
+      ).first();
+      expect(row).toEqual({ n: 2 });
+    } finally {
+      await member("owner@m.test", { owner: true, level: "Admin" });
+      await member("second@m.test", { owner: false, level: "Admin" });
+    }
+  });
   it("are audited on every change", async () => {
     await member("audited@m.test", { level: "Demo" });
     await patchMember(ownerCookie, "audited@m.test", { status: "suspended" });

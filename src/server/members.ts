@@ -210,7 +210,13 @@ export async function updateMember(
     );
   }
   statements.push(audit(c, email, "member.update", input));
-  await db.batch(statements);
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("last_active_owner"))
+      throw new AppError(409, "At least one active owner must remain");
+    throw error;
+  }
   return { ok: true };
 }
 

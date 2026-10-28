@@ -56,7 +56,7 @@ export async function settingsRoute(
     return Response.json(
       await createKey(c, keyInput.parse(await json(request))),
     );
-  const keyMatch = /^\/keys\/([0-9a-f-]{36})$/.exec(path);
+  const keyMatch = /^\/keys\/([0-9a-f]{32}|[0-9a-f-]{36})$/.exec(path);
   if (keyMatch && method === "DELETE") {
     await revokeKey(c, keyMatch[1]);
     return Response.json({ ok: true });
