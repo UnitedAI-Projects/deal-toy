@@ -29,3 +29,9 @@ Implementation is pushed in [PR #1](https://github.com/UnitedAI-Projects/deal-to
 PR #1 merged as `a0f6b72`. The dedicated 90-day account deployment token is configured in GitHub’s production environment, and an administrator app membership exists. The first token failed D1 authorization; its replacement passed D1 migration, Worker upload and CAD image registry push. [Deployment attempt 2](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40631004261/attempts/2) then failed because this account requires `durable_object` scheduling instead of `default`. The app was not yet serving at this point.
 
 The scheduling fix uses a version-pinned named CAD image and the direct Durable Object Container API. Local validation passed 17 Worker tests, 5 Python tests, formatting, type checks, browser build, dependency audit and Worker packaging. New coverage checks startup isolation, readiness retries/deadline, missing-image refusal and no replay of a failed build POST. Production deployment and authenticated acceptance remain pending this fix.
+
+## Native thread-pressure regression — 2026-10-28
+
+PR #6 passed hosted validation on retry and merged as `f88dcce`, but the main deployment checks reproduced a pre-existing native export timeout. An isolated Linux AMD64 box export with 64 same-user background threads consistently failed; a stack dump located the stall in OCCT’s STL mesher. Linux `RLIMIT_NPROC` counts other same-user tasks, so implicit parallel exporter thread creation can fail even for small models.
+
+The runner now selects OCCT’s own single-thread pool before applying its existing limits. The same Linux regression passed three times under the original memory, process, filesystem and network constraints. The regression is also in the hosted Python suite. No timeout or resource limit was increased. Production remains pending validation and deployment of this correction.
