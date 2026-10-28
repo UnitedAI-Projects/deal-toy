@@ -35,6 +35,7 @@
       {
         "queue": "deal-toy-builds",
         "max_batch_size": 1,
+        "max_concurrency": 2,
         "max_retries": 1,
       },
     ],

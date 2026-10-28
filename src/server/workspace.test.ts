@@ -1,7 +1,8 @@
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, type D1Migration } from "cloudflare:test";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { execute } from "./tools";
+import { consume } from "./builds";
 import { hash, type Context } from "./core";
 declare global {
   namespace Cloudflare {
@@ -234,5 +235,119 @@ describe("Workspace authorization and revisions", () => {
         })
       ).status,
     ).toBe(401);
+  });
+});
+
+describe("Build lifecycle", () => {
+  async function queuedJob() {
+    const { m } = await model();
+    const revision = (await execute(alice, "models_save", {
+      modelId: m.id,
+      expectedRevision: 0,
+      source: "# fixture",
+    })) as { id: string };
+    const jobId = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO jobs VALUES (?,?,'queued',NULL,NULL,?,?)")
+      .bind(
+        jobId,
+        revision.id,
+        new Date().toISOString(),
+        new Date().toISOString(),
+      )
+      .run();
+    return {
+      jobId,
+      message: {
+        body: { jobId },
+        ack: vi.fn(),
+        retry: vi.fn(),
+      } as unknown as Message<unknown>,
+    };
+  }
+  it("persists exports once and refuses another owner's download", async () => {
+    const { jobId, message } = await queuedJob();
+    const facts = {
+      units: "mm",
+      bounds: [1, 2, 3],
+      volume_mm3: 6,
+      solids: 1,
+      valid: true,
+      manufacturing_approval: "not_reviewed",
+    };
+    const artifacts = [
+      "model.step",
+      "model.stl",
+      "model.glb",
+      "facts.json",
+    ].map((name) => ({
+      name,
+      mediaType: "ignored",
+      base64: btoa(
+        name === "facts.json" ? JSON.stringify(facts) : "synthetic-test-bytes",
+      ),
+    }));
+    const container = {
+      fetch: vi.fn(async () => Response.json({ artifacts })),
+      destroy: vi.fn(async () => {}),
+    };
+    const testEnv = {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env;
+    await consume(message, testEnv);
+    await consume(message, testEnv);
+    expect(container.fetch).toHaveBeenCalledTimes(1);
+    expect(container.destroy).toHaveBeenCalledTimes(1);
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+      artifacts: { id: string }[];
+    };
+    expect(result.status).toBe("succeeded");
+    expect(result.artifacts).toHaveLength(4);
+    await expect(execute(bob, "builds_get", { jobId })).rejects.toThrow(
+      "Revision not found",
+    );
+    expect(
+      await env.ARTIFACTS.get(`builds/${jobId}/facts.json`),
+    ).not.toBeNull();
+    expect(
+      (
+        await exports.default.fetch(
+          `https://example.test/api/artifacts/${result.artifacts[0].id}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
+      ).status,
+    ).toBe(200);
+  });
+  it("removes partial exports when runtime output is invalid", async () => {
+    const { jobId, message } = await queuedJob();
+    const artifacts = [
+      "model.step",
+      "model.stl",
+      "model.glb",
+      "facts.json",
+    ].map((name) => ({
+      name,
+      mediaType: "ignored",
+      base64: btoa(name === "facts.json" ? "{}" : "test"),
+    }));
+    const container = {
+      fetch: vi.fn(async () => Response.json({ artifacts })),
+      destroy: vi.fn(async () => {}),
+    };
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+      artifacts: unknown[];
+    };
+    expect(result.status).toBe("failed");
+    expect(result.artifacts).toEqual([]);
+    expect(await env.ARTIFACTS.get(`builds/${jobId}/model.step`)).toBeNull();
+    expect(container.destroy).toHaveBeenCalledTimes(1);
   });
 });
