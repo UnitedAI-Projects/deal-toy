@@ -17,3 +17,7 @@ uv run --project engine python engine/runner.py examples/bridge.py examples/expo
 ```
 
 The STEP round-trip test reopens the export and checks its validity, bounds and volume. Export byte identity is not promised: geometry equivalence is the current contract.
+
+## Brand model
+
+[brand/](brand/README.md) holds the Mantel name shown on the sign-in screen: its build123d source, exports and the bundled Inter font with its license.

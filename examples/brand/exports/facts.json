@@ -1,0 +1,56 @@
+{
+  "units": "mm",
+  "bounds": [258.6869384939086, 22.0000002, 67.88225099390857],
+  "volume_mm3": 99527.01292180376,
+  "solids": 7,
+  "valid": true,
+  "manufacturing_approval": "not_reviewed",
+  "parts": [
+    { "label": "Mark", "volume_mm3": 21692.159999999963 },
+    { "label": "Name", "volume_mm3": 77834.8529218038 }
+  ],
+  "params": {
+    "TEXT_SIZE": {
+      "value": 56.0,
+      "unit": "mm",
+      "part": "Name",
+      "min": 20.0,
+      "max": 120.0
+    },
+    "DEPTH": {
+      "value": 22.0,
+      "unit": "mm",
+      "part": "Name",
+      "min": 4.0,
+      "max": 60.0
+    },
+    "MARK_SIZE": {
+      "value": 48.0,
+      "unit": "mm",
+      "part": "Mark",
+      "min": 20.0,
+      "max": 100.0
+    },
+    "MARK_WALL": {
+      "value": 6.0,
+      "unit": "mm",
+      "part": "Mark",
+      "min": 2.0,
+      "max": 20.0
+    },
+    "GAP": {
+      "value": 14.0,
+      "unit": "mm",
+      "part": "Mark",
+      "min": 0.0,
+      "max": 60.0
+    },
+    "EDGE": {
+      "value": 1.2,
+      "unit": "mm",
+      "part": "Name",
+      "min": 0.0,
+      "max": 3.0
+    }
+  }
+}
