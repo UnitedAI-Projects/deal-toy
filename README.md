@@ -4,9 +4,11 @@ An internal CAD workspace for the United AI deal-toy service project. Organize d
 
 ## Status
 
-Internal alpha at [Deal Toy Studio](https://unitedai-deal-toy.ivan27chen.workers.dev), requiring an administrator-issued app token. The implemented slice includes project and model creation, immutable Python revisions, queued native OCCT builds, STEP/STL/GLB exports, a 3D viewer, draft manufacturing documents, versioned skills and registered tool controls. It is not a complete manufacturing automation service. See [validation](docs/validation.md) for tested paths and deployment status, and [roadmap](docs/roadmap.md) for remaining capabilities.
+Internal alpha at [Deal Toy Studio](https://unitedai-deal-toy.ivan27chen.workers.dev), requiring an administrator-issued app token. The implemented slice includes project and model creation, immutable Python revisions, queued native OCCT builds, STEP/STL/GLB exports, draft manufacturing documents, versioned skills and registered tool controls. Agent sessions are shown live: the agent's prompt, its progress updates and every tool call stream into a chat-style panel beside the 3D model. Clicking a part shows its declared dimensions; changing one saves and rebuilds a new revision. Team members can leave notes that agents receive on their next tool call. The interface has light and dark themes. It is not a complete manufacturing automation service. See [validation](docs/validation.md) for tested paths and deployment status, and [roadmap](docs/roadmap.md) for remaining capabilities.
 
-![Modeling workspace](docs/images/workspace-desktop.jpg)
+![Live workspace with agent activity and a selected part](docs/images/workspace-light.png)
+
+[Dark theme](docs/images/workspace-dark.png) · [Phone](docs/images/workspace-mobile.png)
 
 ## Architecture
 
@@ -42,20 +44,24 @@ Create a project, open its model workspace and select **Build model**. The edito
 
 ## Connect an agent
 
-Use a Streamable HTTP MCP client with server URL `https://YOUR_APP/mcp` and an `Authorization: Bearer YOUR_PERSONAL_TOKEN` header. Store the token in the client's secret manager. Retrieve `skills_list` before modeling.
+Use a Streamable HTTP MCP client with server URL `https://YOUR_APP/mcp` and an `Authorization: Bearer YOUR_PERSONAL_TOKEN` header. Store the token in the client's secret manager. Retrieve `skills_list` and follow the `modeling` skill before modeling.
 
 Typical sequence:
 
 ```text
-projects_create({name, brief})
-models_create({projectId, name})
-models_save({modelId, expectedRevision: 0, source})
-models_build({revisionId})
-builds_get({jobId})
-documents_add({projectId, revisionId, kind: "manufacturing-brief", title, content})
+session_start({projectId, prompt})            → sessionId; the prompt appears live
+session_update({sessionId, message})          → a short progress note
+models_create({sessionId, projectId, name})
+models_save({sessionId, modelId, expectedRevision: 0, source})
+models_build({sessionId, revisionId})
+builds_get({sessionId, jobId})
+documents_add({sessionId, projectId, revisionId, kind: "manufacturing-brief", title, content})
+session_end({sessionId, summary})
 ```
 
-Python source defines `build()` returning a valid solid build123d Shape. Use millimetres and Z up. See [the editable bridge example](examples/bridge.py). Clients requiring OAuth cannot yet connect through a browser consent flow; that adapter is planned.
+Every tool accepts an optional `sessionId`. The app records every agent tool call itself; the prompt and progress notes are reported by the agent and labelled that way. Notes left by the team are appended to the agent's next tool result as quoted data.
+
+Python source defines `build()` returning build123d parts. Declare editable dimensions in a top-level `PARAMS` dictionary and return a `Compound` of labelled parts so each part is selectable. Use millimetres and Z up. See [the editable bridge example](examples/bridge.py). Clients requiring OAuth cannot yet connect through a browser consent flow; that adapter is planned.
 
 ## Extend
 

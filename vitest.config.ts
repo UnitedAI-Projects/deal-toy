@@ -17,6 +17,7 @@ export default defineConfig({
         d1Databases: ["DB"],
         r2Buckets: ["ARTIFACTS"],
         queueProducers: { BUILDS: "test-builds" },
+        durableObjects: { LIVE: { className: "ProjectLive", useSQLite: true } },
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
           ACCESS_AUD: "",

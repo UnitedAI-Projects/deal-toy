@@ -41,3 +41,16 @@ The runner now selects OCCT’s own single-thread pool before applying its exist
 [Production deployment](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40708297053) succeeded for `c71e376`. The HTTPS app and authenticated session were verified from the MacBook; project/revision creation works. GitHub verified the release SHA and anonymous API denial. Initial live CAD jobs exposed a separate container startup failure: Python’s HTTPServer reverse-resolved Cloudflare’s long container hostname and raised `UnicodeError: label too long` before opening port 8080.
 
 The internal listener now binds without reverse DNS and uses the fixed service name `cad`. A regression injects the exact hostname error; the container smoke test starts the actual HTTP listener under a 64-character hostname and requests a build over loopback. Completed live CAD acceptance must be recorded after this correction is deployed. Earlier activation notes above are historical.
+
+## Live agent workspace — 2026-10-28
+
+Local evidence for the live agent workspace and interface redesign:
+
+- 33 Worker tests pass. New coverage: session recording order and outcomes, session-less and interface recording (reads excluded), argument clipping, refusal of another member's session and of cross-project session use, single delivery of notes to running sessions, held notes delivered only to the next session, notes appended to MCP results as quoted data, parameter edits (value-only source change, team-edit event, range, stale revision, unknown parameter, ownership), single-use live tickets, owner-only ticket issue, live event delivery over a WebSocket, and cross-origin socket refusal. `setParameter` unit tests cover quoting styles, integer literals, computed values, duplicates and unsafe names.
+- 8 native Python tests pass (1 Linux-only skip on macOS), including `PARAMS` and labelled-part facts and GLB node labels.
+- Formatting, both type checks, the browser build, the dependency audit, Python lint and the Worker packaging dry run pass via `bash ci/run.sh`.
+- End-to-end with `wrangler dev` and the local CAD container: a real Claude Code agent connected over MCP, followed the updated modeling skill, and its verbatim prompt, updates and calls streamed into the browser as they happened. The built model appeared when its build finished without a reload. Clicking a part opened its parameters; changing `ARCH_RISE` from 50 to 58 produced a one-line source change, a new revision and a rebuild (height 98 → 106 mm). A note from the browser was delivered to the next MCP session. Light, dark and 390 × 844 layouts were checked without horizontal overflow. Screenshots are in `docs/images`.
+- Found during this testing and fixed: GLTFLoader rewrites node names (spaces to underscores), which broke selection of multi-word parts; computed `PARAMS` values were briefly treated as editable; a socket close code crashed the relay.
+- A dev-server reload during a running build leaves that job "running" until the 15-minute sweep. This is existing behaviour, seen locally because of code reloads.
+
+Not yet verified: hosted CI on this branch, production deployment, and a session watched from a second browser.

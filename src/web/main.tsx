@@ -1,87 +1,33 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   call,
-  download,
-  saveBlob,
   request,
   tokenKey,
-  type Artifact,
   type Project,
   type Skill,
   type Tool,
-  type Workspace,
+  type Workspace as WorkspaceData,
 } from "./api";
-const Viewer = lazy(() =>
-  import("./Viewer").then((module) => ({ default: module.Viewer })),
-);
-import sample from "../../examples/bridge.py?raw";
+import { useTheme, type ThemeChoice } from "./theme";
+import { Workspace } from "./Workspace";
 import "./style.css";
-const briefTemplate = `# Manufacturing brief — DRAFT\n\nQuantity: TBD\nMaterial and grade: TBD\nProcess: TBD with manufacturer\nFinish and colour: TBD\nCritical dimensions and tolerances: TBD\nArtwork and engraving: TBD\nAssembly and adhesives: TBD\nInspection and sample approval: Required\nPackaging and shipping: TBD\n\nOpen questions:\n- Confirm process and supplier capabilities.\n- Review dimensioned engineering drawings.\n- Approve a physical sample before batch production.\n`;
+type Identity = { email: string; role: string };
 function App() {
-  const [identity, setIdentity] = useState<{
-      email: string;
-      role: string;
-    } | null>(null),
-    [checked, setChecked] = useState(false),
-    [token, setToken] = useState("");
-  const [projects, setProjects] = useState<Project[]>([]),
-    [workspace, setWorkspace] = useState<Workspace | null>(null),
-    [selected, setSelected] = useState("");
-  const [page, setPage] = useState("projects"),
-    [tab, setTab] = useState("model"),
-    [source, setSource] = useState(sample),
-    [baseRevision, setBaseRevision] = useState(0),
-    [dirty, setDirty] = useState(false);
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [name, setName] = useState(""),
-    [brief, setBrief] = useState(""),
-    [create, setCreate] = useState(false);
-  const [documentRevision, setDocumentRevision] = useState("");
-  const [document, setDocument] = useState(briefTemplate),
-    [skills, setSkills] = useState<Skill[]>([]),
-    [toolList, setToolList] = useState<Tool[]>([]),
-    [skill, setSkill] = useState<Skill>({
-      id: "",
-      version: 0,
-      title: "",
-      description: "",
-      content: "",
-    });
-  const action = async (fn: () => Promise<void>) => {
-    setBusy(true);
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  };
-  function leaveEditor() {
-    return !dirty || window.confirm("Discard unsaved model changes?");
-  }
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  const { theme, choice, choose } = useTheme();
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [page, setPage] = useState<"projects" | "workspace" | "extensions">(
+    "projects",
+  );
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
+  const [error, setError] = useState("");
   async function loadProjects() {
     setProjects(await call<Project[]>("projects_list"));
   }
-  async function reload(projectId: string) {
-    const next = await call<Workspace>("projects_get", { projectId });
-    setWorkspace(next);
-    return next;
-  }
   async function signIn() {
-    const session = await (await request("/api/session")).json();
-    setIdentity(session);
+    setIdentity(await (await request("/api/session")).json());
     await loadProjects();
   }
   useEffect(() => {
@@ -89,777 +35,445 @@ function App() {
       .catch(() => {})
       .finally(() => setChecked(true));
   }, []);
-  useEffect(() => {
-    if (!workspace?.jobs.some((j) => ["queued", "running"].includes(j.status)))
-      return;
-    const timer = setInterval(() => {
-      void reload(workspace.project.id).catch((e) => setError(e.message));
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [workspace]);
-  function chooseModel(next: Workspace, modelId: string) {
-    const model = next.models.find((m) => m.id === modelId);
-    const revision = next.revisions.find(
-      (r) => r.model_id === modelId && r.number === model?.revision,
-    );
-    setSelected(modelId);
-    setSource(revision?.source ?? sample);
-    setBaseRevision(model?.revision ?? 0);
-    setDirty(false);
-  }
-  const currentRevision = workspace?.revisions.find(
-    (r) => r.model_id === selected && r.number === baseRevision,
-  );
-  const job = workspace?.jobs.find(
-    (j) => j.revision_id === currentRevision?.id,
-  );
-  const artifacts =
-    workspace?.artifacts.filter((a) => a.job_id === job?.id) ?? [];
-  const preview = artifacts.find((a) => a.name.endsWith(".glb"));
   async function openProject(projectId: string) {
-    if (!leaveEditor()) return;
-    setDocument(briefTemplate);
-    setDocumentRevision("");
-    const next = await reload(projectId);
-    if (next.models[0]) chooseModel(next, next.models[0].id);
-    else {
-      setSelected("");
-      setSource(sample);
-      setBaseRevision(0);
-      setDirty(false);
-    }
+    setWorkspace(await call<WorkspaceData>("projects_get", { projectId }));
     setPage("workspace");
-    setTab("model");
   }
-  async function openExtensions() {
-    if (!leaveEditor()) return;
-    setDirty(false);
-    setSkills(await call<Skill[]>("skills_list"));
-    setToolList(await (await request("/api/tools")).json());
-    setPage("extensions");
-  }
-  async function save(build: boolean) {
-    if (!workspace) return;
-    let modelId = selected;
-    if (!modelId) {
-      const model = await call<{ id: string }>("models_create", {
-        projectId: workspace.project.id,
-        name: "Model 01",
-      });
-      modelId = model.id;
-      setSelected(modelId);
+  function signOut() {
+    try {
+      sessionStorage.removeItem(tokenKey);
+    } catch {
+      // Nothing stored.
     }
-    let revisionId = currentRevision?.id;
-    if (dirty || !revisionId) {
-      const saved = await call<{ id: string; number: number }>("models_save", {
-        modelId,
-        expectedRevision: baseRevision,
-        source,
-      });
-      revisionId = saved.id;
-      setBaseRevision(saved.number);
-      setDirty(false);
-    }
-    if (build) await call("models_build", { revisionId });
-    await reload(workspace.project.id);
+    setIdentity(null);
+    setWorkspace(null);
+    setProjects([]);
+    setPage("projects");
   }
-  const header = (
-    <header>
-      <button
-        className="brand"
-        onClick={() =>
-          void action(async () => {
-            if (!leaveEditor()) return;
-            setDirty(false);
+  if (!checked) return <div className="splash">Opening your workspace…</div>;
+  if (!identity) return <SignIn onSignedIn={signIn} />;
+  if (page === "workspace" && workspace)
+    return (
+      <Workspace
+        key={workspace.project.id}
+        data={workspace}
+        reload={async () => {
+          const next = await call<WorkspaceData>("projects_get", {
+            projectId: workspace.project.id,
+          });
+          setWorkspace(next);
+          return next;
+        }}
+        me={identity}
+        theme={theme}
+        themeChoice={choice}
+        chooseTheme={choose}
+        onBack={() => {
+          setPage("projects");
+          void loadProjects().catch((e: Error) => setError(e.message));
+        }}
+        onExtensions={() => setPage("extensions")}
+        onSignOut={signOut}
+      />
+    );
+  return (
+    <div className="page">
+      <PageHeader
+        identity={identity}
+        choice={choice}
+        choose={choose}
+        page={page}
+        go={(next) => {
+          setPage(next);
+          if (next === "projects")
+            void loadProjects().catch((e: Error) => setError(e.message));
+        }}
+        onSignOut={signOut}
+      />
+      {error && (
+        <div className="toast" role="alert">
+          {error}
+          <button className="link" onClick={() => setError("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {page === "extensions" ? (
+        <Extensions identity={identity} />
+      ) : (
+        <Library
+          projects={projects}
+          onOpen={(id) =>
+            void openProject(id).catch((e: Error) => setError(e.message))
+          }
+          onCreated={async (id) => {
             await loadProjects();
-            setPage("projects");
-          })
-        }
-      >
-        <span className="brand-icon">◈</span>
-        <span>
-          DEAL TOY<span className="brand-sub">DESIGN STUDIO</span>
-        </span>
+            await openProject(id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PageHeader(props: {
+  identity: Identity;
+  choice: ThemeChoice;
+  choose: (c: ThemeChoice) => void;
+  page: string;
+  go: (page: "projects" | "extensions") => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <header className="page-header">
+      <button className="brand-link" onClick={() => props.go("projects")}>
+        <span className="mark" aria-hidden="true" />
+        Deal Toy
       </button>
-      <div className="header-right">
-        <span className="pill">UNITED AI</span>
-        {identity && (
-          <>
-            <span className="identity">{identity.email}</span>
+      <nav>
+        <button
+          className={props.page === "projects" ? "on" : ""}
+          onClick={() => props.go("projects")}
+        >
+          Projects
+        </button>
+        <button
+          className={props.page === "extensions" ? "on" : ""}
+          onClick={() => props.go("extensions")}
+        >
+          Skills and tools
+        </button>
+      </nav>
+      <div className="page-header-right">
+        <div className="segmented" role="group" aria-label="Theme">
+          {(["system", "light", "dark"] as const).map((c) => (
             <button
-              className="quiet"
-              onClick={() => {
-                if (!leaveEditor()) return;
-                setDirty(false);
-                sessionStorage.removeItem(tokenKey);
-                setIdentity(null);
-                setWorkspace(null);
-                setProjects([]);
-              }}
+              key={c}
+              className={props.choice === c ? "on" : ""}
+              aria-pressed={props.choice === c}
+              onClick={() => props.choose(c)}
             >
-              Disconnect
+              {c === "system" ? "Auto" : c === "light" ? "Light" : "Dark"}
             </button>
-          </>
-        )}
+          ))}
+        </div>
+        <span className="muted small">{props.identity.email}</span>
+        <button className="ghost" onClick={props.onSignOut}>
+          Sign out
+        </button>
       </div>
     </header>
   );
-  if (!checked)
-    return (
-      <>
-        {header}
-        <main>
-          <p>Opening your workspace…</p>
-        </main>
-      </>
-    );
-  if (!identity)
-    return (
-      <>
-        {header}
-        <main className="signin">
-          <span className="eyebrow">A WORKSPACE FOR PHYSICAL IDEAS</span>
-          <h1>
-            From a brief
-            <br />
-            to something tangible.
-          </h1>
-          <p>
-            Design, inspect, and prepare custom deal toys with your AI tools.
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sessionStorage.setItem(tokenKey, token);
-              void action(signIn);
-            }}
-          >
-            <label>
-              Personal access token
-              <input
-                type="password"
-                autoComplete="off"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                required
-              />
-            </label>
-            <button disabled={busy}>Open workspace →</button>
-          </form>
-          <p className="muted">
-            Use your administrator-issued token, or sign in through your
-            organization’s protected URL.
-          </p>
-          {error && (
-            <p role="alert" className="error">
-              {error}
-            </p>
-          )}
-        </main>
-      </>
-    );
+}
+
+function SignIn({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   return (
-    <>
-      {header}
-      <div className="shell">
-        <aside className="nav">
-          <span className="eyebrow">WORKSPACE</span>
-          <button
-            className={page !== "extensions" ? "nav-active" : ""}
-            onClick={() =>
-              void action(async () => {
-                if (!leaveEditor()) return;
-                setDirty(false);
-                await loadProjects();
-                setPage("projects");
-              })
-            }
-          >
-            ▦ <span>Projects</span>
-          </button>
-          <button
-            className={page === "extensions" ? "nav-active" : ""}
-            onClick={() => void action(openExtensions)}
-          >
-            ⌘ <span>Skills & tools</span>
-          </button>
-          <div className="nav-bottom">
-            <span className="status-dot" /> build123d + OCCT
-            <p>Agent-connected CAD</p>
-          </div>
-        </aside>
-        <main>
-          {error && (
-            <div role="alert" className="error">
-              {error}
-              <button className="quiet" onClick={() => setError("")}>
-                Dismiss
-              </button>
-            </div>
-          )}
-          {page === "projects" && (
-            <>
-              <div className="page-heading">
-                <div>
-                  <span className="eyebrow">YOUR DESIGN LIBRARY</span>
-                  <h1>Projects</h1>
-                  <p>
-                    Every design, revision, and manufacturing detail in one
-                    place.
-                  </p>
-                </div>
-                <button disabled={busy} onClick={() => setCreate(!create)}>
-                  ＋ New project
-                </button>
-              </div>
-              {create && (
-                <form
-                  className="panel create-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void action(async () => {
-                      const p = await call<Project>("projects_create", {
-                        name,
-                        brief,
-                      });
-                      setName("");
-                      setBrief("");
-                      setCreate(false);
-                      await loadProjects();
-                      await openProject(p.id);
-                    });
-                  }}
-                >
-                  <label>
-                    Project name
-                    <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      maxLength={120}
-                      placeholder="e.g. Infrastructure acquisition"
-                      required
-                    />
-                  </label>
-                  <label>
-                    Design brief
-                    <textarea
-                      value={brief}
-                      onChange={(e) => setBrief(e.target.value)}
-                      placeholder="What does this piece commemorate? Include dimensions, quantity, and constraints you know."
-                      maxLength={12000}
-                    />
-                  </label>
-                  <button disabled={busy}>Create project</button>
-                </form>
-              )}
-              <div className="project-grid">
-                {projects.map((p, index) => (
-                  <button
-                    className="project-card"
-                    key={p.id}
-                    onClick={() => void action(() => openProject(p.id))}
-                  >
-                    <div className={`project-art art-${index % 3}`}>
-                      <span>◇</span>
-                      <span className="project-number">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                    </div>
-                    <div className="card-body">
-                      <span className="eyebrow">DESIGN PROJECT</span>
-                      <h2>{p.name}</h2>
-                      <p>{p.brief || "Ready for your first model."}</p>
-                      <div className="card-meta">
-                        {new Date(p.created_at).toLocaleDateString()}{" "}
-                        <span>Open workspace ↗</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-                {!projects.length && (
-                  <div className="empty-library">
-                    <span className="large-symbol">▱</span>
-                    <h2>A home for your next idea.</h2>
-                    <p>
-                      Create a project to start modeling and collecting the
-                      details your manufacturer needs.
-                    </p>
-                    <button onClick={() => setCreate(true)}>
-                      Create your first project
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="library-note">
-                <span>01 / BRIEF</span>
-                <span>02 / MODEL & REFINE</span>
-                <span>03 / PREPARE FOR MANUFACTURING</span>
-              </div>
-            </>
-          )}
-          {page === "workspace" && workspace && (
-            <>
-              <button
-                className="breadcrumb quiet"
-                onClick={() => {
-                  if (!leaveEditor()) return;
-                  setDirty(false);
-                  setPage("projects");
-                }}
-              >
-                Projects / <strong>{workspace.project.name}</strong>
-              </button>
-              <div className="page-heading compact">
-                <div>
-                  <h1>{workspace.project.name}</h1>
-                  <p>
-                    {workspace.project.brief ||
-                      "Add your model and build from here."}
-                  </p>
-                </div>
-                <span className="pill">DESIGN IN PROGRESS</span>
-              </div>
-              <div className="tabs">
-                <button
-                  className={tab === "model" ? "active" : ""}
-                  onClick={() => setTab("model")}
-                >
-                  Model workspace
-                </button>
-                <button
-                  className={tab === "documents" ? "active" : ""}
-                  onClick={() => {
-                    setDocumentRevision(currentRevision?.id ?? "");
-                    setTab("documents");
-                  }}
-                >
-                  Manufacturing documents{" "}
-                  <small>{workspace.documents.length}</small>
-                </button>
-                <button
-                  className={tab === "connect" ? "active" : ""}
-                  onClick={() => setTab("connect")}
-                >
-                  Connect an agent
-                </button>
-              </div>
-              {tab === "model" && (
-                <>
-                  <div className="model-toolbar">
-                    <select
-                      aria-label="Model"
-                      value={selected}
-                      onChange={(e) => {
-                        if (dirty) {
-                          setError(
-                            "Save your changes before switching models.",
-                          );
-                          return;
-                        }
-                        chooseModel(workspace, e.target.value);
-                      }}
-                    >
-                      <option value="">New model</option>
-                      {workspace.models.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} · revision {m.revision}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="secondary"
-                      disabled={busy || dirty}
-                      onClick={() =>
-                        void action(async () => {
-                          const m = await call<{ id: string }>(
-                            "models_create",
-                            {
-                              projectId: workspace.project.id,
-                              name: `Model ${String(workspace.models.length + 1).padStart(2, "0")}`,
-                            },
-                          );
-                          const next = await reload(workspace.project.id);
-                          chooseModel(next, m.id);
-                        })
-                      }
-                    >
-                      ＋ Add model
-                    </button>
-                    <span className="spacer" />
-                    <span className="muted">
-                      {dirty ? "Unsaved changes" : `Revision ${baseRevision}`}
-                    </span>
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => void action(() => save(false))}
-                    >
-                      Save
-                    </button>
-                    <button
-                      disabled={
-                        busy ||
-                        job?.status === "queued" ||
-                        job?.status === "running"
-                      }
-                      onClick={() => void action(() => save(true))}
-                    >
-                      {job?.status === "queued" || job?.status === "running"
-                        ? "Building…"
-                        : "Build model ↗"}
-                    </button>
-                  </div>
-                  <div className="model-layout">
-                    <section className="source-panel">
-                      <div className="panel-title">
-                        model.py <span>PYTHON</span>
-                      </div>
-                      <textarea
-                        className="code"
-                        aria-label="Python model source"
-                        spellCheck={false}
-                        value={source}
-                        onChange={(e) => {
-                          setSource(e.target.value);
-                          setDirty(true);
-                        }}
-                      />
-                      <div className="code-help">
-                        Define <code>build()</code> and return a build123d
-                        solid. Units: mm.
-                      </div>
-                    </section>
-                    <Suspense
-                      fallback={<div className="viewer">Loading 3D view…</div>}
-                    >
-                      <Viewer artifactId={preview?.id} />
-                    </Suspense>
-                  </div>
-                  <div className="build-footer">
-                    <div>
-                      <span className="eyebrow">BUILD STATUS</span>
-                      <h3>{job?.status ?? "Not built yet"}</h3>
-                      {job?.error && <pre className="error">{job.error}</pre>}
-                      {job?.facts && (
-                        <p>
-                          {JSON.parse(job.facts)
-                            .bounds.map((n: number) => n.toFixed(1))
-                            .join(" × ")}{" "}
-                          mm · {JSON.parse(job.facts).solids} solid(s)
-                        </p>
-                      )}
-                      <p className="muted">
-                        {dirty
-                          ? "Preview shows the last built revision; save and build to update."
-                          : "Exports belong to the selected saved revision."}
-                      </p>
-                    </div>
-                    <div className="exports">
-                      {artifacts.map((a: Artifact) => (
-                        <button
-                          className="secondary"
-                          key={a.id}
-                          onClick={() =>
-                            void action(() => download(a.id, a.name))
-                          }
-                        >
-                          ↓ {a.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-              {tab === "documents" && (
-                <div className="documents-layout">
-                  <section className="panel">
-                    <span className="eyebrow">MANUFACTURING BRIEF</span>
-                    <h2>Make the handoff explicit.</h2>
-                    <p>
-                      Record materials, finishes, tolerances, assembly and
-                      inspection requirements. New entries preserve previous
-                      versions.
-                    </p>
-                    <label>
-                      Revision to document
-                      <select
-                        disabled={!workspace.revisions.length}
-                        value={documentRevision}
-                        onChange={(e) => setDocumentRevision(e.target.value)}
-                      >
-                        <option value="">Project-wide</option>
-                        {workspace.revisions.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {
-                              workspace.models.find((m) => m.id === r.model_id)
-                                ?.name
-                            }{" "}
-                            / rev {r.number}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Brief
-                      <textarea
-                        className="document-editor"
-                        value={document}
-                        onChange={(e) => setDocument(e.target.value)}
-                        maxLength={30000}
-                      />
-                    </label>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void action(async () => {
-                          await call("documents_add", {
-                            projectId: workspace.project.id,
-                            revisionId: documentRevision || undefined,
-                            kind: "manufacturing-brief",
-                            title: "Manufacturing brief",
-                            content: document,
-                          });
-                          await reload(workspace.project.id);
-                        })
-                      }
-                    >
-                      Save draft brief
-                    </button>
-                  </section>
-                  <section>
-                    <div className="notice">
-                      <strong>Design review required</strong>
-                      <p>
-                        Geometry validation does not establish
-                        manufacturability. Dimensioned drawings,
-                        process-specific DFM, supplier confirmation, and sample
-                        approval remain review steps.
-                      </p>
-                    </div>
-                    {workspace.documents.map((d) => (
-                      <article className="panel document-card" key={d.id}>
-                        <span className="pill">
-                          DRAFT · VERSION {d.version}
-                        </span>
-                        <h3>{d.title}</h3>
-                        <p className="muted">
-                          {d.model_revision_id
-                            ? `Model revision ${workspace.revisions.find((r) => r.id === d.model_revision_id)?.number}`
-                            : "Project-wide document"}
-                        </p>
-                        <pre>{d.content}</pre>
-                        <button
-                          className="secondary"
-                          onClick={() => {
-                            setDocument(d.content);
-                            setDocumentRevision(d.model_revision_id ?? "");
-                          }}
-                        >
-                          Use as next draft
-                        </button>
-                        <button
-                          className="quiet"
-                          onClick={() =>
-                            saveBlob(
-                              new Blob([d.content], {
-                                type: "text/markdown;charset=utf-8",
-                              }),
-                              `${d.kind}-v${d.version}.md`,
-                            )
-                          }
-                        >
-                          Download draft
-                        </button>
-                      </article>
-                    ))}
-                  </section>
-                </div>
-              )}
-              {tab === "connect" && (
-                <section className="panel connect">
-                  <span className="eyebrow">BRING YOUR AI</span>
-                  <h2>One workspace. Your choice of agent.</h2>
-                  <p>
-                    Connect an MCP client that supports Streamable HTTP and
-                    bearer authentication.
-                  </p>
-                  <label>
-                    Server endpoint
-                    <input readOnly value={`${location.origin}/mcp`} />
-                  </label>
-                  <p>
-                    Use an administrator-issued personal token as the
-                    Authorization bearer token. Keep it in your client’s secret
-                    store.
-                  </p>
-                  <pre>{`1. projects_list → choose this project\n2. models_create → models_save\n3. models_build → builds_get\n4. documents_add → revision-linked manufacturing notes`}</pre>
-                  <p className="muted">
-                    Browser-based clients that require OAuth need the planned
-                    OAuth adapter. A chat subscription alone does not guarantee
-                    MCP support.
-                  </p>
-                </section>
-              )}
-            </>
-          )}
-          {page === "extensions" && (
-            <>
-              <div className="page-heading">
-                <div>
-                  <span className="eyebrow">EXTEND YOUR WORKSPACE</span>
-                  <h1>Skills & tools</h1>
-                  <p>
-                    Workflow guidance and typed actions, managed independently.
-                  </p>
-                </div>
-              </div>
-              <div className="extensions-layout">
-                <section>
-                  <h2>Workflow skills</h2>
-                  {skills.map((s) => (
-                    <button
-                      key={s.id}
-                      className="skill-card"
-                      onClick={() => setSkill(s)}
-                    >
-                      <strong>{s.title}</strong>
-                      <span>v{s.version}</span>
-                      <p>{s.description}</p>
-                    </button>
-                  ))}
-                  {identity.role === "admin" && (
-                    <button
-                      className="secondary"
-                      onClick={() =>
-                        setSkill({
-                          id: "",
-                          version: 0,
-                          title: "",
-                          description: "",
-                          content: "",
-                        })
-                      }
-                    >
-                      ＋ New skill
-                    </button>
-                  )}
-                  <h2 className="section-gap">Registered tools</h2>
-                  {toolList.map((t) => (
-                    <div className="tool-row" key={t.name}>
-                      <div>
-                        <strong>{t.name}</strong>
-                        <p>{t.description}</p>
-                      </div>
-                      <label className="toggle">
-                        <input
-                          type="checkbox"
-                          checked={t.enabled}
-                          disabled={
-                            identity.role !== "admin" ||
-                            t.name === "tools_configure" ||
-                            busy
-                          }
-                          onChange={(e) =>
-                            void action(async () => {
-                              await call("tools_configure", {
-                                name: t.name,
-                                enabled: e.target.checked,
-                              });
-                              await openExtensions();
-                            })
-                          }
-                        />
-                        Enabled
-                      </label>
-                    </div>
-                  ))}
-                  <p className="muted">
-                    Add executable tools through the repository’s typed registry
-                    and PR checks.
-                  </p>
-                </section>
-                <form
-                  className="panel skill-editor"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void action(async () => {
-                      await call("skills_save", {
-                        skillId: skill.id,
-                        expectedVersion: skill.version,
-                        title: skill.title,
-                        description: skill.description,
-                        content: skill.content,
-                      });
-                      const next = await call<Skill[]>("skills_list");
-                      setSkills(next);
-                      setSkill(next.find((s) => s.id === skill.id)!);
-                    });
-                  }}
-                >
-                  <span className="eyebrow">SKILL EDITOR</span>
-                  <h2>{skill.title || "New workflow skill"}</h2>
-                  <label>
-                    Identifier
-                    <input
-                      required
-                      pattern="[a-z][a-z0-9-]{1,59}"
-                      value={skill.id}
-                      disabled={skill.version > 0 || identity.role !== "admin"}
-                      onChange={(e) =>
-                        setSkill({ ...skill, id: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Title
-                    <input
-                      required
-                      value={skill.title}
-                      onChange={(e) =>
-                        setSkill({ ...skill, title: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Description
-                    <input
-                      required
-                      value={skill.description}
-                      onChange={(e) =>
-                        setSkill({ ...skill, description: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Markdown instructions
-                    <textarea
-                      required
-                      value={skill.content}
-                      onChange={(e) =>
-                        setSkill({ ...skill, content: e.target.value })
-                      }
-                    />
-                  </label>
-                  {identity.role === "admin" && (
-                    <button disabled={busy}>
-                      Publish version {skill.version + 1}
-                    </button>
-                  )}
-                  <p className="muted">
-                    Skills provide guidance. They cannot change access or
-                    execute new server code.
-                  </p>
-                </form>
-              </div>
-            </>
-          )}
-          <footer>
-            DEAL TOY STUDIO{" "}
-            <span>Built for the details that make it real.</span>
-          </footer>
-        </main>
+    <main className="signin">
+      <form
+        className="card"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            sessionStorage.setItem(tokenKey, token);
+          } catch {
+            // The token still works for this request.
+          }
+          onSignedIn()
+            .catch((err: Error) => setError(err.message))
+            .finally(() => setBusy(false));
+        }}
+      >
+        <span className="mark large" aria-hidden="true" />
+        <h1>Deal Toy Studio</h1>
+        <p className="muted">
+          Watch your agents model deal toys, then refine them together.
+        </p>
+        <label>
+          Personal access token
+          <input
+            type="password"
+            autoComplete="off"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            required
+          />
+        </label>
+        <button disabled={busy}>Open workspace</button>
+        <p className="muted small">
+          Use your administrator-issued token, or sign in through your
+          organization's protected URL.
+        </p>
+        {error && (
+          <p role="alert" className="inline-error">
+            {error}
+          </p>
+        )}
+      </form>
+    </main>
+  );
+}
+
+function Library(props: {
+  projects: Project[];
+  onOpen: (id: string) => void;
+  onCreated: (id: string) => Promise<void>;
+}) {
+  const [create, setCreate] = useState(false);
+  const [name, setName] = useState("");
+  const [brief, setBrief] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <main className="library">
+      <div className="library-head">
+        <div>
+          <h1>Projects</h1>
+          <p className="muted">
+            Every design, its agent sessions and revisions.
+          </p>
+        </div>
+        <button onClick={() => setCreate(!create)}>New project</button>
       </div>
-    </>
+      {create && (
+        <form
+          className="card create"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setBusy(true);
+            setError("");
+            call<Project>("projects_create", { name, brief })
+              .then((p) => props.onCreated(p.id))
+              .catch((err: Error) => setError(err.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          <label>
+            Project name
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              placeholder="Infrastructure acquisition"
+              required
+            />
+          </label>
+          <label>
+            Design brief
+            <textarea
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              placeholder="What the piece commemorates, its size, quantity and any constraints you know."
+              maxLength={12000}
+            />
+          </label>
+          <div className="row">
+            <button disabled={busy}>Create project</button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setCreate(false)}
+            >
+              Cancel
+            </button>
+          </div>
+          {error && <p className="inline-error">{error}</p>}
+        </form>
+      )}
+      <div className="grid">
+        {props.projects.map((p) => (
+          <button
+            className="project"
+            key={p.id}
+            onClick={() => props.onOpen(p.id)}
+          >
+            <span className="project-art" aria-hidden="true">
+              <span className="mark" />
+            </span>
+            <strong>{p.name}</strong>
+            <span className="muted clamp">
+              {p.brief || "Ready for its first model."}
+            </span>
+            <span className="muted small">
+              {new Date(p.created_at).toLocaleDateString()}
+            </span>
+          </button>
+        ))}
+      </div>
+      {!props.projects.length && !create && (
+        <div className="empty">
+          <h2>Start your first project</h2>
+          <p className="muted">
+            Create a project, then point your agent at it. Its prompt and every
+            step show up live next to the model.
+          </p>
+          <button onClick={() => setCreate(true)}>Create project</button>
+        </div>
+      )}
+    </main>
+  );
+}
+
+const blankSkill: Skill = {
+  id: "",
+  version: 0,
+  title: "",
+  description: "",
+  content: "",
+};
+function Extensions({ identity }: { identity: Identity }) {
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [skill, setSkill] = useState<Skill>(blankSkill);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const admin = identity.role === "admin";
+  async function load() {
+    setSkills(await call<Skill[]>("skills_list"));
+    setTools(await (await request("/api/tools")).json());
+  }
+  useEffect(() => {
+    void load().catch((e: Error) => setError(e.message));
+  }, []);
+  const run = (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError("");
+    fn()
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <main className="extensions">
+      <div className="library-head">
+        <div>
+          <h1>Skills and tools</h1>
+          <p className="muted">
+            Workflow guidance and typed actions, managed separately.
+          </p>
+        </div>
+      </div>
+      {error && <p className="inline-error">{error}</p>}
+      <div className="split">
+        <section>
+          <h2>Workflow skills</h2>
+          {skills.map((s) => (
+            <button
+              key={s.id}
+              className={`list-row ${skill.id === s.id ? "on" : ""}`}
+              onClick={() => setSkill(s)}
+            >
+              <strong>{s.title}</strong>
+              <span className="tag">v{s.version}</span>
+              <span className="muted small">{s.description}</span>
+            </button>
+          ))}
+          {admin && (
+            <button className="secondary" onClick={() => setSkill(blankSkill)}>
+              New skill
+            </button>
+          )}
+          <h2>Registered tools</h2>
+          {tools.map((t) => (
+            <div className="list-row static" key={t.name}>
+              <code>{t.name}</code>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={t.enabled}
+                  disabled={!admin || t.name === "tools_configure" || busy}
+                  onChange={(e) =>
+                    run(async () => {
+                      await call("tools_configure", {
+                        name: t.name,
+                        enabled: e.target.checked,
+                      });
+                      await load();
+                    })
+                  }
+                />
+                Enabled
+              </label>
+              <span className="muted small">{t.description}</span>
+            </div>
+          ))}
+          <p className="muted small">
+            New executable tools go through the repository's typed registry and
+            PR checks.
+          </p>
+        </section>
+        <form
+          className="card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(async () => {
+              await call("skills_save", {
+                skillId: skill.id,
+                expectedVersion: skill.version,
+                title: skill.title,
+                description: skill.description,
+                content: skill.content,
+              });
+              const next = await call<Skill[]>("skills_list");
+              setSkills(next);
+              setSkill(next.find((s) => s.id === skill.id) ?? blankSkill);
+            });
+          }}
+        >
+          <h2>{skill.title || "New workflow skill"}</h2>
+          <label>
+            Identifier
+            <input
+              required
+              pattern="[a-z][a-z0-9-]{1,59}"
+              value={skill.id}
+              disabled={skill.version > 0 || !admin}
+              onChange={(e) => setSkill({ ...skill, id: e.target.value })}
+            />
+          </label>
+          <label>
+            Title
+            <input
+              required
+              value={skill.title}
+              disabled={!admin}
+              onChange={(e) => setSkill({ ...skill, title: e.target.value })}
+            />
+          </label>
+          <label>
+            Description
+            <input
+              required
+              value={skill.description}
+              disabled={!admin}
+              onChange={(e) =>
+                setSkill({ ...skill, description: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            Markdown instructions
+            <textarea
+              className="code editor"
+              required
+              value={skill.content}
+              disabled={!admin}
+              onChange={(e) => setSkill({ ...skill, content: e.target.value })}
+            />
+          </label>
+          {admin && (
+            <button disabled={busy}>Publish version {skill.version + 1}</button>
+          )}
+          <p className="muted small">
+            Skills guide agents. They cannot change access or run new server
+            code.
+          </p>
+        </form>
+      </div>
+    </main>
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);

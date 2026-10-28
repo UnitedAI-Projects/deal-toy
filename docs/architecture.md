@@ -26,11 +26,22 @@ Each project currently has one owner. Team membership allows application access,
 
 ## Agent contracts
 
-A tool is a typed schema, description, read-only annotation and handler. Both HTTP and MCP call `execute`, including current tool settings and authorization. Add operations to the registry and test their authorization/failure paths. The interface lists registered tools and allows administrators to disable them; adding server executable code requires a reviewed deployment.
+A tool is a typed schema, description, read-only annotation and handler. Both HTTP and MCP call the shared dispatcher, including current tool settings and authorization. Add operations to the registry and test their authorization/failure paths. The interface lists registered tools and allows administrators to disable them; adding server executable code requires a reviewed deployment.
 
 A skill is versioned Markdown workflow guidance. Two built-in skills ship with the app. Administrators can publish replacements or new skills in the interface. Read the latest catalog through `skills_list` or `deal-toy://skills`. This does not automatically install skills in a client's local skill directory, nor does it grant tools permissions. Clients must explicitly retrieve and follow the workflows.
 
 `models_save` accepts an expected revision and uses a transactional conditional write. Source conflicts never silently overwrite newer work. Builds reference immutable revision IDs; documents reference that same revision. A source edit does not update old exports or old documentation.
+
+## Agent sessions and live activity
+
+See [the design](superpowers/specs/2026-10-28-agent-live-workspace-design.md) for intent and decisions.
+
+- **Sessions** are declared by agents with `session_start` (verbatim prompt), `session_update` and `session_end`. Every tool accepts an optional `sessionId`. The MCP transport stays stateless.
+- **Recording.** The dispatcher appends one `project_events` row per agent (MCP) tool call, and per mutating call from the interface: tool, success, duration, a short summary and clipped arguments. Source code is summarized, not stored twice. Agent-reported content (prompt, updates, summary) is labelled as reported in the interface. Per-event and per-session size caps apply.
+- **Team notes** (`notes_add`) and parameter edits are project events. Each is delivered once to every session that was running when it was written, appended to that session's next MCP tool result as quoted data. A note written while no session runs waits for the next `session_start` (or a session-less `projects_get`). Deliveries are recorded in `note_deliveries`.
+- **Live delivery.** One `ProjectLive` Durable Object per project relays new events and "workspace changed" signals to browsers over hibernating WebSockets. It stores no project data; D1 is the record, and browsers load history with `projects_activity` before following the stream. Browsers cannot send bearer headers on a socket, so the authenticated API issues a single-use, 60-second ticket bound to that project's relay. Socket upgrades pass the same same-origin check as other API requests.
+- **Parameters.** Model scripts declare editable dimensions in `PARAMS` with a part label, unit and optional range. The runner reads them inside the sandbox after `build()` and adds them, with the labelled parts and their volumes, to the geometry facts. `models_set_parameter` replaces exactly one numeric `value` literal in the latest revision's source, refusing ambiguous, computed or out-of-range edits, then saves a new revision through the normal conflict check and queues its build. `volume_mm3` sums part volumes, so overlapping parts count twice.
+- **Access** is unchanged: projects remain owner-only. Project sharing with roles is the next increment.
 
 ## Identity and isolation
 

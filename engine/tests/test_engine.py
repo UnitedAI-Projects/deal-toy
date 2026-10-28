@@ -23,6 +23,31 @@ def test_real_geometry_and_export_round_trip(tmp_path):
     assert json.loads((tmp_path / "facts.json").read_text())["manufacturing_approval"] == "not_reviewed"
 
 
+def test_params_and_labelled_parts_reach_the_facts(tmp_path):
+    source = tmp_path / "model.py"
+    source.write_text(
+        "import build123d as bd\n"
+        "PARAMS = {'WIDTH': {'value': 20, 'unit': 'mm', 'part': 'Base', 'min': 5, 'note': 'x'}}\n"
+        "def build():\n"
+        "    base = bd.Box(PARAMS['WIDTH']['value'], 10, 2); base.label = 'Base'\n"
+        "    post = bd.Pos(0, 0, 5) * bd.Box(2, 2, 8); post.label = 'Post'\n"
+        "    return bd.Compound(children=[base, post])\n")
+    facts = build(source, tmp_path / "out")
+    assert facts["params"] == {"WIDTH": {"value": 20.0, "unit": "mm", "part": "Base", "min": 5.0}}
+    assert [p["label"] for p in facts["parts"]] == ["Base", "Post"]
+    assert facts["parts"][0]["volume_mm3"] == pytest.approx(400)
+    glb = (tmp_path / "out" / "model.glb").read_bytes()
+    assert b'"Base"' in glb and b'"Post"' in glb
+
+
+def test_invalid_params_fail_the_build(tmp_path):
+    source = tmp_path / "model.py"
+    source.write_text("import build123d as bd\nPARAMS = {'W': {'value': 'wide'}}\n"
+                      "def build():\n    return bd.Box(1, 1, 1)\n")
+    with pytest.raises(ValueError, match="numeric 'value'"):
+        build(source, tmp_path / "out")
+
+
 def test_isolated_child_reports_invalid_model():
     with pytest.raises(ValueError, match="valid solid"):
         execute("def build():\n    return 'not geometry'\n")
