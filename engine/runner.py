@@ -6,10 +6,15 @@ import sys
 from pathlib import Path
 
 import build123d as bd
+from OCP.OSD import OSD_Parallel, OSD_ThreadPool
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 
 def limits():
+    # OCCT's parallel exporters can deadlock when Linux refuses new threads
+    # under RLIMIT_NPROC. Use a single OCCT thread without relaxing job limits.
+    OSD_Parallel.SetUseOcctThreads_s(True)
+    OSD_ThreadPool.DefaultPool_s(1).Init(1)
     resource.setrlimit(resource.RLIMIT_CPU, (50, 50))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_ARTIFACT_BYTES, MAX_ARTIFACT_BYTES))
     resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))

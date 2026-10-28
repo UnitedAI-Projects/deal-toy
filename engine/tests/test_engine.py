@@ -1,5 +1,6 @@
 import json
 import sys
+import threading
 from pathlib import Path
 
 import build123d as bd
@@ -40,3 +41,22 @@ def test_source_limit():
 def test_service_exports_all_formats():
     result = execute("import build123d as bd\ndef build():\n    return bd.Box(10, 20, 30)\n")
     assert {a["name"] for a in result["artifacts"]} == {"model.step", "model.stl", "model.glb", "facts.json"}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux RLIMIT_NPROC counts same-user threads")
+def test_export_under_same_user_thread_pressure():
+    # Hosted runners share the UID with other processes. The child's 64-task
+    # limit must not strand OCCT waiting for exporter threads it cannot create.
+    stop = threading.Event()
+    threads = [threading.Thread(target=stop.wait, daemon=True) for _ in range(64)]
+    try:
+        for thread in threads:
+            thread.start()
+        result = execute("import build123d as bd\ndef build():\n    return bd.Box(10, 20, 30)\n")
+        assert {a["name"] for a in result["artifacts"]} == {
+            "model.step", "model.stl", "model.glb", "facts.json"}
+    finally:
+        stop.set()
+        for thread in threads:
+            if thread.ident is not None:
+                thread.join(timeout=5)
