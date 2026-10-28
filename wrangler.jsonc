@@ -77,11 +77,19 @@
   "triggers": {
     "crons": ["*/5 * * * *"],
   },
+  // GOOGLE_CLIENT_SECRET is a Worker secret (wrangler secret put GOOGLE_CLIENT_SECRET).
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "https://snowy-voice-36a1.cloudflareaccess.com",
-    "ACCESS_AUD": "d92a3553a93773fddbed204b4a6ff3c69636e03aa984938460adadc00f113903",
+    "GOOGLE_CLIENT_ID": "",
+    "DAILY_BUILD_LIMIT": "100",
     "RELEASE_SHA": "development",
   },
+  "ratelimits": [
+    {
+      "name": "AUTH_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 20, "period": 60 },
+    },
+  ],
   "observability": {
     "enabled": true,
     "traces": {

@@ -9,6 +9,7 @@ import {
 } from "./auth";
 import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
 import { consume } from "./builds";
+import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
 import { mcp } from "./mcp";
 export { CadContainer } from "./builds";
@@ -60,6 +61,13 @@ export default {
         return env.LIVE.getByName(liveMatch[1]).fetch(request);
       }
       const userAgent = request.headers.get("User-Agent") ?? "";
+      if (url.pathname === "/api/auth/google/start" && request.method === "GET")
+        return secure(await googleStart(request, env));
+      if (
+        url.pathname === "/api/auth/google/callback" &&
+        request.method === "GET"
+      )
+        return secure(await googleCallback(request, env));
       // Sign-in links open the app at /link#token; the page redeems the token with a
       // same-origin POST, so another site cannot sign a browser into someone else's account.
       if (url.pathname === "/api/auth/link" && request.method === "POST") {
