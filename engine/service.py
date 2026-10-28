@@ -6,12 +6,23 @@ import signal
 import subprocess
 import sys
 import tempfile
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer as BaseHTTPServer
 from pathlib import Path
+from socketserver import TCPServer
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 FILES = {"model.step": "application/step", "model.stl": "model/stl",
          "model.glb": "model/gltf-binary", "facts.json": "application/json"}
+
+
+class HTTPServer(BaseHTTPServer):
+    """Internal listener: container IDs need not be valid DNS hostnames."""
+
+    def server_bind(self):
+        TCPServer.server_bind(self)
+        self.server_name = "cad"
+        self.server_port = self.server_address[1]
 
 
 def execute(source: str, timeout=60):

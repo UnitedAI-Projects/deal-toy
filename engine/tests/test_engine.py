@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from runner import build
-from service import execute
+from service import Handler, HTTPServer, execute
 
 
 def test_real_geometry_and_export_round_trip(tmp_path):
@@ -41,6 +41,15 @@ def test_source_limit():
 def test_service_exports_all_formats():
     result = execute("import build123d as bd\ndef build():\n    return bd.Box(10, 20, 30)\n")
     assert {a["name"] for a in result["artifacts"]} == {"model.step", "model.stl", "model.glb", "facts.json"}
+
+
+def test_http_startup_does_not_resolve_container_hostname(monkeypatch):
+    def invalid_hostname(_host):
+        raise UnicodeError("label too long")
+    monkeypatch.setattr("socket.getfqdn", invalid_hostname)
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        assert server.server_port > 0
+        assert server.server_name == "cad"
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux RLIMIT_NPROC counts same-user threads")
