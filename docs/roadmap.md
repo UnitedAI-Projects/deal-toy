@@ -8,6 +8,7 @@
 - Stateless HTTP MCP using the same permission-checked tool registry as the web UI.
 - Versioned skills, tool enable/disable controls, draft manufacturing documents.
 - GitHub-hosted tests and isolated Cloudflare release workflow; no agent runner.
+- Live agent sessions: verbatim prompts, progress notes, recorded tool calls, team notes delivered on the next tool call, WebSocket updates, click-to-edit part parameters and light/dark themes.
 
 ## Next: manufacturer-ready package
 
@@ -18,7 +19,7 @@
 
 ## Next: team and client access
 
-- Project sharing with explicit viewer/editor/approver roles.
+- Project sharing with explicit viewer/editor/approver roles. Sessions, events and notes are already keyed by project, so sharing changes access checks, not the activity model.
 - OAuth for clients that require browser consent rather than bearer configuration.
 - Per-member quotas, cancellation and usage accounting.
 - Reference uploads with scoped read access, asset provenance and independent artifact checks.

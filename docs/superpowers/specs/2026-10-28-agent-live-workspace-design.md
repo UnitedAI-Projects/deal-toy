@@ -19,7 +19,7 @@ These were decided by the product owner and are not open:
 - **Zero-interface layout.** The model fills the screen. The chat panel floats beside it. Clicking a part opens a small popover with that part's dimensions and an "ask the agent to change this part" action.
 - **Look:** modern and professional. The professional baseline is the restraint of CAD tools such as SolidCraft and CADCraft. The agent panel borrows from the "AI-native UI" style (conversation layout, compact cards, a thinking indicator). The canvas borrows from "Zero interface" (minimal chrome, controls appear on demand).
 - **Light modern and dark modern themes**, switchable by the user.
-- **Access stays owner-only in this version.** Each project remains visible only to its owner, as it is today, so "team note" means the owner writing to their own agents. Project sharing with roles is the next increment (see `docs/roadmap.md`). The event and notes design already keys everything by project, so sharing can be added without reshaping it. *(Default chosen while the sharing question was unanswered; the product owner can revise it.)*
+- **Access stays owner-only in this version.** Each project remains visible only to its owner, as it is today, so "team note" means the owner writing to their own agents. Project sharing with roles is the next increment (see `docs/roadmap.md`). The event and notes design already keys everything by project, so sharing can be added without reshaping it. _(Default chosen while the sharing question was unanswered; the product owner can revise it.)_
 
 ## Goals
 
@@ -49,7 +49,7 @@ The redesign fails, even if it works technically, if any of these happen:
 
 ### Recording
 
-A session is declared by the agent: it starts with `session_start`, which returns a `sessionId`, and ends with `session_end`. The MCP transport stays stateless, as it is today. A session is not tied to a transport connection, and no stateful MCP transport is introduced. *(Builder-check answer, my call.)*
+A session is declared by the agent: it starts with `session_start`, which returns a `sessionId`, and ends with `session_end`. The MCP transport stays stateless, as it is today. A session is not tied to a transport connection, and no stateful MCP transport is introduced. _(Builder-check answer, my call.)_
 
 New D1 tables (names are suggestions):
 
@@ -70,11 +70,11 @@ Added to the existing typed registry, with the same authorization, enablement an
 
 The existing modelling tools (`models_save`, `models_build`, `builds_get`, `documents_add` and the others) accept an optional `sessionId`, so their recorded calls and revisions attach to the session. The built-in `modeling` skill is updated to tell agents to call `session_start` first, send updates before meaningful steps, pass `sessionId` to every call and end the session.
 
-Calls without a session are still recorded. They are grouped as "unlabelled agent activity" per project, token and 30-minute idle window. *(My call.)*
+Calls without a session are still recorded. They are grouped as "unlabelled agent activity" per project, token and 30-minute idle window. _(My call.)_
 
 ### Notes from the team to the agent
 
-The chat composer writes a `team_note` event at project level. The app cannot push messages to an agent, so notes are delivered on the agent's next contact with the project, as a clearly delimited section in a tool result: *(builder-check answer, my call)*
+The chat composer writes a `team_note` event at project level. The app cannot push messages to an agent, so notes are delivered on the agent's next contact with the project, as a clearly delimited section in a tool result: _(builder-check answer, my call)_
 
 - **A session is active:** the note goes into the result of the next tool call in every active session on that project. Each session records which notes it has received, so no session gets a note twice.
 - **No session is active:** the note waits. It is included in the result of the next `session_start` or `projects_get` for that project.
@@ -107,7 +107,7 @@ The script reads its values from `PARAMS` and labels each part (`part.label = "A
 
 ### Model structure
 
-The skill asks agents to return a `Compound` of separately labelled part solids, not one fused solid, so each part stays selectable. Every agent in the trial already did this, producing 122 to 168 bodies; the original hand-made design has 241. *(Builder-check answer, my call.)*
+The skill asks agents to return a `Compound` of separately labelled part solids, not one fused solid, so each part stays selectable. Every agent in the trial already did this, producing 122 to 168 bodies; the original hand-made design has 241. _(Builder-check answer, my call.)_
 
 - The runner already accepts compounds. Facts keep reporting the solid count and total volume, and also list part labels with each part's volume.
 - `volume_mm3` is documented as the sum of part volumes, which counts overlaps twice. It is not a manufacturing volume.
@@ -134,7 +134,7 @@ The approved mockup is the reference: [`docs/design/2026-10-28-zero-interface-mo
 
 ![Light modern](../../design/2026-10-28-zero-interface-light.png)
 
-**Branding** *(my call, consistent with the approved mockup)*:
+**Branding** _(my call, consistent with the approved mockup)_:
 
 - **Kept:** the diamond mark and the "Deal Toy" wordmark, drawn in the theme's ink colour.
 - **Retired:** the current terracotta accent and the serif headings.
