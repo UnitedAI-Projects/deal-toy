@@ -431,6 +431,11 @@ export const tools: Tool[] = [
     false,
     async (c, i) => {
       const model = await modelAccess(c, i.modelId);
+      if (
+        i.sessionId &&
+        (await sessionFor(c, i.sessionId)).project_id !== model.project_id
+      )
+        throw new AppError(400, "Session belongs to another project");
       if (model.revision !== i.expectedRevision)
         throw new AppError(409, "Model changed. Reload before saving.");
       const revision = await c.env.DB.prepare(
@@ -637,7 +642,9 @@ export async function dispatch(
     (channel === "mcp" || (channel === "http" && !tool.readOnly));
   let projectId =
     channel !== "internal" ? await resolveProject(c, input) : undefined;
-  if (sessionId && !SELF_RECORDING.has(name)) {
+  // Every tool, including those that write their own events, may only use the caller's own
+  // session, and only on that session's project.
+  if (sessionId) {
     const session = await sessionFor(c, sessionId);
     if (projectId && session.project_id !== projectId)
       throw new AppError(400, "Session belongs to another project");

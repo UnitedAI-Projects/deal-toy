@@ -299,6 +299,46 @@ def build():
         value: 20,
       }),
     ).rejects.toThrow("Model not found");
+    const other = await project();
+    const foreign = await start(other.id);
+    const daves = {
+      sessionId: (
+        (
+          await dispatch(
+            dave,
+            "session_start",
+            { projectId: (await project(dave)).id, prompt: "Dave's work" },
+            "mcp",
+          )
+        ).value as { sessionId: string }
+      ).sessionId,
+    };
+    for (const channel of ["internal", "http", "mcp"] as const)
+      await expect(
+        dispatch(
+          carol,
+          "models_set_parameter",
+          {
+            modelId: m.id,
+            expectedRevision: 1,
+            name: "WIDTH",
+            value: 20,
+            sessionId: foreign.sessionId,
+          },
+          channel,
+        ),
+      ).rejects.toThrow("another project");
+    await expect(edit({ sessionId: daves.sessionId })).rejects.toThrow(
+      "Session not found",
+    );
+    await expect(
+      dispatch(
+        carol,
+        "notes_add",
+        { projectId: other.id, message: "x", sessionId: daves.sessionId },
+        "http",
+      ),
+    ).rejects.toThrow("Session not found");
   });
 });
 describe("Live relay", () => {
