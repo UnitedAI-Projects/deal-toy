@@ -63,6 +63,12 @@ function define<S extends z.ZodRawShape>(
   };
 }
 const now = () => new Date().toISOString();
+/**
+ * Source rebuilds the exact geometry, so on a project someone else owns it is shown only to
+ * members who may download exports.
+ */
+const seesSource = (c: Context, owner: string) =>
+  owner === c.identity.email || c.identity.permissions.has("exports.download");
 async function saveRevision(
   c: Context,
   modelId: string,
@@ -193,10 +199,13 @@ export const tools: Tool[] = [
             "SELECT * FROM documents WHERE project_id=? ORDER BY created_at DESC",
           ).bind(i.projectId),
         ]);
+      const source = seesSource(c, project.owner);
       return {
         project,
         models: models.results,
-        revisions: revisions.results,
+        revisions: source
+          ? revisions.results
+          : revisions.results.map(({ source: _, ...r }) => r),
         jobs: jobs.results,
         artifacts: artifacts.results,
         documents: documents.results,
@@ -423,7 +432,8 @@ export const tools: Tool[] = [
     { projectId: id },
     true,
     async (c, i) => {
-      await projectAccess(c, i.projectId, "read");
+      const project = await projectAccess(c, i.projectId, "read");
+      const source = seesSource(c, project.owner);
       const since = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
       const [sessions, events] = await c.env.DB.batch([
         c.env.DB.prepare(
@@ -441,7 +451,14 @@ export const tools: Tool[] = [
         events: (events.results as Parameters<typeof parseEvent>[0][]).map(
           (e) => {
             const { seq: _seq, ...row } = e as typeof e & { seq?: number };
-            return parseEvent(row);
+            const event = parseEvent(row);
+            const args = event.payload.args as
+              Record<string, unknown> | undefined;
+            if (!source && args && "source" in args) {
+              const { source: _, ...rest } = args;
+              event.payload = { ...event.payload, args: rest };
+            }
+            return event;
           },
         ),
       };

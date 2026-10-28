@@ -197,6 +197,40 @@ describe("Demo projects", () => {
     ).first<{ n: number }>();
     expect(delivered?.n).toBe(0);
   });
+  it("show source only to viewers who may download exports", async () => {
+    // The owner's save over MCP puts clipped source arguments into the activity log.
+    await dispatch(
+      owner,
+      "models_save",
+      { modelId: demo.model, expectedRevision: 1, source: `${source}# v2\n` },
+      "mcp",
+    );
+    const read = async (c: Context) => {
+      const project = (await execute(c, "projects_get", {
+        projectId: demo.project,
+      })) as { revisions: { source?: string }[] };
+      const activity = (await execute(c, "projects_activity", {
+        projectId: demo.project,
+      })) as { events: { payload: { args?: { source?: string } } }[] };
+      return {
+        revisions: project.revisions.map((r) => r.source),
+        args: activity.events
+          .map((e) => e.payload.args?.source)
+          .filter(Boolean),
+      };
+    };
+    const viewer = await read(await member("look@p.test", { level: "Demo" }));
+    expect(viewer.revisions.every((s) => s === undefined)).toBe(true);
+    expect(viewer.args).toEqual([]);
+    const allowed = await read(
+      await member("fetch@p.test", {
+        level: "Demo",
+        allow: ["exports.download"],
+      }),
+    );
+    expect(allowed.revisions).toContain(source);
+    expect(allowed.args.length).toBeGreaterThan(0);
+  });
   it("are hidden from members without demo.view", async () => {
     const c = await member("nodemo@p.test", {
       level: "Maker",
