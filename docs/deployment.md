@@ -8,7 +8,9 @@ There is no agent runner, provider key or advisory AI review. GitHub-hosted priv
 
 ## Cloudflare resources
 
-Create a dedicated D1 database, R2 bucket and queue, then set their identifiers in `wrangler.jsonc`. Keep them separate from Slice. The Worker name is `unitedai-deal-toy`. The runtime uses at most two simultaneous containers. Native jobs are Linux/amd64 in production; local Apple Silicon testing is useful but does not replace hosted amd64 verification.
+Create a dedicated D1 database, R2 bucket and queue, then set their identifiers in `wrangler.jsonc`. Keep them separate from Slice. The Worker name is `unitedai-deal-toy`. Queue concurrency is limited to two jobs. Native jobs are Linux/amd64 in production; local Apple Silicon testing is useful but does not replace hosted amd64 verification.
+
+The account requires the `durable_object` container scheduling policy. Wrangler builds the named `cad` image; each job selects its version-pinned image and `standard-1` size at startup, with internet disabled. Readiness has a sixty-second deadline, and a persistent three-minute alarm destroys abandoned containers. This policy does not support an application-level `max_instances` cap; queue concurrency and account limits bound normal execution. See [Cloudflare scheduling policies](https://developers.cloudflare.com/containers/configuration/scheduling-policy/).
 
 ```sh
 npx wrangler d1 create deal-toy

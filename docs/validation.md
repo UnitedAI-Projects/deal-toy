@@ -1,6 +1,6 @@
 # Validation and rollout record
 
-2026-10-27, initial foundation. This record separates implementation, local validation, hosted checks and deployment.
+2026-10-27, initial foundation (historical record; see subsequent updates below). This record separates implementation, local validation, hosted checks and deployment.
 
 ## Local evidence
 
@@ -23,3 +23,9 @@ The local Docker backend exhausted its internal-disk space while starting a cont
 - Branch protection was rejected by GitHub with HTTP 403 because the current plan does not support it for this private repository. CI exists, but required-check enforcement is unavailable. Keep the repository private.
 
 Implementation is pushed in [PR #1](https://github.com/UnitedAI-Projects/deal-toy/pull/1). The initial hosted run passed; the final revision adds build lifecycle regression coverage and aligns queue concurrency with the two-container limit. Its checks must pass before merging. Production activation remains pending a dedicated deployment token and live acceptance.
+
+## Deployment activation — 2026-10-28
+
+PR #1 merged as `a0f6b72`. The dedicated 90-day account deployment token is configured in GitHub’s production environment, and an administrator app membership exists. The first token failed D1 authorization; its replacement passed D1 migration, Worker upload and CAD image registry push. [Deployment attempt 2](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40631004261/attempts/2) then failed because this account requires `durable_object` scheduling instead of `default`. The app was not yet serving at this point.
+
+The scheduling fix uses a version-pinned named CAD image and the direct Durable Object Container API. Local validation passed 17 Worker tests, 5 Python tests, formatting, type checks, browser build, dependency audit and Worker packaging. New coverage checks startup isolation, readiness retries/deadline, missing-image refusal and no replay of a failed build POST. Production deployment and authenticated acceptance remain pending this fix.

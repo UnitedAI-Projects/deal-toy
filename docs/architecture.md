@@ -38,7 +38,7 @@ Cloudflare Access browser identities are verified using signature, issuer and au
 
 Generated Python is arbitrary code. No AST filter is described as a sandbox. Its real boundary is a fresh container with public egress disabled and no credentials, no other projects, and no persistent mounts. A subprocess adds CPU, wall-time, file-size and process bounds. The container is destroyed after each job. Only four allowlisted artifacts are persisted, with size limits and checksums. Geometry facts describe the submitted build, not an independent manufacturing certification.
 
-A small global queue admission bound and a maximum of two running containers limit initial load. This is an internal alpha; adversarial multi-tenant deployment additionally needs per-member rate limits, usage budgets and independent post-execution artifact verification.
+A small global queue admission bound and two concurrent queue consumers limit initial load. Each consumer starts one job-specific container using the `durable_object` scheduling policy and the Worker version's named image. There is no platform application-level instance cap under this policy; failed cleanup is bounded by a persistent three-minute destruction alarm. This is an internal alpha; adversarial multi-tenant deployment additionally needs per-member rate limits, usage budgets and independent post-execution artifact verification.
 
 ## References inspected on 2026-10-27
 

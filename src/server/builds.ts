@@ -1,10 +1,22 @@
-import { Container } from "@cloudflare/containers";
+import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import { boundedText, hash } from "./core";
-export class CadContainer extends Container<Env> {
-  defaultPort = 8080;
-  sleepAfter = "90s";
-  enableInternet = false;
+import { fetchCad } from "./cad-runtime";
+export class CadContainer extends DurableObject<Env> {
+  async fetch(request: Request) {
+    const container = this.ctx.container;
+    if (!container) throw new Error("CAD container binding is missing");
+    // Persistent backstop if a request or queue consumer disappears mid-build.
+    await this.ctx.storage.setAlarm(Date.now() + 180_000);
+    return fetchCad(container, request);
+  }
+  async destroy() {
+    await this.ctx.container?.destroy();
+    await this.ctx.storage.deleteAlarm();
+  }
+  async alarm() {
+    await this.destroy();
+  }
 }
 const artifact = z.object({
   name: z.enum(["model.step", "model.stl", "model.glb", "facts.json"]),

@@ -43,10 +43,13 @@
   "containers": [
     {
       "class_name": "CadContainer",
-      "image": "./engine/Dockerfile",
-      "image_build_context": ".",
-      "max_instances": 2,
-      "instance_type": "standard-1",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "cad": {
+          "dockerfile": "./engine/Dockerfile",
+          "build_context": ".",
+        },
+      },
     },
   ],
   "durable_objects": {
