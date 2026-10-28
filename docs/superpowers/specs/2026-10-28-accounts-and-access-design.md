@@ -63,17 +63,17 @@ Email ownership rules (these protect the owner's account):
 
 Each permission is a stable key. The UI label goes in parentheses. "Owner" is not a permission: it is a flag that grants all of them.
 
-| Key | What it allows | Enforced at |
-|---|---|---|
-| `demo.view` (View the demo) | Read the demo projects: model, revisions, build preview, activity, documents | project read access |
-| `projects.create` (Create projects) | `projects_create` | tool |
-| `models.edit` (Edit models) | `models_create`, `models_save`, `models_set_parameter`, `documents_add` | tool |
-| `builds.run` (Run builds) | `models_build`; `models_set_parameter` needs this too, because it builds | tool |
-| `exports.download` (Download exports) | STEP, STL and report downloads. The GLB used by the viewer needs only read access. | artifact route |
-| `notes.write` (Leave notes) | `notes_add` | tool |
-| `keys.use` (API keys and MCP) | Create keys, and use any key with `/mcp` | key creation and every MCP request |
-| `members.manage` (Manage members) | Member list, levels, per-person adjustments, suspension | settings API |
-| `settings.manage` (Configure skills and tools) | `skills_save`, `tools_configure`, and marking a project as a demo | tool and settings API |
+| Key                                            | What it allows                                                                     | Enforced at                        |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------- |
+| `demo.view` (View the demo)                    | Read the demo projects: model, revisions, build preview, activity, documents       | project read access                |
+| `projects.create` (Create projects)            | `projects_create`                                                                  | tool                               |
+| `models.edit` (Edit models)                    | `models_create`, `models_save`, `models_set_parameter`, `documents_add`            | tool                               |
+| `builds.run` (Run builds)                      | `models_build`; `models_set_parameter` needs this too, because it builds           | tool                               |
+| `exports.download` (Download exports)          | STEP, STL and report downloads. The GLB used by the viewer needs only read access. | artifact route                     |
+| `notes.write` (Leave notes)                    | `notes_add`                                                                        | tool                               |
+| `keys.use` (API keys and MCP)                  | Create keys, and use any key with `/mcp`                                           | key creation and every MCP request |
+| `members.manage` (Manage members)              | Member list, levels, per-person adjustments, suspension                            | settings API                       |
+| `settings.manage` (Configure skills and tools) | `skills_save`, `tools_configure`, and marking a project as a demo                  | tool and settings API              |
 
 `settings.manage` is a ninth permission that the mockup did not show. It is the builder's call, so that today's administrator-only tools have a home.
 
@@ -109,6 +109,7 @@ Rules:
   - `active=0` becomes `status='suspended'`.
 
   No email address appears in the migration.
+
 - `levels` (`id`, `name`, `is_default`, `created_at`) and `level_permissions` (`level_id`, `permission`).
 - `member_permissions` (`email`, `permission`, `effect` `allow`|`revoke`).
 - `auth_sessions` (`hash`, `email`, `created_at`, `expires_at`, `last_seen_at`, `user_agent` truncated).
