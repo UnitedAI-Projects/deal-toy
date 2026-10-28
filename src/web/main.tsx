@@ -12,7 +12,11 @@ import {
 import { useTheme, type ThemeChoice } from "./theme";
 import { Workspace } from "./Workspace";
 import "./style.css";
-type Identity = { email: string; role: string };
+type Identity = {
+  email: string;
+  role: string;
+  authentication: "access" | "token";
+};
 function App() {
   const { theme, choice, choose } = useTheme();
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -44,6 +48,10 @@ function App() {
       sessionStorage.removeItem(tokenKey);
     } catch {
       // Nothing stored.
+    }
+    if (identity?.authentication === "access") {
+      window.location.assign("/cdn-cgi/access/logout");
+      return;
     }
     setIdentity(null);
     setWorkspace(null);

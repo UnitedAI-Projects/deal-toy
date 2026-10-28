@@ -34,7 +34,13 @@ Never put a personal Wrangler OAuth token into CI. Use a dedicated API token wit
 
 ## Identity
 
-The app denies private API access by default. For Cloudflare Access browser sign-in, configure an Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` to its verified issuer/audience. Membership remains a separate check. Do not trust an email header alone.
+The app denies private API access by default. Cloudflare Access browser sign-in uses a hostname-based self-hosted application for `unitedai-deal-toy.ivan27chen.workers.dev`, the existing Google identity provider, and the reusable **Personal apps - Ivan only** policy (exact email `ivan27chen@gmail.com`). Access application ID: `b4fb98b3-7170-4b94-a2b8-51282ef84308`. Sessions last 24 hours; the cookie is HTTP-only. Keep `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` in `wrangler.jsonc` synchronized with the verified issuer/audience so deployments preserve the integration. Membership remains a separate check; an email header alone never grants access.
+
+The current Google identity takes precedence over a personal token left in browser session storage. Signing out clears the local token and ends the Access session through `/cdn-cgi/access/logout`.
+
+The separate **Deal Toy machine endpoints** application (`8522c68a-87a7-403e-941c-618b21e59d80`) uses reusable policy `3bb3333d-93c2-42c8-a7dd-bd742dc84cfa` and bypasses the browser challenge only for `/health` and `/mcp`. `/health` exposes release status only. `/mcp` still requires a valid, unexpired personal bearer token and active membership, then enforces project ownership. Do not add a root or `/api` bypass. Direct bearer requests to `/api` now also require an Access session; machine clients should use `/mcp`. Keep deployment checks on the public health path and test both anonymous MCP denial and authenticated MCP success after policy changes.
+
+To reproduce this setup in another account, create the Google provider and exact-member allow policy, then the hostname application and the two narrowly scoped path exceptions. Use hostname-based Access rather than a Worker-wide gate, which would intercept machine endpoints as well. Configure the issuer/audience, provision membership, deploy, and verify Google login without a stored personal token before handing off.
 
 Provision a member and personal token using `node ci/member.mjs --remote person@example.com maker /private/token.txt`. An administrator role can publish global skills and configure tools. The script writes the token once to a private file; it stores only the hash in D1. Deliver the token privately. To revoke, delete its hash from `tokens`, or set the member's `active=0` to revoke all their tokens and Access sessions. Tokens expire after ninety days.
 

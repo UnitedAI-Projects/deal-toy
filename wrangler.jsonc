@@ -78,8 +78,8 @@
     "crons": ["*/5 * * * *"],
   },
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": "",
+    "ACCESS_TEAM_DOMAIN": "https://snowy-voice-36a1.cloudflareaccess.com",
+    "ACCESS_AUD": "d92a3553a93773fddbed204b4a6ff3c69636e03aa984938460adadc00f113903",
     "RELEASE_SHA": "development",
   },
   "observability": {
