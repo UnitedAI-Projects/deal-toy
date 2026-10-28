@@ -114,9 +114,10 @@ export default {
       const ticketMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
       if (ticketMatch && request.method === "POST") {
-        await projectAccess(c, ticketMatch[1], "read");
+        const project = await projectAccess(c, ticketMatch[1], "read");
         const ticket = await env.LIVE.getByName(ticketMatch[1]).issueTicket(
           identity.email,
+          project.owner !== identity.email,
         );
         return secure(Response.json({ ticket }));
       }

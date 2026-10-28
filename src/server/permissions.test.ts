@@ -249,8 +249,57 @@ describe("Demo projects", () => {
         allow: ["exports.download"],
       }),
     );
+    // Revisions are where permitted viewers read source; activity never carries it for them.
     expect(allowed.revisions).toContain(source);
-    expect(allowed.args).toEqual([source]);
+    expect(allowed.args).toEqual([]);
+  });
+  it("never show the owner's or team's emails to viewers", async () => {
+    const started = (await execute(owner, "session_start", {
+      projectId: demo.project,
+      prompt: "Make the demo",
+    })) as { sessionId: string };
+    await execute(owner, "notes_add", {
+      projectId: demo.project,
+      message: "Team note",
+    });
+    const viewer = await member("private@p.test", { level: "Demo" });
+    const seen = JSON.stringify([
+      await execute(viewer, "projects_list", {}),
+      await execute(viewer, "projects_get", { projectId: demo.project }),
+      await execute(viewer, "projects_activity", { projectId: demo.project }),
+    ]);
+    expect(seen).not.toContain("owner@p.test");
+    expect(seen).toContain(started.sessionId);
+    const own = JSON.stringify(
+      await execute(owner, "projects_activity", { projectId: demo.project }),
+    );
+    expect(own).toContain("owner@p.test");
+    // The live feed a viewer follows carries the same redaction.
+    const cookie = await cookieFor("private@p.test");
+    const { ticket } = (await (
+      await exports.default.fetch(
+        `${origin}/api/projects/${demo.project}/live-ticket`,
+        { method: "POST", headers: { Cookie: cookie, Origin: origin } },
+      )
+    ).json()) as { ticket: string };
+    const socket = (
+      await exports.default.fetch(
+        `${origin}/api/projects/${demo.project}/live?ticket=${ticket}`,
+        { headers: { Upgrade: "websocket" } },
+      )
+    ).webSocket!;
+    socket.accept();
+    const received = new Promise<string>((resolve) =>
+      socket.addEventListener("message", (m) => resolve(String(m.data))),
+    );
+    await execute(owner, "notes_add", {
+      projectId: demo.project,
+      message: "Live note",
+    });
+    const live = await received;
+    expect(live).toContain("Live note");
+    expect(live).not.toContain("owner@p.test");
+    socket.close();
   });
   it("are hidden from members without demo.view", async () => {
     const c = await member("nodemo@p.test", {

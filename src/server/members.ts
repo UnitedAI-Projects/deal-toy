@@ -220,7 +220,7 @@ export async function listLevels(c: Context) {
     `SELECT id,name,is_default,created_at,
        (SELECT json_group_array(permission) FROM (SELECT permission FROM level_permissions lp WHERE lp.level_id=l.id ORDER BY permission)) AS permissions,
        (SELECT count(*) FROM members WHERE level_id=l.id) AS members
-     FROM levels l ORDER BY created_at, name`,
+     FROM levels l ORDER BY created_at, (SELECT count(*) FROM level_permissions WHERE level_id=l.id), name`,
   ).all<Record<string, unknown> & { permissions: string }>();
   return results.map((l) => ({
     ...l,

@@ -13,6 +13,7 @@ import {
 import {
   ACTIVE_WINDOW_MS,
   clip,
+  forViewer,
   notify,
   parseEvent,
   recordEvent,
@@ -67,6 +68,14 @@ const now = () => new Date().toISOString();
  * Source rebuilds the exact geometry, so on a project someone else owns it is shown only to
  * members who may download exports.
  */
+/** Who did what on a project is private to its owner; viewers see the work, not the people. */
+const anonymous = <T extends Record<string, unknown>>(
+  row: T,
+  key: keyof T,
+) => ({
+  ...row,
+  [key]: "",
+});
 const seesSource = (c: Context, owner: string) =>
   owner === c.identity.email || c.identity.permissions.has("exports.download");
 async function saveRevision(
@@ -144,7 +153,12 @@ export const tools: Tool[] = [
           c.identity.permissions.has("demo.view") ? 1 : 0,
         ),
       ]);
-      return { own: own.results, demo: demo.results };
+      return {
+        own: own.results,
+        demo: (demo.results as Record<string, unknown>[]).map((p) =>
+          anonymous(p, "owner"),
+        ),
+      };
     },
   ),
   define(
@@ -200,15 +214,20 @@ export const tools: Tool[] = [
           ).bind(i.projectId),
         ]);
       const source = seesSource(c, project.owner);
+      const mine = project.owner === c.identity.email;
       return {
-        project,
+        project: mine ? project : anonymous(project, "owner"),
         models: models.results,
         revisions: source
           ? revisions.results
           : (revisions.results as { source: string }[]).map(
               ({ source: _, ...r }) => r,
             ),
-        jobs: jobs.results,
+        jobs: mine
+          ? jobs.results
+          : (jobs.results as Record<string, unknown>[]).map((j) =>
+              anonymous(j, "created_by"),
+            ),
         artifacts: artifacts.results,
         documents: documents.results,
       };
@@ -264,9 +283,11 @@ export const tools: Tool[] = [
         .bind(i.jobId)
         .first<{ revision_id: string }>();
       if (!job) throw new AppError(404, "Build not found");
-      await revisionAccess(c, job.revision_id, "read");
+      const revision = await revisionAccess(c, job.revision_id, "read");
       return {
-        ...job,
+        ...(revision.owner === c.identity.email
+          ? job
+          : anonymous(job as Record<string, unknown>, "created_by")),
         artifacts: (
           await c.env.DB.prepare(
             "SELECT id,name,media_type,sha256,size FROM artifacts WHERE job_id=?",
@@ -436,6 +457,7 @@ export const tools: Tool[] = [
     async (c, i) => {
       const project = await projectAccess(c, i.projectId, "read");
       const source = seesSource(c, project.owner);
+      const mine = project.owner === c.identity.email;
       const since = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
       const [sessions, events] = await c.env.DB.batch([
         c.env.DB.prepare(
@@ -447,20 +469,22 @@ export const tools: Tool[] = [
       ]);
       return {
         sessions: (sessions.results as Record<string, unknown>[]).map((s) => ({
-          ...s,
+          ...(mine ? s : anonymous(s, "member")),
           active: Boolean(s.active),
         })),
         events: (events.results as Parameters<typeof parseEvent>[0][]).map(
           (e) => {
             const { seq: _seq, ...row } = e as typeof e & { seq?: number };
             const event = parseEvent(row);
-            const args = event.payload.args as
-              Record<string, unknown> | undefined;
-            if (!source && args && "source" in args) {
-              const { source: _, ...rest } = args;
-              event.payload = { ...event.payload, args: rest };
-            }
-            return event;
+            if (!mine) return forViewer(event);
+            if (source) return event;
+            const { source: _, ...args } = (event.payload.args ?? {}) as Record<
+              string,
+              unknown
+            >;
+            return event.payload.args
+              ? { ...event, payload: { ...event.payload, args } }
+              : event;
           },
         ),
       };

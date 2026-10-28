@@ -14,7 +14,8 @@ export class ProjectLive extends DurableObject<Env> {
       new WebSocketRequestResponsePair("ping", "pong"),
     );
   }
-  async issueTicket(email: string) {
+  /** A viewer (not the project's owner) receives the redacted copy of each event. */
+  async issueTicket(email: string, viewer = false) {
     const stale = await this.ctx.storage.list<{ expires: number }>({
       prefix: "ticket:",
     });
@@ -25,6 +26,7 @@ export class ProjectLive extends DurableObject<Env> {
     const ticket = crypto.randomUUID() + crypto.randomUUID();
     await this.ctx.storage.put(`ticket:${ticket}`, {
       email,
+      viewer,
       expires: Date.now() + TICKET_MS,
     });
     return ticket;
@@ -36,19 +38,25 @@ export class ProjectLive extends DurableObject<Env> {
     const key = `ticket:${ticket}`;
     const grant = await this.ctx.storage.get<{
       email: string;
+      viewer?: boolean;
       expires: number;
     }>(key);
     await this.ctx.storage.delete(key);
     if (!grant || grant.expires < Date.now())
       return new Response("Ticket expired; request a new one", { status: 401 });
     const { 0: client, 1: server } = new WebSocketPair();
-    this.ctx.acceptWebSocket(server, [grant.email]);
+    this.ctx.acceptWebSocket(server, [
+      grant.email,
+      grant.viewer ? "viewer" : "owner",
+    ]);
     return new Response(null, { status: 101, webSocket: client });
   }
-  async broadcast(message: string) {
+  async broadcast(message: string, viewerMessage = message) {
     for (const socket of this.ctx.getWebSockets()) {
       try {
-        socket.send(message);
+        socket.send(
+          this.ctx.getTags(socket).includes("viewer") ? viewerMessage : message,
+        );
       } catch {
         // A closing socket is cleaned up by the runtime.
       }
