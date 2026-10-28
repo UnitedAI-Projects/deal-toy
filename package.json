@@ -14,7 +14,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "bash ci/run.sh",
-    "types": "wrangler types",
+    "types": "wrangler types --strict-vars=false",
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 migrations apply DB --local"
   },

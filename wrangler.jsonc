@@ -79,7 +79,7 @@
   },
   // GOOGLE_CLIENT_SECRET is a Worker secret (wrangler secret put GOOGLE_CLIENT_SECRET).
   "vars": {
-    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_CLIENT_ID": "704587941992-1gff7b427l59odf5kefmmjlsgtfagajn.apps.googleusercontent.com",
     "DAILY_BUILD_LIMIT": "100",
     "RELEASE_SHA": "development",
   },
