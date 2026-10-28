@@ -43,7 +43,7 @@ Mantel signs people in itself, with Google. Cloudflare Access is no longer requi
 3. Put the client ID in `GOOGLE_CLIENT_ID` in `wrangler.jsonc` (an identifier, not a secret) and store the secret with `npx wrangler secret put GOOGLE_CLIENT_SECRET`. Never commit the secret.
 4. Until both are set, the sign-in button reports "Google sign-in isn't set up yet" and the release check prints a warning.
 
-Production uses Google Cloud project `unitedai-mantel-prod` (Mantel), with the **Mantel production** web client. Its public client ID is recorded in `wrangler.jsonc`; its secret is stored only as the Worker secret `GOOGLE_CLIENT_SECRET`. Google publishing also requires a public application homepage and privacy-policy link. Basic identity scopes do not remove branding requirements. Keep the existing Access gate until the owner has verified the new sign-in path.
+Production uses Google Cloud project `unitedai-mantel-prod` (Mantel), with the **Mantel production** web client. Its public client ID is recorded in `wrangler.jsonc`; its secret is stored only as the Worker secret `GOOGLE_CLIENT_SECRET`. Google publishing also requires a public application homepage and privacy-policy link. Basic identity scopes do not remove branding requirements. The proposed [privacy policy](privacy-policy-draft.md) is an unpublished draft requiring owner review. Keep the existing Access gate until the owner has verified the new sign-in path.
 
 `AUTH_LIMITER` (Workers rate limiting, 20 requests a minute per IP) protects the Google start and callback routes. `DAILY_BUILD_LIMIT` (default 100) caps builds per member per day.
 
