@@ -90,3 +90,107 @@ export type Tool = {
   readOnly: boolean;
   enabled: boolean;
 };
+export type ParamSpec = {
+  value: number;
+  unit?: string;
+  part?: string;
+  min?: number;
+  max?: number;
+};
+export type Facts = {
+  bounds: number[];
+  volume_mm3: number;
+  solids: number;
+  params?: Record<string, ParamSpec>;
+  parts?: { label: string; volume_mm3: number }[];
+};
+export type Session = {
+  id: string;
+  project_id: string;
+  member: string;
+  client: string | null;
+  prompt: string;
+  title: string | null;
+  summary: string | null;
+  started_at: string;
+  ended_at: string | null;
+  last_event_at: string;
+  active: boolean;
+};
+export type ProjectEvent = {
+  id: string;
+  session_id: string | null;
+  kind:
+    | "prompt"
+    | "agent_update"
+    | "tool_call"
+    | "team_note"
+    | "team_edit"
+    | "ended";
+  actor: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+export type Activity = { sessions: Session[]; events: ProjectEvent[] };
+export type LiveMessage =
+  { type: "event"; event: ProjectEvent } | { type: "workspace" };
+/**
+ * Follows a project's live activity. A socket cannot carry the bearer token, so each attempt
+ * first asks the authenticated API for a single-use ticket. Reconnects with backoff.
+ */
+export function connectLive(
+  projectId: string,
+  onMessage: (message: LiveMessage) => void,
+  onStatus: (connected: boolean) => void,
+) {
+  let socket: WebSocket | undefined;
+  let closed = false;
+  let delay = 1000;
+  let ping: ReturnType<typeof setInterval> | undefined;
+  const retry = () => {
+    if (closed) return;
+    setTimeout(open, delay);
+    delay = Math.min(delay * 2, 30_000);
+  };
+  async function open() {
+    try {
+      const { ticket } = (await (
+        await request(`/api/projects/${projectId}/live-ticket`, {
+          method: "POST",
+        })
+      ).json()) as { ticket: string };
+      if (closed) return;
+      const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(
+        `${scheme}//${location.host}/api/projects/${projectId}/live?ticket=${encodeURIComponent(ticket)}`,
+      );
+      socket.onopen = () => {
+        delay = 1000;
+        onStatus(true);
+        ping = setInterval(() => socket?.send("ping"), 30_000);
+      };
+      socket.onmessage = (message) => {
+        if (message.data === "pong") return;
+        try {
+          onMessage(JSON.parse(String(message.data)) as LiveMessage);
+        } catch {
+          // Ignore malformed frames.
+        }
+      };
+      socket.onclose = () => {
+        clearInterval(ping);
+        onStatus(false);
+        retry();
+      };
+    } catch {
+      onStatus(false);
+      retry();
+    }
+  }
+  void open();
+  return () => {
+    closed = true;
+    clearInterval(ping);
+    socket?.close();
+  };
+}
