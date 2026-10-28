@@ -114,6 +114,66 @@ describe("Members", () => {
         .status,
     ).toBe(200);
   });
+  it("stop delegated admins from granting more than they hold", async () => {
+    await member("delegate2@m.test", {
+      level: "Maker",
+      allow: ["members.manage"],
+    });
+    const cookie = await cookieFor("delegate2@m.test");
+    // An Admin-level member whose admin permissions were revoked fits inside the delegate's
+    // access; clearing the revokes would hand out access the delegate does not have.
+    await member("capped@m.test", {
+      level: "Admin",
+      revoke: ["members.manage", "settings.manage"],
+    });
+    expect(
+      (await patchMember(cookie, "capped@m.test", { revoke: [] })).status,
+    ).toBe(403);
+    expect(
+      (
+        await patchMember(cookie, "capped@m.test", {
+          revoke: ["members.manage"],
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await patchMember(cookie, "capped@m.test", {
+          revoke: ["members.manage", "settings.manage", "builds.run"],
+        })
+      ).status,
+    ).toBe(200);
+    // Levels used by people the delegate could not edit directly are off limits.
+    const mixed = (await (
+      await call(ownerCookie, "/api/settings/levels", "POST", {
+        name: "Mixed",
+        permissions: ["demo.view"],
+      })
+    ).json()) as { id: string };
+    await member("special@m.test", {
+      level: "Demo",
+      allow: ["settings.manage"],
+    });
+    await patchMember(ownerCookie, "special@m.test", { level_id: mixed.id });
+    const editMixed = await call(
+      cookie,
+      `/api/settings/levels/${mixed.id}`,
+      "PATCH",
+      {
+        permissions: ["demo.view", "notes.write"],
+      },
+    );
+    expect(editMixed.status).toBe(403);
+    const editOwnLevel = await call(
+      cookie,
+      "/api/settings/levels/level-maker",
+      "PATCH",
+      {
+        permissions: ["demo.view"],
+      },
+    );
+    expect(editOwnLevel.status).toBe(403);
+  });
   it("always keep one active owner", async () => {
     expect(
       (await patchMember(ownerCookie, "owner@m.test", { owner: false })).status,

@@ -3,6 +3,7 @@ import {
   isPermission,
   memberAccess,
   PERMISSIONS,
+  type MemberAccess,
   requirePermission,
   type Permission,
 } from "./access";
@@ -71,6 +72,57 @@ async function uniqueName<T>(run: () => Promise<T>) {
   }
 }
 
+/** The permissions a member would have after an update, mirroring how it is stored. */
+async function resultingAccess(
+  c: Context,
+  target: MemberAccess,
+  input: z.infer<typeof memberUpdate>,
+) {
+  const { results } = await c.env.DB.prepare(
+    "SELECT permission,effect FROM member_permissions WHERE email=?",
+  )
+    .bind(target.email)
+    .all<{ permission: Permission; effect: "allow" | "revoke" }>();
+  const effects = new Map(results.map((r) => [r.permission, r.effect]));
+  for (const effect of ["allow", "revoke"] as const) {
+    const list = input[effect];
+    if (!list) continue;
+    for (const [p, e] of effects) if (e === effect) effects.delete(p);
+    for (const p of list) effects.set(p, effect);
+  }
+  const levelId = input.level_id ?? target.level_id;
+  const base = levelId ? await levelPermissions(c, levelId) : [];
+  const allowed = [...effects].filter(([, e]) => e === "allow").map(([p]) => p);
+  return new Set(
+    [...base, ...allowed].filter((p) => effects.get(p) !== "revoke"),
+  );
+}
+/** A delegate may change a level only if they could edit everyone on it directly. */
+async function editableLevel(c: Context, levelId: string) {
+  if (c.identity.owner) return;
+  const current = await levelPermissions(c, levelId);
+  if (!within(current, c.identity.permissions))
+    throw new AppError(403, "That level has access you don't have");
+  const { results } = await c.env.DB.prepare(
+    "SELECT email FROM members WHERE level_id=?",
+  )
+    .bind(levelId)
+    .all<{ email: string }>();
+  for (const { email } of results) {
+    const m = await memberAccess(c.env, email);
+    if (
+      !m ||
+      m.owner ||
+      email === c.identity.email ||
+      !within(m.permissions, c.identity.permissions)
+    )
+      throw new AppError(
+        403,
+        "This level is used by people whose access you can't change",
+      );
+  }
+}
+
 export async function listMembers(c: Context) {
   requirePermission(c, "members.manage");
   const { results } = await c.env.DB.prepare(
@@ -108,13 +160,10 @@ export async function updateMember(
       throw new AppError(403, "Only owners can change owners");
     if (!within(target.permissions, held))
       throw new AppError(403, "This person has access you don't have");
-    if (input.allow && !within(input.allow, held))
+    // Judge the access the person would end up with, not each field on its own: clearing a
+    // revoke can hand out as much as adding an allow.
+    if (!within(await resultingAccess(c, target, input), held))
       throw new AppError(403, "You can only grant access you have");
-    if (
-      input.level_id &&
-      !within(await levelPermissions(c, input.level_id), held)
-    )
-      throw new AppError(403, "That level has access you don't have");
   } else if (input.level_id) await levelPermissions(c, input.level_id);
   if (input.allow?.some((p) => input.revoke?.includes(p)))
     throw new AppError(400, "A permission cannot be both allowed and revoked");
@@ -210,13 +259,12 @@ export async function updateLevel(
   input: z.infer<typeof levelUpdate>,
 ) {
   requirePermission(c, "members.manage");
-  const current = await levelPermissions(c, id);
+  await editableLevel(c, id);
   if (
     !c.identity.owner &&
-    (!within(current, c.identity.permissions) ||
-      !within(input.permissions ?? [], c.identity.permissions))
+    !within(input.permissions ?? [], c.identity.permissions)
   )
-    throw new AppError(403, "That level has access you don't have");
+    throw new AppError(403, "You can only grant access you have");
   const db = c.env.DB;
   const statements: D1PreparedStatement[] = [];
   if (input.name)
@@ -255,11 +303,7 @@ export async function deleteLevel(c: Context, id: string) {
     throw new AppError(409, "Choose another default level first");
   if (level.members)
     throw new AppError(409, "Move everyone off this level first");
-  if (
-    !c.identity.owner &&
-    !within(await levelPermissions(c, id), c.identity.permissions)
-  )
-    throw new AppError(403, "That level has access you don't have");
+  await editableLevel(c, id);
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM levels WHERE id=?").bind(id),
     audit(c, id, "level.delete", {}),
