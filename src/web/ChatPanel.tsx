@@ -10,6 +10,8 @@ type Props = {
   composer: RefObject<HTMLTextAreaElement | null>;
   onSend: (text: string) => Promise<void>;
   onViewRevision: (revision: Revision) => void;
+  /** When set, the composer is replaced by this explanation. */
+  readOnly?: string;
 };
 type Item =
   | { type: "event"; event: ProjectEvent; count: number }
@@ -213,7 +215,11 @@ export function ChatPanel(props: Props) {
                       </span>
                       <span className="step-meta">
                         {count > 1 ? `×${count} · ` : ""}
-                        {p.channel === "http" ? "you" : String(p.tool)}
+                        {p.channel !== "http"
+                          ? String(p.tool)
+                          : event.actor === props.me
+                            ? "you"
+                            : "team"}
                       </span>
                     </button>
                   ) : (
@@ -229,7 +235,11 @@ export function ChatPanel(props: Props) {
                       </span>
                       <span className="step-meta">
                         {count > 1 ? `×${count} · ` : ""}
-                        {p.channel === "http" ? "you" : String(p.tool)}
+                        {p.channel !== "http"
+                          ? String(p.tool)
+                          : event.actor === props.me
+                            ? "you"
+                            : "team"}
                       </span>
                     </div>
                   )}
@@ -250,48 +260,52 @@ export function ChatPanel(props: Props) {
           </div>
         )}
       </div>
-      <form
-        className="composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <div className="composer-row">
-          <textarea
-            ref={props.composer}
-            rows={2}
-            maxLength={4000}
-            aria-label="Note for the agent"
-            placeholder="Leave a note for the agent…"
-            value={props.draft}
-            onChange={(e) => props.setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-          />
-          <button
-            className="send"
-            aria-label="Send note"
-            disabled={sending || !props.draft.trim()}
-          >
-            ↑
-          </button>
-        </div>
-        <p className="composer-hint">
-          {running
-            ? "Your agent sees this on its next step."
-            : "The next agent to work on this project will see this."}
-        </p>
-        {error && (
-          <p className="inline-error" role="alert">
-            {error}
+      {props.readOnly ? (
+        <p className="composer composer-readonly">{props.readOnly}</p>
+      ) : (
+        <form
+          className="composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+        >
+          <div className="composer-row">
+            <textarea
+              ref={props.composer}
+              rows={2}
+              maxLength={4000}
+              aria-label="Note for the agent"
+              placeholder="Leave a note for the agent…"
+              value={props.draft}
+              onChange={(e) => props.setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+            />
+            <button
+              className="send"
+              aria-label="Send note"
+              disabled={sending || !props.draft.trim()}
+            >
+              ↑
+            </button>
+          </div>
+          <p className="composer-hint">
+            {running
+              ? "Your agent sees this on its next step."
+              : "The next agent to work on this project will see this."}
           </p>
-        )}
-      </form>
+          {error && (
+            <p className="inline-error" role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      )}
     </section>
   );
 }

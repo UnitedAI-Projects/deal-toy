@@ -12,26 +12,36 @@ import {
   type Tool,
   type Workspace as WorkspaceData,
 } from "./api";
+import { Settings } from "./Settings";
 import { SignIn } from "./SignIn";
 import { useTheme, type ThemeChoice } from "./theme";
 import { Workspace } from "./Workspace";
 import "./style.css";
+type Page = "projects" | "workspace" | "extensions" | "settings";
 function App() {
   const { theme, choice, choose } = useTheme();
   const [identity, setIdentity] = useState<Me | null>(null);
   const [checked, setChecked] = useState(false);
-  const [page, setPage] = useState<"projects" | "workspace" | "extensions">(
-    "projects",
-  );
+  const [page, setPage] = useState<Page>("projects");
   const [projects, setProjects] = useState<ProjectList>({ own: [], demo: [] });
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
   const [error, setError] = useState("");
   async function loadProjects() {
-    setProjects(await call<ProjectList>("projects_list"));
+    const list = await call<ProjectList>("projects_list");
+    setProjects(list);
+    return list;
   }
   async function signIn() {
-    setIdentity(await (await request("/api/session")).json());
-    await loadProjects();
+    const me = (await (await request("/api/session")).json()) as Me;
+    setIdentity(me);
+    const list = await loadProjects();
+    // Someone who can only view the demo opens straight into it.
+    if (
+      !can(me, "projects.create") &&
+      !list.own.length &&
+      list.demo.length === 1
+    )
+      await openProject(list.demo[0].id);
   }
   useEffect(() => {
     void signIn()
@@ -42,15 +52,16 @@ function App() {
     setWorkspace(await call<WorkspaceData>("projects_get", { projectId }));
     setPage("workspace");
   }
+  function signedOut() {
+    setIdentity(null);
+    setWorkspace(null);
+    setProjects({ own: [], demo: [] });
+    setPage("projects");
+  }
   function signOut() {
     void send("/api/auth/signout", "POST", {})
       .catch(() => {})
-      .finally(() => {
-        setIdentity(null);
-        setWorkspace(null);
-        setProjects({ own: [], demo: [] });
-        setPage("projects");
-      });
+      .finally(signedOut);
   }
   if (!checked) return <div className="splash">Opening Mantel…</div>;
   if (!identity) return <SignIn theme={theme} onSignedIn={signIn} />;
@@ -75,6 +86,7 @@ function App() {
           void loadProjects().catch((e: Error) => setError(e.message));
         }}
         onExtensions={() => setPage("extensions")}
+        onSettings={() => setPage("settings")}
         onSignOut={signOut}
       />
     );
@@ -100,7 +112,17 @@ function App() {
           </button>
         </div>
       )}
-      {page === "extensions" ? (
+      {page === "settings" ? (
+        <Settings
+          me={identity}
+          onSignedOut={signedOut}
+          onRenamed={() =>
+            void request("/api/session")
+              .then((r) => r.json())
+              .then((me: Me) => setIdentity(me))
+          }
+        />
+      ) : page === "extensions" ? (
         <Extensions identity={identity} />
       ) : (
         <Library
@@ -124,7 +146,7 @@ function PageHeader(props: {
   choice: ThemeChoice;
   choose: (c: ThemeChoice) => void;
   page: string;
-  go: (page: "projects" | "extensions") => void;
+  go: (page: Exclude<Page, "workspace">) => void;
   onSignOut: () => void;
 }) {
   return (
@@ -146,6 +168,12 @@ function PageHeader(props: {
         >
           Skills and tools
         </button>
+        <button
+          className={props.page === "settings" ? "on" : ""}
+          onClick={() => props.go("settings")}
+        >
+          Settings
+        </button>
       </nav>
       <div className="page-header-right">
         <div className="segmented" role="group" aria-label="Theme">
@@ -160,7 +188,7 @@ function PageHeader(props: {
             </button>
           ))}
         </div>
-        <span className="muted small">{props.identity.email}</span>
+        <span className="muted small hide-sm">{props.identity.email}</span>
         <button className="ghost" onClick={props.onSignOut}>
           Sign out
         </button>
