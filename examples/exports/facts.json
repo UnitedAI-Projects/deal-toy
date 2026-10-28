@@ -1,0 +1,8 @@
+{
+  "units": "mm",
+  "bounds": [100.0, 55.0, 51.0],
+  "volume_mm3": 62900.00000000001,
+  "solids": 1,
+  "valid": true,
+  "manufacturing_approval": "not_reviewed"
+}
