@@ -71,7 +71,17 @@ export default {
         return secure(await mcp(mcpRequest, c));
       }
       if (url.pathname === "/api/session" && request.method === "GET")
-        return secure(Response.json(identity));
+        return secure(
+          Response.json({
+            ...identity,
+            authentication:
+              request.headers.has("Cf-Access-Jwt-Assertion") &&
+              env.ACCESS_AUD &&
+              env.ACCESS_TEAM_DOMAIN
+                ? "access"
+                : "token",
+          }),
+        );
       if (url.pathname === "/api/tools" && request.method === "GET")
         return secure(Response.json(await catalog(c)));
       const artifactMatch = /^\/api\/artifacts\/([a-f0-9-]+)$/.exec(

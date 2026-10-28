@@ -2,11 +2,28 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import { AppError, hash, type Identity } from "./core";
 export async function authenticate(
   request: Request,
-  env: Env,
+  env: Pick<Env, "DB"> & { ACCESS_TEAM_DOMAIN: string; ACCESS_AUD: string },
 ): Promise<Identity> {
   let email: string | undefined;
+  const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
   const authorization = request.headers.get("Authorization");
-  if (authorization?.startsWith("Bearer ")) {
+  // The current Google identity wins over a token left in browser session storage.
+  if (assertion && env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
+    const issuer = env.ACCESS_TEAM_DOMAIN;
+    if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(issuer))
+      throw new AppError(503, "Identity provider is not configured");
+    try {
+      const { payload } = await jwtVerify(
+        assertion,
+        createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`)),
+        { issuer, audience: env.ACCESS_AUD, algorithms: ["RS256"] },
+      );
+      if (typeof payload.email === "string")
+        email = payload.email.toLowerCase();
+    } catch {
+      throw new AppError(401, "Invalid sign-in");
+    }
+  } else if (authorization?.startsWith("Bearer ")) {
     const token = authorization.slice(7);
     if (token.length < 32 || token.length > 256)
       throw new AppError(401, "Invalid access token");
@@ -16,24 +33,6 @@ export async function authenticate(
       .bind(await hash(token), new Date().toISOString())
       .first<{ email: string }>();
     email = row?.email;
-  } else {
-    const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
-    if (assertion && env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
-      const issuer = env.ACCESS_TEAM_DOMAIN;
-      if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(issuer))
-        throw new AppError(503, "Identity provider is not configured");
-      try {
-        const { payload } = await jwtVerify(
-          assertion,
-          createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`)),
-          { issuer, audience: env.ACCESS_AUD },
-        );
-        if (typeof payload.email === "string")
-          email = payload.email.toLowerCase();
-      } catch {
-        throw new AppError(401, "Invalid sign-in");
-      }
-    }
   }
   if (!email)
     throw new AppError(401, "Sign in or provide a personal access token");
