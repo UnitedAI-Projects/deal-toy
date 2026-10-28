@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Create and organize CAD models, connect AI tools, and prepare manufacturing information with Mantel."
+    />
+    <title>Mantel · AI-assisted CAD workspace</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f5f3ee;
+        color: #252821;
+        font:
+          17px/1.7 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      header,
+      main,
+      footer {
+        max-width: 820px;
+        margin: auto;
+        padding: 28px 24px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #d9dcd2;
+        gap: 20px;
+      }
+      .brand {
+        font-weight: 750;
+        font-size: 24px;
+        color: #252821;
+        text-decoration: none;
+        letter-spacing: -1px;
+      }
+      nav {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+      }
+      a {
+        color: #345b40;
+        text-underline-offset: 4px;
+      }
+      h1 {
+        font-size: clamp(34px, 7vw, 56px);
+        line-height: 1.1;
+        letter-spacing: -2px;
+        margin: 24px 0;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.35;
+        margin-top: 36px;
+      }
+      p {
+        margin: 16px 0;
+      }
+      .eyebrow {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #59634f;
+      }
+      .muted {
+        color: #60675b;
+      }
+      .lead {
+        font-size: 21px;
+      }
+      .button {
+        display: inline-block;
+        background: #345b40;
+        color: #fff;
+        padding: 12px 22px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        margin: 14px 0;
+      }
+      footer {
+        border-top: 1px solid #d9dcd2;
+        font-size: 14px;
+        margin-top: 30px;
+      }
+      code {
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+      }
+      a:focus-visible {
+        outline: 3px solid #9c5f15;
+        outline-offset: 5px;
+      }
+      @media (max-width: 480px) {
+        header {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 12px;
+        }
+        header,
+        main,
+        footer {
+          padding: 22px;
+        }
+        nav {
+          gap: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/info/">Mantel</a>
+      <nav aria-label="Main">
+        <a href="/info/privacy/">Privacy</a><a href="/">Open workspace</a>
+      </nav>
+    </header>
+    <main>
+      <p class="eyebrow">A workspace by United AI</p>
+      <h1>From an idea to a model<br />you can build on.</h1>
+      <p class="lead">
+        Mantel brings CAD models, connected AI tools and manufacturing
+        information into one project workspace.
+      </p>
+      <a class="button" href="/">Open Mantel</a>
+      <h2>Model, inspect and organize</h2>
+      <p>
+        Create a project, develop parametric 3D models with your connected AI
+        client, inspect previews and keep exports and manufacturing notes
+        alongside each revision. Mantel uses build123d and OpenCascade for its
+        CAD engine. AI tools connect through MCP with account-scoped API keys.
+      </p>
+      <h2>Sign in with Google</h2>
+      <p>
+        Mantel uses your Google account identifier, verified email address and
+        name for sign-in and account access. It does not request Gmail or Drive
+        access. Read our <a href="/info/privacy/">privacy policy</a> for details
+        about information handling and connected AI clients.
+      </p>
+      <h2>Early access</h2>
+      <p>
+        Mantel is an early-access service. Access to modeling and other
+        capabilities is managed by an administrator. Engineering drawings and a
+        complete manufacturing approval workflow are still planned. Have a
+        qualified person review designs and manufacturing requirements before
+        production.
+      </p>
+    </main>
+    <footer>
+      Mantel by United AI ·
+      <a href="mailto:ivan27chen@gmail.com">Contact us</a> ·
+      <a href="/info/privacy/">Privacy policy</a>
+    </footer>
+  </body>
+</html>
