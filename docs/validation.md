@@ -53,4 +53,24 @@ Local evidence for the live agent workspace and interface redesign:
 - Found during this testing and fixed: GLTFLoader rewrites node names (spaces to underscores), which broke selection of multi-word parts; computed `PARAMS` values were briefly treated as editable; a socket close code crashed the relay.
 - A dev-server reload during a running build leaves that job "running" until the 15-minute sweep. This is existing behaviour, seen locally because of code reloads.
 
-Not yet verified: hosted CI on this branch, production deployment, and a session watched from a second browser.
+Hosted CI passed on the final PR revision (`468ee88`, [run](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40724363504)). That revision also made every tool, including self-recording ones, check session ownership and project, with regression tests on all three channels.
+
+### Production deployment
+
+[PR #9](https://github.com/UnitedAI-Projects/deal-toy/pull/9) merged as `071ceae`. [The deploy run](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40724789413) succeeded:
+
+- D1 migration `0002_sessions.sql` was applied.
+- The `ProjectLive` Durable Object was bound.
+- The Worker and assets were uploaded.
+
+Checks after the deploy, from the Mac mini and the MacBook:
+
+- `/health` reports release `071ceaeeeecc07aefb232df5a33330bda107fba9`.
+- Anonymous requests to `/api/session`, the live-ticket route and a socket upgrade with a malformed ticket all return 401.
+- The page's Content-Security-Policy allows `wss:` to its own host.
+
+Not yet verified in production:
+
+- A signed-in session. No production token was available on the verifying host.
+- A real agent session over the production MCP endpoint.
+- A session watched from a second browser.
