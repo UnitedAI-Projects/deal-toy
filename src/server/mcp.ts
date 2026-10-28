@@ -1,6 +1,7 @@
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import { AppError, type Context } from "./core";
-import { catalog, execute, tools } from "./tools";
+import { formatNotes } from "./activity";
+import { catalog, dispatch, execute, tools } from "./tools";
 export async function mcp(request: Request, c: Context) {
   const available = await catalog(c);
   const handler = createMcpHandler(() => {
@@ -22,12 +23,13 @@ export async function mcp(request: Request, c: Context) {
         },
         async (input) => {
           try {
+            const { value, notes } = await dispatch(c, tool.name, input, "mcp");
             return {
               content: [
-                {
-                  type: "text" as const,
-                  text: JSON.stringify(await execute(c, tool.name, input)),
-                },
+                { type: "text" as const, text: JSON.stringify(value) },
+                ...(notes.length
+                  ? [{ type: "text" as const, text: formatNotes(notes) }]
+                  : []),
               ],
             };
           } catch (error) {

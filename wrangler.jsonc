@@ -58,12 +58,20 @@
         "name": "CAD",
         "class_name": "CadContainer",
       },
+      {
+        "name": "LIVE",
+        "class_name": "ProjectLive",
+      },
     ],
   },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["CadContainer"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["ProjectLive"],
     },
   ],
   "triggers": {

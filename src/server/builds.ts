@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import { boundedText, hash } from "./core";
 import { fetchCad } from "./cad-runtime";
+import { notify } from "./activity";
 export class CadContainer extends DurableObject<Env> {
   async fetch(request: Request) {
     const container = this.ctx.container;
@@ -24,6 +25,35 @@ const artifact = z.object({
   base64: z.string().max(22_000_000),
 });
 const resultSchema = z.object({ artifacts: z.array(artifact).length(4) });
+const paramSpec = z
+  .object({
+    value: z.number().finite(),
+    unit: z.string().max(16).optional(),
+    part: z.string().max(120).optional(),
+    min: z.number().finite().optional(),
+    max: z.number().finite().optional(),
+  })
+  .strict();
+export const factsSchema = z.object({
+  units: z.literal("mm"),
+  bounds: z.array(z.number().finite().nonnegative()).length(3),
+  volume_mm3: z.number().finite().positive(),
+  solids: z.number().int().positive(),
+  valid: z.literal(true),
+  manufacturing_approval: z.literal("not_reviewed"),
+  params: z
+    .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/), paramSpec)
+    .optional(),
+  parts: z
+    .array(
+      z.object({
+        label: z.string().max(120),
+        volume_mm3: z.number().finite().nonnegative(),
+      }),
+    )
+    .max(500)
+    .optional(),
+});
 const media: Record<string, string> = {
   "model.step": "application/step",
   "model.stl": "model/stl",
@@ -33,10 +63,10 @@ const media: Record<string, string> = {
 export async function consume(message: Message<unknown>, env: Env) {
   const { jobId } = z.object({ jobId: z.string().uuid() }).parse(message.body);
   const job = await env.DB.prepare(
-    "SELECT jobs.*,revisions.source FROM jobs JOIN revisions ON revisions.id=jobs.revision_id WHERE jobs.id=?",
+    "SELECT jobs.*,revisions.source,models.project_id FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE jobs.id=?",
   )
     .bind(jobId)
-    .first<{ status: string; source: string }>();
+    .first<{ status: string; source: string; project_id: string }>();
   if (!job || job.status === "succeeded" || job.status === "failed") {
     message.ack();
     return;
@@ -56,6 +86,7 @@ export async function consume(message: Message<unknown>, env: Env) {
     message.ack();
     return;
   }
+  await notify(env, job.project_id, { type: "workspace" });
   const container = env.CAD.getByName(jobId);
   const keys: string[] = [];
   try {
@@ -101,16 +132,9 @@ export async function consume(message: Message<unknown>, env: Env) {
       const objectKey = `builds/${jobId}/${artifact.name}`;
       keys.push(objectKey);
       if (artifact.name === "facts.json") {
-        const data = z
-          .object({
-            units: z.literal("mm"),
-            bounds: z.array(z.number().finite().nonnegative()).length(3),
-            volume_mm3: z.number().finite().positive(),
-            solids: z.number().int().positive(),
-            valid: z.literal(true),
-            manufacturing_approval: z.literal("not_reviewed"),
-          })
-          .parse(JSON.parse(new TextDecoder().decode(binary)));
+        const data = factsSchema.parse(
+          JSON.parse(new TextDecoder().decode(binary)),
+        );
         facts = JSON.stringify(data);
       }
       await env.ARTIFACTS.put(objectKey, binary, {
@@ -135,6 +159,7 @@ export async function consume(message: Message<unknown>, env: Env) {
     );
     await env.DB.batch(statements);
     message.ack();
+    await notify(env, job.project_id, { type: "workspace" });
   } catch (error) {
     if (keys.length) await env.ARTIFACTS.delete(keys);
     const detail = error instanceof Error ? error.message : "Build failed";
@@ -144,6 +169,7 @@ export async function consume(message: Message<unknown>, env: Env) {
       .bind(detail.slice(0, 4000), new Date().toISOString(), jobId)
       .run();
     message.ack();
+    await notify(env, job.project_id, { type: "workspace" });
   } finally {
     try {
       await container.destroy();

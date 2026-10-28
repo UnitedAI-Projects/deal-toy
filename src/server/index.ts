@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { authenticate } from "./auth";
-import { AppError, boundedText, revisionAccess } from "./core";
+import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
 import { consume } from "./builds";
-import { catalog, execute } from "./tools";
+import { catalog, dispatch } from "./tools";
 import { mcp } from "./mcp";
 export { CadContainer } from "./builds";
+export { ProjectLive } from "./live";
 function secure(response: Response) {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
@@ -23,7 +24,7 @@ export default {
         const headers = new Headers(response.headers);
         headers.set(
           "Content-Security-Policy",
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://${url.host} ws://${url.host}; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
         );
         headers.set("X-Content-Type-Options", "nosniff");
         return new Response(response.body, {
@@ -34,8 +35,29 @@ export default {
       const origin = request.headers.get("Origin");
       if (origin && origin !== url.origin)
         throw new AppError(403, "Cross-origin requests are not allowed");
+      // Browsers cannot send bearer headers on a WebSocket. The socket presents a single-use
+      // ticket issued below over the authenticated API; the project's relay checks it.
+      const liveMatch = /^\/api\/projects\/([a-f0-9-]{36})\/live$/.exec(
+        url.pathname,
+      );
+      if (liveMatch && request.headers.get("Upgrade") === "websocket") {
+        // Malformed tickets never reach (or wake) the project's relay.
+        const ticket = url.searchParams.get("ticket") ?? "";
+        if (!/^[0-9a-f-]{72}$/.test(ticket))
+          throw new AppError(401, "Ticket expired; request a new one");
+        return env.LIVE.getByName(liveMatch[1]).fetch(request);
+      }
       const identity = await authenticate(request, env);
       const c = { env, identity };
+      const ticketMatch =
+        /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
+      if (ticketMatch && request.method === "POST") {
+        await projectAccess(c, ticketMatch[1]);
+        const ticket = await env.LIVE.getByName(ticketMatch[1]).issueTicket(
+          identity.email,
+        );
+        return secure(Response.json({ ticket }));
+      }
       if (url.pathname === "/mcp") {
         let mcpRequest: Request = request;
         if (request.method === "POST") {
@@ -92,7 +114,9 @@ export default {
           if (error instanceof AppError) throw error;
           throw new AppError(400, "Invalid JSON");
         }
-        return secure(Response.json(await execute(c, toolMatch[1], input)));
+        return secure(
+          Response.json((await dispatch(c, toolMatch[1], input, "http")).value),
+        );
       }
       throw new AppError(404, "Route not found");
     } catch (error) {
