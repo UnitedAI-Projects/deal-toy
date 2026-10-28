@@ -10,6 +10,7 @@ import {
 import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
 import { requirePermission } from "./access";
 import { consume } from "./builds";
+import { settingsRoute } from "./settings";
 import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
 import { mcp } from "./mcp";
@@ -140,6 +141,10 @@ export default {
             permissions: [...identity.permissions],
           }),
         );
+      if (url.pathname.startsWith("/api/settings/")) {
+        const response = await settingsRoute(request, url, c);
+        if (response) return secure(response);
+      }
       if (url.pathname === "/api/tools" && request.method === "GET")
         return secure(Response.json(await catalog(c)));
       const artifactMatch = /^\/api\/artifacts\/([a-f0-9-]+)$/.exec(
