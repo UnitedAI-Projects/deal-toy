@@ -205,7 +205,9 @@ export const tools: Tool[] = [
         models: models.results,
         revisions: source
           ? revisions.results
-          : revisions.results.map(({ source: _, ...r }) => r),
+          : (revisions.results as { source: string }[]).map(
+              ({ source: _, ...r }) => r,
+            ),
         jobs: jobs.results,
         artifacts: artifacts.results,
         documents: documents.results,
@@ -711,7 +713,11 @@ export async function dispatch(
             channel,
             args: clip(
               Object.fromEntries(
-                Object.entries(fields).filter(([k]) => k !== "sessionId"),
+                // Source never enters the log: it is broadcast to every live viewer, and
+                // the revision itself holds it for those allowed to read it.
+                Object.entries(fields).filter(
+                  ([k]) => k !== "sessionId" && k !== "source",
+                ),
               ),
             ),
           },

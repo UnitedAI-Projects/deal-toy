@@ -197,14 +197,35 @@ describe("Demo projects", () => {
     ).first<{ n: number }>();
     expect(delivered?.n).toBe(0);
   });
-  it("show source only to viewers who may download exports", async () => {
-    // The owner's save over MCP puts clipped source arguments into the activity log.
+  it("never record source in tool-call arguments", async () => {
     await dispatch(
       owner,
       "models_save",
       { modelId: demo.model, expectedRevision: 1, source: `${source}# v2\n` },
       "mcp",
     );
+    const saved = await env.DB.prepare(
+      "SELECT payload FROM project_events WHERE project_id=? AND kind='tool_call' AND payload LIKE '%models_save%' ORDER BY rowid DESC",
+    )
+      .bind(demo.project)
+      .first<{ payload: string }>();
+    const args = JSON.parse(saved!.payload).args as Record<string, unknown>;
+    expect(args).toMatchObject({ modelId: demo.model, expectedRevision: 1 });
+    expect(args).not.toHaveProperty("source");
+  });
+  it("show source only to viewers who may download exports", async () => {
+    // An event recorded before source was left out of tool-call arguments.
+    await env.DB.prepare(
+      "INSERT INTO project_events VALUES (?,?,NULL,'tool_call',?,?,?)",
+    )
+      .bind(
+        crypto.randomUUID(),
+        demo.project,
+        "owner@p.test",
+        JSON.stringify({ tool: "models_save", ok: true, args: { source } }),
+        new Date().toISOString(),
+      )
+      .run();
     const read = async (c: Context) => {
       const project = (await execute(c, "projects_get", {
         projectId: demo.project,
@@ -229,7 +250,7 @@ describe("Demo projects", () => {
       }),
     );
     expect(allowed.revisions).toContain(source);
-    expect(allowed.args.length).toBeGreaterThan(0);
+    expect(allowed.args).toEqual([source]);
   });
   it("are hidden from members without demo.view", async () => {
     const c = await member("nodemo@p.test", {

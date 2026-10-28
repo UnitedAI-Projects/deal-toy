@@ -100,7 +100,7 @@ describe("API keys", () => {
       days: 90,
     });
     expect(eleventh.status).toBe(409);
-    expect((await eleventh.json()).error).toBe(
+    expect(((await eleventh.json()) as { error: string }).error).toBe(
       "You have 10 active keys; revoke one first",
     );
   });

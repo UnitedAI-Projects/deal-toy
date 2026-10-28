@@ -94,7 +94,7 @@ describe("Agent sessions", () => {
       [null, "models_create", "http"],
     ]);
   });
-  it("summarizes long arguments instead of storing source code", async () => {
+  it("leaves source code out of recorded arguments", async () => {
     const p = await project();
     const m = (await execute(carol, "models_create", {
       projectId: p.id,
@@ -108,9 +108,8 @@ describe("Agent sessions", () => {
       source: "#".repeat(5000),
     });
     const { events } = await activity(p.id);
-    const args = events.at(-1)!.payload.args as { source: string };
-    expect(args.source.length).toBeLessThan(400);
-    expect(args.source).toContain("5000 characters");
+    const args = events.at(-1)!.payload.args as Record<string, unknown>;
+    expect(args).toEqual({ modelId: m.id, expectedRevision: 0 });
   });
   it("refuses another member's session and a session for another project", async () => {
     const p = await project();
