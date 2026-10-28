@@ -107,3 +107,7 @@ Branch `feat/accounts-access`. Local evidence only; production is pending the ow
   - real Google sign-in (no OAuth client configured locally);
   - production deployment and migration;
   - deleting the Access applications.
+
+## Accounts migration rehearsal — 2026-10-28
+
+Before activating PR #13, a private production D1 export was restored to a local SQLite database, migration `0003_accounts.sql` was applied, and foreign-key checks passed. Existing row counts were preserved: 2 projects, 1 model, 1 revision, 3 jobs, 4 artifacts, 1 document and 1 member. The existing token's hash/email/expiry migrated unchanged to an API key, and the active administrator became an active owner. A second local database restored from the export matched the original row counts and token records. Production migration and real Google OAuth verification remain pending configuration and deployment.

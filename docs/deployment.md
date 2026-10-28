@@ -51,6 +51,19 @@ The accounts migration (`0003_accounts.sql`) turned existing administrators into
 
 If an owner loses access to their Google account, restore it with `node ci/member.mjs --remote person@example.com owner /private/link.txt https://unitedai-deal-toy.ivan27chen.workers.dev`, using a Wrangler login with D1 write access. The script writes a single-use, 15-minute sign-in link to the private file and stores only its hash. Open it on the person's own computer.
 
+### Accounts migration recovery
+
+Before merging the accounts release, export D1 to a private, ignored location and record a current Time Travel bookmark. The migration drops the legacy role/active columns and tokens table, so rolling back Worker code alone cannot restore the old sign-in path.
+
+```sh
+umask 077
+mkdir -p work/account-cutover
+npx wrangler d1 time-travel info DB --json > work/account-cutover/time-travel-before.json
+npx wrangler d1 export DB --remote --output work/account-cutover/before-accounts.sql > work/account-cutover/export.log
+```
+
+Keep the export and log private: the export contains application data and the log may contain a temporary download URL. Rehearse both migration and restoration on a local copy; compare existing rows, token hashes and owner status. Refresh the bookmark immediately before release. If deployment fails after migration, prefer completing the new release. A full rollback requires coordinating the prior Worker release with a D1 Time Travel restore to the recorded bookmark, and reconciling any writes after that point. Do not restore a production database merely to test recovery.
+
 ### Cutover from Cloudflare Access
 
 The two Access applications (**Deal Toy**, `b4fb98b3-7170-4b94-a2b8-51282ef84308`, and **Deal Toy machine endpoints**, `8522c68a-87a7-403e-941c-618b21e59d80`) still front the hostname after this release deploys, so only the approved owner reaches the new sign-in page at first.
