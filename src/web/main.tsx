@@ -2,33 +2,32 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   call,
+  can,
   request,
-  tokenKey,
+  send,
+  type Me,
   type Project,
+  type ProjectList,
   type Skill,
   type Tool,
   type Workspace as WorkspaceData,
 } from "./api";
+import { SignIn } from "./SignIn";
 import { useTheme, type ThemeChoice } from "./theme";
 import { Workspace } from "./Workspace";
 import "./style.css";
-type Identity = {
-  email: string;
-  role: string;
-  authentication: "access" | "token";
-};
 function App() {
   const { theme, choice, choose } = useTheme();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [identity, setIdentity] = useState<Me | null>(null);
   const [checked, setChecked] = useState(false);
   const [page, setPage] = useState<"projects" | "workspace" | "extensions">(
     "projects",
   );
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectList>({ own: [], demo: [] });
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
   const [error, setError] = useState("");
   async function loadProjects() {
-    setProjects(await call<Project[]>("projects_list"));
+    setProjects(await call<ProjectList>("projects_list"));
   }
   async function signIn() {
     setIdentity(await (await request("/api/session")).json());
@@ -44,22 +43,17 @@ function App() {
     setPage("workspace");
   }
   function signOut() {
-    try {
-      sessionStorage.removeItem(tokenKey);
-    } catch {
-      // Nothing stored.
-    }
-    if (identity?.authentication === "access") {
-      window.location.assign("/cdn-cgi/access/logout");
-      return;
-    }
-    setIdentity(null);
-    setWorkspace(null);
-    setProjects([]);
-    setPage("projects");
+    void send("/api/auth/signout", "POST", {})
+      .catch(() => {})
+      .finally(() => {
+        setIdentity(null);
+        setWorkspace(null);
+        setProjects({ own: [], demo: [] });
+        setPage("projects");
+      });
   }
-  if (!checked) return <div className="splash">Opening your workspace…</div>;
-  if (!identity) return <SignIn onSignedIn={signIn} />;
+  if (!checked) return <div className="splash">Opening Mantel…</div>;
+  if (!identity) return <SignIn theme={theme} onSignedIn={signIn} />;
   if (page === "workspace" && workspace)
     return (
       <Workspace
@@ -111,6 +105,7 @@ function App() {
       ) : (
         <Library
           projects={projects}
+          canCreate={can(identity, "projects.create")}
           onOpen={(id) =>
             void openProject(id).catch((e: Error) => setError(e.message))
           }
@@ -125,7 +120,7 @@ function App() {
 }
 
 function PageHeader(props: {
-  identity: Identity;
+  identity: Me;
   choice: ThemeChoice;
   choose: (c: ThemeChoice) => void;
   page: string;
@@ -136,7 +131,7 @@ function PageHeader(props: {
     <header className="page-header">
       <button className="brand-link" onClick={() => props.go("projects")}>
         <span className="mark" aria-hidden="true" />
-        Deal Toy
+        Mantel
       </button>
       <nav>
         <button
@@ -174,60 +169,31 @@ function PageHeader(props: {
   );
 }
 
-function SignIn({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
-  const [token, setToken] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+function ProjectCard(props: {
+  project: Project;
+  onOpen: (id: string) => void;
+}) {
+  const p = props.project;
   return (
-    <main className="signin">
-      <form
-        className="card"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError("");
-          try {
-            sessionStorage.setItem(tokenKey, token);
-          } catch {
-            // The token still works for this request.
-          }
-          onSignedIn()
-            .catch((err: Error) => setError(err.message))
-            .finally(() => setBusy(false));
-        }}
-      >
-        <span className="mark large" aria-hidden="true" />
-        <h1>Deal Toy Studio</h1>
-        <p className="muted">
-          Watch your agents model deal toys, then refine them together.
-        </p>
-        <label>
-          Personal access token
-          <input
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            required
-          />
-        </label>
-        <button disabled={busy}>Open workspace</button>
-        <p className="muted small">
-          Use your administrator-issued token, or sign in through your
-          organization's protected URL.
-        </p>
-        {error && (
-          <p role="alert" className="inline-error">
-            {error}
-          </p>
-        )}
-      </form>
-    </main>
+    <button className="project" onClick={() => props.onOpen(p.id)}>
+      <span className="project-art" aria-hidden="true">
+        <span className="mark" />
+      </span>
+      <strong>{p.name}</strong>
+      <span className="muted clamp">
+        {p.brief || "Ready for its first model."}
+      </span>
+      <span className="muted small">
+        {p.demo ? "Demo · " : ""}
+        {new Date(p.created_at).toLocaleDateString()}
+      </span>
+    </button>
   );
 }
 
 function Library(props: {
-  projects: Project[];
+  projects: ProjectList;
+  canCreate: boolean;
   onOpen: (id: string) => void;
   onCreated: (id: string) => Promise<void>;
 }) {
@@ -245,7 +211,9 @@ function Library(props: {
             Every design, its agent sessions and revisions.
           </p>
         </div>
-        <button onClick={() => setCreate(!create)}>New project</button>
+        {props.canCreate && (
+          <button onClick={() => setCreate(!create)}>New project</button>
+        )}
       </div>
       {create && (
         <form
@@ -293,26 +261,11 @@ function Library(props: {
         </form>
       )}
       <div className="grid">
-        {props.projects.map((p) => (
-          <button
-            className="project"
-            key={p.id}
-            onClick={() => props.onOpen(p.id)}
-          >
-            <span className="project-art" aria-hidden="true">
-              <span className="mark" />
-            </span>
-            <strong>{p.name}</strong>
-            <span className="muted clamp">
-              {p.brief || "Ready for its first model."}
-            </span>
-            <span className="muted small">
-              {new Date(p.created_at).toLocaleDateString()}
-            </span>
-          </button>
+        {props.projects.own.map((p) => (
+          <ProjectCard key={p.id} project={p} onOpen={props.onOpen} />
         ))}
       </div>
-      {!props.projects.length && !create && (
+      {!props.projects.own.length && !create && props.canCreate && (
         <div className="empty">
           <h2>Start your first project</h2>
           <p className="muted">
@@ -321,6 +274,25 @@ function Library(props: {
           </p>
           <button onClick={() => setCreate(true)}>Create project</button>
         </div>
+      )}
+      {!props.canCreate && (
+        <div className="empty">
+          <h2>You're viewing the demo</h2>
+          <p className="muted">
+            Explore how an agent built it. Ask an admin for access to build your
+            own.
+          </p>
+        </div>
+      )}
+      {props.projects.demo.length > 0 && (
+        <>
+          <h2 className="section-title">Demo</h2>
+          <div className="grid">
+            {props.projects.demo.map((p) => (
+              <ProjectCard key={p.id} project={p} onOpen={props.onOpen} />
+            ))}
+          </div>
+        </>
       )}
     </main>
   );
@@ -333,13 +305,13 @@ const blankSkill: Skill = {
   description: "",
   content: "",
 };
-function Extensions({ identity }: { identity: Identity }) {
+function Extensions({ identity }: { identity: Me }) {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [skill, setSkill] = useState<Skill>(blankSkill);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const admin = identity.role === "admin";
+  const admin = can(identity, "settings.manage");
   async function load() {
     setSkills(await call<Skill[]>("skills_list"));
     setTools(await (await request("/api/tools")).json());

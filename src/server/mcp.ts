@@ -5,7 +5,7 @@ import { catalog, dispatch, execute, tools } from "./tools";
 export async function mcp(request: Request, c: Context) {
   const available = await catalog(c);
   const handler = createMcpHandler(() => {
-    const server = new McpServer({ name: "deal-toy", version: "0.1.0" });
+    const server = new McpServer({ name: "mantel", version: "0.1.0" });
     for (const tool of tools.filter((t) =>
       available.some((a) => a.name === t.name && a.enabled),
     )) {
@@ -51,7 +51,7 @@ export async function mcp(request: Request, c: Context) {
     }
     server.registerResource(
       "workflow-skills",
-      "deal-toy://skills",
+      "mantel://skills",
       {
         description:
           "Versioned workflow guidance. Skills never grant authority.",

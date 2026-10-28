@@ -6,6 +6,7 @@ import {
   saveBlob,
   type Activity,
   type Facts,
+  type Me,
   type ParamSpec,
   type Revision,
   type Workspace as WorkspaceData,
@@ -22,7 +23,7 @@ type Drawer = "code" | "downloads" | "documents" | "connect" | null;
 type Props = {
   data: WorkspaceData;
   reload: () => Promise<WorkspaceData>;
-  me: { email: string; role: string };
+  me: Me;
   theme: "light" | "dark";
   themeChoice: ThemeChoice;
   chooseTheme: (choice: ThemeChoice) => void;
@@ -207,7 +208,7 @@ export function Workspace(props: Props) {
             title="All projects"
           >
             <span className="mark" aria-hidden="true" />
-            Deal Toy
+            Mantel
           </button>
           <span className="chip project-name">{data.project.name}</span>
           {data.models.length > 1 && (
@@ -663,7 +664,7 @@ function CodeDrawer(props: {
   const dirty = source !== original;
   const diff =
     props.previous && mode === "diff"
-      ? diffLines(props.previous.source, original)
+      ? diffLines(props.previous.source ?? "", original)
       : null;
   useEffect(() => {
     if (!dirty) return;

@@ -206,7 +206,7 @@ describe("Workspace authorization and revisions", () => {
       }),
     });
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("deal-toy");
+    expect(await response.text()).toContain(`"name":"mantel"`);
   });
   it("rejects expired keys", async () => {
     const expired = await apiKey("alice@example.test");

@@ -259,15 +259,100 @@ label > select {
 }
 
 /* Sign in */
+/* Sign in: the Mantel name fills the screen; one card sits beside it (below it on phones). */
 .signin {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 16px;
+  position: fixed;
+  inset: 0;
+  background: var(--canvas);
+  overflow: hidden;
 }
-.signin .card {
-  width: min(400px, 100%);
-  padding: 28px;
+.name-stage {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.name-stage:active {
+  cursor: grabbing;
+}
+.signin-hint {
+  position: absolute;
+  bottom: 28px;
+  left: calc((100% - max(40px, 6vw) - 360px) / 2);
+  transform: translateX(-50%);
+  color: var(--faint);
+  font-size: 12px;
+  pointer-events: none;
+}
+.signin-card {
+  position: absolute;
+  right: max(40px, 6vw);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-glass);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+.signin-card h1 {
+  font-size: 18px;
+}
+.signin-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.segmented.wide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.segmented.wide button {
+  padding: 7px;
+  font-size: 13.5px;
+}
+.google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+.google:hover {
+  border-color: var(--faint);
+}
+.google[aria-disabled="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+button.wide {
+  width: 100%;
+}
+@media (max-width: 760px) {
+  .signin-card {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+    transform: none;
+    width: auto;
+    padding: 20px;
+  }
+  .signin-hint {
+    display: none;
+  }
 }
 
 /* Pages: library and skills */
@@ -1150,4 +1235,8 @@ textarea.code.editor.short {
     left: 10px;
     width: auto;
   }
+}
+.section-title {
+  font-size: 15px;
+  margin: 28px 0 12px;
 }
