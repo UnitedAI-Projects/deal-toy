@@ -20,11 +20,6 @@ function secure(response: Response) {
   headers.set("Cache-Control", "private, no-store");
   return new Response(response.body, { status: response.status, headers });
 }
-function redirect(location: string, setCookie?: string | null) {
-  const headers = new Headers({ Location: location });
-  if (setCookie) headers.set("Set-Cookie", setCookie);
-  return secure(new Response(null, { status: 302, headers }));
-}
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
@@ -65,13 +60,24 @@ export default {
         return env.LIVE.getByName(liveMatch[1]).fetch(request);
       }
       const userAgent = request.headers.get("User-Agent") ?? "";
-      if (url.pathname === "/api/auth/link" && request.method === "GET") {
-        const set = await redeemLink(
-          env,
-          url.searchParams.get("token") ?? "",
-          userAgent,
-        ).catch(() => null);
-        return redirect(set ? "/" : "/?auth_error=link", set);
+      // Sign-in links open the app at /link#token; the page redeems the token with a
+      // same-origin POST, so another site cannot sign a browser into someone else's account.
+      if (url.pathname === "/api/auth/link" && request.method === "POST") {
+        if (origin !== url.origin)
+          throw new AppError(403, "Cross-origin requests are not allowed");
+        const { token } = z
+          .object({ token: z.string().max(100) })
+          .strict()
+          .parse(JSON.parse((await boundedText(request, 1000)) || "{}"));
+        const set = await redeemLink(env, token, userAgent).catch(() => null);
+        if (!set)
+          throw new AppError(
+            401,
+            "This sign-in link has expired or was already used",
+          );
+        return secure(
+          Response.json({ ok: true }, { headers: { "Set-Cookie": set } }),
+        );
       }
       if (url.pathname === "/api/auth/signout" && request.method === "POST") {
         const body = z

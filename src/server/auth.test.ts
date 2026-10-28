@@ -56,15 +56,30 @@ const signOut = (cookie: string, body: object = {}) =>
     body: JSON.stringify(body),
   });
 
+const redeem = (
+  token: string,
+  headers: Record<string, string> = { Origin: origin },
+) =>
+  api("/api/auth/link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify({ token }),
+  });
+
 describe("Sign-in links", () => {
-  it("create a session once", async () => {
+  it("create a session once, through a same-origin POST", async () => {
     await member("link@x.test");
     const token = await createLink(env, "link@x.test");
-    const first = await api(`/api/auth/link?token=${token}`, {
+    // A plain GET never redeems the link; the token still works below.
+    const viaGet = await api(`/api/auth/link?token=${token}`, {
       redirect: "manual",
     });
-    expect(first.status).toBe(302);
-    expect(first.headers.get("Location")).toBe("/");
+    expect(viaGet.headers.get("Set-Cookie")).toBeNull();
+    expect((await redeem(token, { Origin: "https://evil.test" })).status).toBe(
+      403,
+    );
+    const first = await redeem(token);
+    expect(first.status).toBe(200);
     const set = first.headers.get("Set-Cookie") ?? "";
     expect(set).toMatch(/^__Host-mantel_session=[A-Za-z0-9_-]{43};/);
     for (const attribute of ["HttpOnly", "Secure", "SameSite=Lax", "Path=/"])
@@ -73,10 +88,8 @@ describe("Sign-in links", () => {
       email: "link@x.test",
       owner: false,
     });
-    const second = await api(`/api/auth/link?token=${token}`, {
-      redirect: "manual",
-    });
-    expect(second.headers.get("Location")).toBe("/?auth_error=link");
+    const second = await redeem(token);
+    expect(second.status).toBe(401);
     expect(second.headers.get("Set-Cookie")).toBeNull();
   });
   it("reject expired links and sessions", async () => {
@@ -85,10 +98,7 @@ describe("Sign-in links", () => {
     await env.DB.prepare("UPDATE signin_links SET expires_at=? WHERE hash=?")
       .bind("2000-01-01T00:00:00.000Z", await hash(token))
       .run();
-    const link = await api(`/api/auth/link?token=${token}`, {
-      redirect: "manual",
-    });
-    expect(link.headers.get("Location")).toBe("/?auth_error=link");
+    expect((await redeem(token)).status).toBe(401);
     const cookie = await signedIn("old@x.test");
     await env.DB.prepare("UPDATE auth_sessions SET expires_at=? WHERE email=?")
       .bind("2000-01-01T00:00:00.000Z", "old@x.test")
