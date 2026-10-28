@@ -27,14 +27,22 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 export const isPermission = (value: unknown): value is Permission =>
   PERMISSIONS.includes(value as Permission);
 
-/** Loads a member's current access: their level, plus individual allows, minus revokes. */
-export async function loadIdentity(
+export type MemberAccess = {
+  email: string;
+  name: string;
+  owner: boolean;
+  status: "active" | "suspended";
+  level_id: string | null;
+  permissions: Set<Permission>;
+};
+/** A member's current access whatever their status: level, plus allows, minus revokes. */
+export async function memberAccess(
   env: Pick<Env, "DB">,
   email: string,
-): Promise<Identity> {
+): Promise<MemberAccess | null> {
   const [member, granted] = await env.DB.batch([
     env.DB.prepare(
-      "SELECT email,name,owner,status FROM members WHERE email=?",
+      "SELECT email,name,owner,status,level_id FROM members WHERE email=?",
     ).bind(email),
     env.DB.prepare(
       `SELECT permission FROM level_permissions WHERE level_id=(SELECT level_id FROM members WHERE email=?1)
@@ -43,18 +51,37 @@ export async function loadIdentity(
     ).bind(email),
   ]);
   const row = member.results[0] as
-    { email: string; name: string; owner: number; status: string } | undefined;
-  if (!row) throw new AppError(401, "Sign in");
-  if (row.status !== "active") throw new AppError(403, "Account suspended");
+    | (Omit<MemberAccess, "owner" | "permissions"> & { owner: number })
+    | undefined;
+  if (!row) return null;
   const owner = row.owner === 1;
-  const permissions = new Set<Permission>(
-    owner
-      ? PERMISSIONS
-      : (granted.results as { permission: string }[])
-          .map((r) => r.permission)
-          .filter(isPermission),
-  );
-  return { email: row.email, name: row.name, owner, permissions };
+  return {
+    ...row,
+    owner,
+    permissions: new Set<Permission>(
+      owner
+        ? PERMISSIONS
+        : (granted.results as { permission: string }[])
+            .map((r) => r.permission)
+            .filter(isPermission),
+    ),
+  };
+}
+
+/** Loads an active member's identity; unknown members must sign in, suspended ones are refused. */
+export async function loadIdentity(
+  env: Pick<Env, "DB">,
+  email: string,
+): Promise<Identity> {
+  const member = await memberAccess(env, email);
+  if (!member) throw new AppError(401, "Sign in");
+  if (member.status !== "active") throw new AppError(403, "Account suspended");
+  return {
+    email: member.email,
+    name: member.name,
+    owner: member.owner,
+    permissions: member.permissions,
+  };
 }
 
 export function requirePermission(c: Context, permission: Permission) {

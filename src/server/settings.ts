@@ -2,6 +2,20 @@ import { z } from "zod";
 import { requirePermission } from "./access";
 import { secret } from "./auth";
 import { AppError, boundedText, hash, type Context } from "./core";
+import {
+  account,
+  createLevel,
+  deleteLevel,
+  levelCreate,
+  levelUpdate,
+  listLevels,
+  listMembers,
+  memberUpdate,
+  renameAccount,
+  setDemo,
+  updateLevel,
+  updateMember,
+} from "./members";
 
 const MAX_KEYS = 10;
 const keyInput = z
@@ -10,6 +24,11 @@ const keyInput = z
     days: z.union([z.literal(30), z.literal(90), z.literal(365)]).default(90),
   })
   .strict();
+
+const accountInput = z
+  .object({ name: z.string().trim().min(1).max(120) })
+  .strict();
+const demoInput = z.object({ demo: z.boolean() }).strict();
 
 async function json(request: Request) {
   if (!request.headers.get("Content-Type")?.startsWith("application/json"))
@@ -42,6 +61,45 @@ export async function settingsRoute(
     await revokeKey(c, keyMatch[1]);
     return Response.json({ ok: true });
   }
+  if (path === "/account" && method === "GET")
+    return Response.json(await account(c));
+  if (path === "/account" && method === "PATCH")
+    return Response.json(
+      await renameAccount(c, accountInput.parse(await json(request)).name),
+    );
+  if (path === "/members" && method === "GET")
+    return Response.json(await listMembers(c));
+  const memberMatch = /^\/members\/([^/]{3,320})$/.exec(path);
+  if (memberMatch && method === "PATCH")
+    return Response.json(
+      await updateMember(
+        c,
+        decodeURIComponent(memberMatch[1]).toLowerCase(),
+        memberUpdate.parse(await json(request)),
+      ),
+    );
+  if (path === "/levels" && method === "GET")
+    return Response.json(await listLevels(c));
+  if (path === "/levels" && method === "POST")
+    return Response.json(
+      await createLevel(c, levelCreate.parse(await json(request))),
+    );
+  const levelMatch = /^\/levels\/(level-[a-z0-9-]{1,40})$/.exec(path);
+  if (levelMatch && method === "PATCH")
+    return Response.json(
+      await updateLevel(
+        c,
+        levelMatch[1],
+        levelUpdate.parse(await json(request)),
+      ),
+    );
+  if (levelMatch && method === "DELETE")
+    return Response.json(await deleteLevel(c, levelMatch[1]));
+  const demoMatch = /^\/projects\/([0-9a-f-]{36})\/demo$/.exec(path);
+  if (demoMatch && method === "PATCH")
+    return Response.json(
+      await setDemo(c, demoMatch[1], demoInput.parse(await json(request)).demo),
+    );
   return null;
 }
 
