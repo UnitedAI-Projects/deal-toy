@@ -30,21 +30,40 @@ Create a `production` GitHub environment restricted to `main`. Set:
 
 Never put a personal Wrangler OAuth token into CI. Use a dedicated API token with an appropriate expiration and rotation plan. Keep deployment credentials out of PR checks.
 
-`Deploy` reruns the full checks on the selected main revision, verifies main has not advanced, applies forward migrations, and deploys the Worker and native image. It verifies the running release SHA and anonymous API denial. Initial container provisioning may take several minutes; perform authenticated CAD acceptance separately. Failed migrations or deploy verification remain failed jobs; there is no automatic rollback.
+`Deploy` reruns the full checks on the selected main revision, verifies main has not advanced, applies forward migrations, and deploys the Worker and native image. It verifies the running release SHA, anonymous API and MCP denial, and the Google sign-in redirect. Initial container provisioning may take several minutes; perform authenticated CAD acceptance separately. Failed migrations or deploy verification remain failed jobs; there is no automatic rollback.
 
 ## Identity
 
-The app denies private API access by default. Cloudflare Access browser sign-in uses a hostname-based self-hosted application for `unitedai-deal-toy.ivan27chen.workers.dev`, the existing Google identity provider, and the reusable **Personal apps - Ivan only** policy (exact email `ivan27chen@gmail.com`). Access application ID: `b4fb98b3-7170-4b94-a2b8-51282ef84308`. Sessions last 24 hours; the cookie is HTTP-only. Keep `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` in `wrangler.jsonc` synchronized with the verified issuer/audience so deployments preserve the integration. Membership remains a separate check; an email header alone never grants access.
+Mantel signs people in itself, with Google. Cloudflare Access is no longer required; see the cutover below.
 
-The current Google identity takes precedence over a personal token left in browser session storage. Signing out clears the local token and ends the Access session through `/cdn-cgi/access/logout`.
+### Google OAuth client (owner setup, once per environment)
 
-The separate **Deal Toy machine endpoints** application (`8522c68a-87a7-403e-941c-618b21e59d80`) uses reusable policy `3bb3333d-93c2-42c8-a7dd-bd742dc84cfa` and bypasses the browser challenge only for `/health` and `/mcp`. `/health` exposes release status only. `/mcp` still requires a valid, unexpired personal bearer token and active membership, then enforces project ownership. Do not add a root or `/api` bypass. Direct bearer requests to `/api` now also require an Access session; machine clients should use `/mcp`. Keep deployment checks on the public health path and test both anonymous MCP denial and authenticated MCP success after policy changes.
+1. In Google Cloud Console → **APIs & Services → Credentials**, create an **OAuth client ID** of type **Web application**. The consent screen needs only the `openid`, `email` and `profile` scopes.
+2. Add the authorized redirect URI `https://unitedai-deal-toy.ivan27chen.workers.dev/api/auth/google/callback` (and `http://localhost:8787/api/auth/google/callback` for a development client).
+3. Put the client ID in `GOOGLE_CLIENT_ID` in `wrangler.jsonc` (an identifier, not a secret) and store the secret with `npx wrangler secret put GOOGLE_CLIENT_SECRET`. Never commit the secret.
+4. Until both are set, the sign-in button reports "Google sign-in isn't set up yet" and the release check prints a warning.
 
-To reproduce this setup in another account, create the Google provider and exact-member allow policy, then the hostname application and the two narrowly scoped path exceptions. Use hostname-based Access rather than a Worker-wide gate, which would intercept machine endpoints as well. Configure the issuer/audience, provision membership, deploy, and verify Google login without a stored personal token before handing off.
+`AUTH_LIMITER` (Workers rate limiting, 20 requests a minute per IP) protects the Google start and callback routes. `DAILY_BUILD_LIMIT` (default 100) caps builds per member per day.
 
-Provision a member and personal token using `node ci/member.mjs --remote person@example.com maker /private/token.txt`. An administrator role can publish global skills and configure tools. The script writes the token once to a private file; it stores only the hash in D1. Deliver the token privately. To revoke, delete its hash from `tokens`, or set the member's `active=0` to revoke all their tokens and Access sessions. Tokens expire after ninety days.
+### Members, owners and recovery
 
-No members or tokens are seeded in production automatically. Project sharing and OAuth client consent are not implemented.
+The accounts migration (`0003_accounts.sql`) turned existing administrators into owners at the Admin level and makers into the Maker level, and moved existing personal tokens into API keys named after their label. New people sign up with Google and start at the default level (Demo). Owners manage everyone else in **Settings**.
+
+If an owner loses access to their Google account, restore it with `node ci/member.mjs --remote person@example.com owner /private/link.txt https://unitedai-deal-toy.ivan27chen.workers.dev`, using a Wrangler login with D1 write access. The script writes a single-use, 15-minute sign-in link to the private file and stores only its hash. Open it on the person's own computer.
+
+### Cutover from Cloudflare Access
+
+The two Access applications (**Deal Toy**, `b4fb98b3-7170-4b94-a2b8-51282ef84308`, and **Deal Toy machine endpoints**, `8522c68a-87a7-403e-941c-618b21e59d80`) still front the hostname after this release deploys, so only the approved owner reaches the new sign-in page at first.
+
+1. Deploy, then sign in as the owner with Google. The existing member links by verified email.
+2. In production, check:
+   - a second Google account signs up and lands on the demo;
+   - the owner promotes it in **Settings → Members** and its next request has the new access;
+   - an API key works with Claude Code and stops working when revoked;
+   - suspending a member ends their open session.
+3. With the owner's approval, delete both Access applications (Zero Trust → Access → Applications). Then confirm an anonymous visitor sees the sign-in page, and that `/api/session` and `/mcp` return 401.
+
+No members or keys are seeded automatically. Project sharing and OAuth for MCP clients are not implemented.
 
 ## Rollback and recovery
 

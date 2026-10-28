@@ -74,3 +74,36 @@ Not yet verified in production:
 - A signed-in session. No production token was available on the verifying host.
 - A real agent session over the production MCP endpoint.
 - A session watched from a second browser.
+
+## Accounts, access levels and API keys — 2026-10-28
+
+Branch `feat/accounts-access`. Local evidence only; production is pending the owner's Google OAuth client and the Access cutover in [deployment](deployment.md#cutover-from-cloudflare-access).
+
+- `bash ci/run.sh` passed: formatting, TypeScript (server and web), 76 Worker tests in 10 files, the web build, `npm audit` (0 vulnerabilities), ruff, 8 Python tests (1 skipped) and the Wrangler packaging dry run.
+- **Worker tests:**
+  - the accounts migration;
+  - effective permissions;
+  - sign-in links;
+  - session expiry, sign-out and suspension;
+  - same-origin cookie writes;
+  - keys only on `/mcp`;
+  - Google start and callback with mocked token and certificate endpoints: forged state, audience, nonce, expiry, unverified email, account linking and rate limits;
+  - permissions per tool;
+  - demo reads and refused demo writes;
+  - source and member emails withheld from viewers, including the live feed;
+  - the daily build cap;
+  - API key lifecycle;
+  - member and level management, including delegated-admin limits and the last owner.
+- **Browser (Chrome DevTools, local Worker on port 8788):**
+  - The sign-in screen renders the Mantel GLB in light, dark and at 390 px. Dragging spins the name, the tab copy changes, and `?auth_error=` messages show and clear.
+  - A sign-in link signed in the owner, with the session cookie not readable by page scripts, and sign-out ended the session.
+  - The owner built a project with the local CAD container, marked it as the demo, created an API key that listed tools over `/mcp`, and edited a member and the levels.
+  - A Demo-level member opened straight into the demo: view-only chip, no composer, read-only dimensions, "team" in place of emails.
+  - Promotion to Maker took effect on reload.
+
+  Screenshots: `docs/images/signin-*.png`, `settings-*.png`, `demo-viewer.png`.
+
+- **Not yet verified:**
+  - real Google sign-in (no OAuth client configured locally);
+  - production deployment and migration;
+  - deleting the Access applications.
