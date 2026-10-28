@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { execute } from "./tools";
 import { consume } from "./builds";
 import { hash, type Context } from "./core";
+import { apiKey, cookieFor, member } from "./test-helpers";
 declare global {
   namespace Cloudflare {
     interface Env {
@@ -11,28 +12,16 @@ declare global {
     }
   }
 }
-const alice: Context = {
-  env,
-  identity: { email: "alice@example.test", role: "admin" },
-};
-const bob: Context = {
-  env,
-  identity: { email: "bob@example.test", role: "maker" },
-};
-const token = "test-token-with-at-least-thirty-two-characters";
+let alice: Context;
+let bob: Context;
+let key: string;
+let aliceCookie: string;
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
-  await env.DB.prepare(
-    "INSERT INTO members VALUES ('alice@example.test','admin',1),('bob@example.test','maker',1)",
-  ).run();
-  await env.DB.prepare("INSERT INTO tokens VALUES (?,?,?,?)")
-    .bind(
-      await hash(token),
-      alice.identity.email,
-      "test",
-      "2099-01-01T00:00:00.000Z",
-    )
-    .run();
+  alice = await member("alice@example.test", { owner: true, level: "Admin" });
+  bob = await member("bob@example.test", { level: "Maker" });
+  key = await apiKey("alice@example.test");
+  aliceCookie = await cookieFor("alice@example.test");
 });
 async function project(c = alice) {
   return (await execute(c, "projects_create", {
@@ -55,11 +44,11 @@ describe("Workspace authorization and revisions", () => {
         (await exports.default.fetch(`https://example.test${path}`)).status,
       ).toBe(401);
   });
-  it("accepts valid token and rejects forged Access email", async () => {
+  it("accepts a session and ignores identity headers", async () => {
     expect(
       (
         await exports.default.fetch("https://example.test/api/session", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Cookie: aliceCookie },
         })
       ).status,
     ).toBe(200);
@@ -68,6 +57,7 @@ describe("Workspace authorization and revisions", () => {
         await exports.default.fetch("https://example.test/api/session", {
           headers: {
             "Cf-Access-Authenticated-User-Email": "alice@example.test",
+            "Cf-Access-Jwt-Assertion": "forged",
           },
         })
       ).status,
@@ -167,7 +157,7 @@ describe("Workspace authorization and revisions", () => {
   it("blocks member tool administration and checks disabled tools at call time", async () => {
     await expect(
       execute(bob, "tools_configure", { name: "skills_save", enabled: false }),
-    ).rejects.toThrow("Administrator");
+    ).rejects.toThrow("Configure skills and tools");
     await execute(alice, "tools_configure", {
       name: "skills_save",
       enabled: false,
@@ -186,7 +176,7 @@ describe("Workspace authorization and revisions", () => {
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${token}`,
+              Cookie: aliceCookie,
               Origin: "https://attacker.test",
               "Content-Type": "application/json",
             },
@@ -200,7 +190,7 @@ describe("Workspace authorization and revisions", () => {
     const response = await exports.default.fetch("https://example.test/mcp", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
       },
@@ -218,20 +208,20 @@ describe("Workspace authorization and revisions", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("deal-toy");
   });
-  it("rejects expired tokens", async () => {
-    const expired = "expired-test-token-with-thirty-two-characters";
-    await env.DB.prepare("INSERT INTO tokens VALUES (?,?,?,?)")
-      .bind(
-        await hash(expired),
-        alice.identity.email,
-        "expired",
-        "2020-01-01T00:00:00.000Z",
-      )
+  it("rejects expired keys", async () => {
+    const expired = await apiKey("alice@example.test");
+    await env.DB.prepare("UPDATE api_keys SET expires_at=? WHERE hash=?")
+      .bind("2020-01-01T00:00:00.000Z", await hash(expired))
       .run();
     expect(
       (
-        await exports.default.fetch("https://example.test/api/session", {
-          headers: { Authorization: `Bearer ${expired}` },
+        await exports.default.fetch("https://example.test/mcp", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${expired}`,
+            "Content-Type": "application/json",
+          },
+          body: "{}",
         })
       ).status,
     ).toBe(401);
@@ -247,7 +237,9 @@ describe("Build lifecycle", () => {
       source: "# fixture",
     })) as { id: string };
     const jobId = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO jobs VALUES (?,?,'queued',NULL,NULL,?,?)")
+    await env.DB.prepare(
+      "INSERT INTO jobs (id,revision_id,status,created_at,updated_at) VALUES (?,?,'queued',?,?)",
+    )
       .bind(
         jobId,
         revision.id,
@@ -297,15 +289,7 @@ describe("Build lifecycle", () => {
     } as unknown as Env;
     await consume(message, testEnv);
     await consume(message, testEnv);
-    const otherToken = "bob-test-token-with-at-least-thirty-two-characters";
-    await env.DB.prepare("INSERT INTO tokens VALUES (?,?,?,?)")
-      .bind(
-        await hash(otherToken),
-        bob.identity.email,
-        "test",
-        "2099-01-01T00:00:00.000Z",
-      )
-      .run();
+    const bobCookie = await cookieFor("bob@example.test");
     expect(container.fetch).toHaveBeenCalledTimes(1);
     expect(container.destroy).toHaveBeenCalledTimes(1);
     const result = (await execute(alice, "builds_get", { jobId })) as {
@@ -318,7 +302,7 @@ describe("Build lifecycle", () => {
       (
         await exports.default.fetch(
           `https://example.test/api/artifacts/${result.artifacts[0].id}`,
-          { headers: { Authorization: `Bearer ${otherToken}` } },
+          { headers: { Cookie: bobCookie } },
         )
       ).status,
     ).toBe(404);
@@ -333,7 +317,7 @@ describe("Build lifecycle", () => {
       (
         await exports.default.fetch(
           `https://example.test/api/artifacts/${result.artifacts[0].id}`,
-          { headers: { Authorization: `Bearer ${token}` } },
+          { headers: { Cookie: aliceCookie } },
         )
       ).status,
     ).toBe(200);

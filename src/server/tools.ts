@@ -1,8 +1,8 @@
 import { builtinSkills } from "./skills";
 import { z } from "zod";
+import { requirePermission, type Permission } from "./access";
 import {
   AppError,
-  admin,
   id,
   modelAccess,
   projectAccess,
@@ -27,7 +27,8 @@ export type Tool = {
   description: string;
   schema: z.ZodObject;
   readOnly: boolean;
-  adminOnly?: boolean;
+  /** Every listed permission is required. */
+  permission?: Permission[];
   run: (context: Context, input: unknown) => Promise<unknown>;
 };
 function define<S extends z.ZodRawShape>(
@@ -39,7 +40,7 @@ function define<S extends z.ZodRawShape>(
     c: Context,
     input: z.infer<z.ZodObject<S>> & { sessionId?: string },
   ) => Promise<unknown>,
-  adminOnly = false,
+  permission?: Permission | Permission[],
 ): Tool {
   // Every tool accepts an optional sessionId so the call attaches to an agent session.
   const schema = z.object({ sessionId: id.optional(), ...shape }).strict();
@@ -48,7 +49,12 @@ function define<S extends z.ZodRawShape>(
     description,
     schema,
     readOnly,
-    adminOnly,
+    permission:
+      permission === undefined
+        ? undefined
+        : Array.isArray(permission)
+          ? permission
+          : [permission],
     run: (c, input) =>
       run(
         c,
@@ -79,11 +85,19 @@ async function saveRevision(
 }
 async function queueBuild(c: Context, revisionId: string) {
   await revisionAccess(c, revisionId);
+  const limit = Number.parseInt(c.env.DAILY_BUILD_LIMIT, 10) || 100;
+  const today = await c.env.DB.prepare(
+    "SELECT count(*) AS n FROM jobs WHERE created_by=? AND created_at>?",
+  )
+    .bind(c.identity.email, new Date(Date.now() - 86400_000).toISOString())
+    .first<{ n: number }>();
+  if ((today?.n ?? 0) >= limit)
+    throw new AppError(429, "Daily build limit reached");
   const jobId = crypto.randomUUID();
   const admitted = await c.env.DB.prepare(
-    "INSERT INTO jobs SELECT ?,?,'queued',NULL,NULL,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running'))<10",
+    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by) SELECT ?,?,'queued',NULL,NULL,?,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running'))<10",
   )
-    .bind(jobId, revisionId, now(), now())
+    .bind(jobId, revisionId, now(), now(), c.identity.email)
     .run();
   if (admitted.meta.changes !== 1)
     throw new AppError(429, "Build queue is full; try later");
@@ -109,17 +123,23 @@ type ParamSpec = {
 export const tools: Tool[] = [
   define(
     "projects_list",
-    "List your CAD projects.",
+    "List your CAD projects (own) and the read-only demo projects you may view (demo).",
     {},
     true,
-    async (c) =>
-      (
-        await c.env.DB.prepare(
+    async (c) => {
+      const [own, demo] = await c.env.DB.batch([
+        c.env.DB.prepare(
           "SELECT * FROM projects WHERE owner=? ORDER BY created_at DESC LIMIT 200",
-        )
-          .bind(c.identity.email)
-          .all()
-      ).results,
+        ).bind(c.identity.email),
+        c.env.DB.prepare(
+          "SELECT * FROM projects WHERE demo=1 AND owner<>? AND ?=1 ORDER BY created_at DESC LIMIT 20",
+        ).bind(
+          c.identity.email,
+          c.identity.permissions.has("demo.view") ? 1 : 0,
+        ),
+      ]);
+      return { own: own.results, demo: demo.results };
+    },
   ),
   define(
     "projects_create",
@@ -133,7 +153,9 @@ export const tools: Tool[] = [
         brief: i.brief,
         created_at: now(),
       };
-      await c.env.DB.prepare("INSERT INTO projects VALUES (?,?,?,?,?)")
+      await c.env.DB.prepare(
+        "INSERT INTO projects (id,owner,name,brief,created_at) VALUES (?,?,?,?,?)",
+      )
         .bind(
           project.id,
           c.identity.email,
@@ -144,6 +166,7 @@ export const tools: Tool[] = [
         .run();
       return project;
     },
+    "projects.create",
   ),
   define(
     "projects_get",
@@ -151,7 +174,7 @@ export const tools: Tool[] = [
     { projectId: id },
     true,
     async (c, i) => {
-      const project = await projectAccess(c, i.projectId);
+      const project = await projectAccess(c, i.projectId, "read");
       const [models, revisions, jobs, artifacts, documents] =
         await c.env.DB.batch([
           c.env.DB.prepare("SELECT * FROM models WHERE project_id=?").bind(
@@ -198,6 +221,7 @@ export const tools: Tool[] = [
         .run();
       return model;
     },
+    "models.edit",
   ),
   define(
     "models_save",
@@ -209,6 +233,7 @@ export const tools: Tool[] = [
     },
     false,
     async (c, i) => saveRevision(c, i.modelId, i.expectedRevision, i.source),
+    "models.edit",
   ),
   define(
     "models_build",
@@ -216,6 +241,7 @@ export const tools: Tool[] = [
     { revisionId: id },
     false,
     async (c, i) => queueBuild(c, i.revisionId),
+    "builds.run",
   ),
   define(
     "builds_get",
@@ -227,7 +253,7 @@ export const tools: Tool[] = [
         .bind(i.jobId)
         .first<{ revision_id: string }>();
       if (!job) throw new AppError(404, "Build not found");
-      await revisionAccess(c, job.revision_id);
+      await revisionAccess(c, job.revision_id, "read");
       return {
         ...job,
         artifacts: (
@@ -282,6 +308,7 @@ export const tools: Tool[] = [
         .run();
       return { id: docId, status: "draft" };
     },
+    "models.edit",
   ),
   define(
     "session_start",
@@ -388,6 +415,7 @@ export const tools: Tool[] = [
       });
       return { id: event?.id, activeSessions: active?.n ?? 0 };
     },
+    "notes.write",
   ),
   define(
     "projects_activity",
@@ -395,7 +423,7 @@ export const tools: Tool[] = [
     { projectId: id },
     true,
     async (c, i) => {
-      await projectAccess(c, i.projectId);
+      await projectAccess(c, i.projectId, "read");
       const since = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
       const [sessions, events] = await c.env.DB.batch([
         c.env.DB.prepare(
@@ -491,6 +519,7 @@ export const tools: Tool[] = [
       });
       return { revision: saved, job: build };
     },
+    ["models.edit", "builds.run"],
   ),
   define(
     "skills_list",
@@ -519,7 +548,6 @@ export const tools: Tool[] = [
     },
     false,
     async (c, i) => {
-      admin(c);
       const result = await c.env.DB.prepare(
         "INSERT INTO skills SELECT ?,?,?,?,?,?,? WHERE COALESCE((SELECT MAX(version) FROM skills WHERE id=?),0)=?",
       )
@@ -539,7 +567,7 @@ export const tools: Tool[] = [
         throw new AppError(409, "Skill changed. Reload first");
       return { id: i.skillId, version: i.expectedVersion + 1 };
     },
-    true,
+    "settings.manage",
   ),
   define(
     "tools_configure",
@@ -547,7 +575,6 @@ export const tools: Tool[] = [
     { name: shortText, enabled: z.boolean() },
     false,
     async (c, i) => {
-      admin(c);
       if (!tools.some((t) => t.name === i.name) || i.name === "tools_configure")
         throw new AppError(400, "Tool cannot be configured");
       await c.env.DB.prepare(
@@ -557,7 +584,7 @@ export const tools: Tool[] = [
         .run();
       return i;
     },
-    true,
+    "settings.manage",
   ),
 ];
 export async function catalog(c: Context) {
@@ -565,7 +592,9 @@ export async function catalog(c: Context) {
     "SELECT * FROM tool_settings",
   ).all<{ name: string; enabled: number }>();
   return tools
-    .filter((t) => !t.adminOnly || c.identity.role === "admin")
+    .filter((t) =>
+      (t.permission ?? []).every((p) => c.identity.permissions.has(p)),
+    )
     .map((t) => ({
       name: t.name,
       description: t.description,
@@ -624,7 +653,8 @@ export async function dispatch(
 ): Promise<{ value: unknown; notes: Note[] }> {
   const tool = tools.find((t) => t.name === name);
   if (!tool) throw new AppError(404, "Tool not found");
-  if (tool.adminOnly) admin(c);
+  for (const permission of tool.permission ?? [])
+    requirePermission(c, permission);
   const setting = await c.env.DB.prepare(
     "SELECT enabled FROM tool_settings WHERE name=?",
   )

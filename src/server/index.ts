@@ -8,6 +8,7 @@ import {
   signOut,
 } from "./auth";
 import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
+import { requirePermission } from "./access";
 import { consume } from "./builds";
 import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
@@ -112,7 +113,7 @@ export default {
       const ticketMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
       if (ticketMatch && request.method === "POST") {
-        await projectAccess(c, ticketMatch[1]);
+        await projectAccess(c, ticketMatch[1], "read");
         const ticket = await env.LIVE.getByName(ticketMatch[1]).issueTicket(
           identity.email,
         );
@@ -156,7 +157,10 @@ export default {
             revision_id: string;
           }>();
         if (!artifact) throw new AppError(404, "Artifact not found");
-        await revisionAccess(c, artifact.revision_id);
+        await revisionAccess(c, artifact.revision_id, "read");
+        // The viewer's GLB preview needs only read access; exports need a permission.
+        if (!artifact.name.endsWith(".glb"))
+          requirePermission(c, "exports.download");
         const object = await env.ARTIFACTS.get(artifact.object_key);
         if (!object) throw new AppError(404, "Artifact missing");
         return secure(

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { loadIdentity, type Permission } from "./access";
-import type { Context } from "./core";
+import { createSession } from "./auth";
+import { hash, type Context } from "./core";
 
 const LEVEL_IDS = {
   Demo: "level-demo",
@@ -52,4 +53,28 @@ export async function member(
       identity: { email, name: "", owner: false, permissions: new Set() },
     };
   return { env, identity: await loadIdentity(env, email) };
+}
+
+/** A browser session cookie (name=value) for a member. */
+export async function cookieFor(email: string) {
+  return (await createSession(env, email, "test")).split(";")[0];
+}
+
+/** An API key for a member, stored the way Settings stores one. */
+export async function apiKey(email: string) {
+  const value = `mtl_${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
+  await env.DB.prepare(
+    "INSERT INTO api_keys (id,email,name,prefix,hash,created_at,expires_at) VALUES (?,?,?,?,?,?,?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      email,
+      "test",
+      value.slice(0, 8),
+      await hash(value),
+      new Date().toISOString(),
+      "2099-01-01T00:00:00.000Z",
+    )
+    .run();
+  return value;
 }

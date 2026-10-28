@@ -123,7 +123,11 @@ export async function sessionFor(c: Context, sessionId: string) {
   return session;
 }
 
-/** The project a tool call acts on, if any. Lookups enforce the same ownership checks. */
+/**
+ * The project a tool call acts on, if the caller owns it. Reading a demo project someone else
+ * owns resolves to nothing, so it is neither recorded in that project's activity nor handed
+ * the owner's team notes.
+ */
 export async function resolveProject(
   c: Context,
   input: unknown,
