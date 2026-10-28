@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Permission } from "./access";
 export class AppError extends Error {
   constructor(
     public status: number,
@@ -9,7 +10,12 @@ export class AppError extends Error {
 }
 export const id = z.string().uuid();
 export const shortText = z.string().trim().min(1).max(120);
-export type Identity = { email: string; role: "admin" | "maker" };
+export type Identity = {
+  email: string;
+  name: string;
+  owner: boolean;
+  permissions: Set<Permission>;
+};
 export type Context = { env: Env; identity: Identity };
 export async function hash(value: string | Uint8Array): Promise<string> {
   const data =
