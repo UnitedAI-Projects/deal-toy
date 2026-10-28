@@ -1,0 +1,7 @@
+**
+!engine/
+!engine/Dockerfile
+!engine/pyproject.toml
+!engine/uv.lock
+!engine/runner.py
+!engine/service.py

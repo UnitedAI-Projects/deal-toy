@@ -1,0 +1,87 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unitedai-deal-toy",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-10-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "deal-toy",
+      "database_id": "01262ea9-4640-464f-870c-2c7618f5fb5a",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ARTIFACTS",
+      "bucket_name": "deal-toy-artifacts",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BUILDS",
+        "queue": "deal-toy-builds",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "deal-toy-builds",
+        "max_batch_size": 1,
+        "max_retries": 1,
+      },
+    ],
+  },
+  "containers": [
+    {
+      "class_name": "CadContainer",
+      "image": "./engine/Dockerfile",
+      "image_build_context": ".",
+      "max_instances": 2,
+      "instance_type": "standard-1",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CAD",
+        "class_name": "CadContainer",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["CadContainer"],
+    },
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "RELEASE_SHA": "development",
+  },
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true,
+    },
+  },
+  "preview_urls": false,
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/*.md"],
+      "fallthrough": true,
+    },
+  ],
+}

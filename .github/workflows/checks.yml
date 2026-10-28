@@ -1,0 +1,35 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          version: "0.11.26"
+      - run: sudo apt-get update && sudo apt-get install -y libgl1 libglu1-mesa libxrender1 libxext6
+      - run: npm ci --ignore-scripts
+      - run: bash ci/run.sh
+      - name: Build Linux CAD runtime
+        run: docker build -f engine/Dockerfile -t deal-toy-cad:test .
+      - name: Verify container exports with networking disabled
+        run: bash ci/container-smoke.sh

@@ -1,0 +1,13 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE members (email TEXT PRIMARY KEY, role TEXT NOT NULL CHECK(role IN ('admin','maker')), active INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE tokens (hash TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES members(email), label TEXT NOT NULL, expires_at TEXT NOT NULL);
+CREATE TABLE projects (id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES members(email), name TEXT NOT NULL, brief TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX projects_owner ON projects(owner, created_at);
+CREATE TABLE models (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), name TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE revisions (id TEXT PRIMARY KEY, model_id TEXT NOT NULL REFERENCES models(id), number INTEGER NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(model_id,number));
+CREATE TABLE jobs (id TEXT PRIMARY KEY, revision_id TEXT NOT NULL REFERENCES revisions(id), status TEXT NOT NULL CHECK(status IN ('queued','running','succeeded','failed')), error TEXT, facts TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX jobs_revision ON jobs(revision_id);
+CREATE TABLE artifacts (id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id), name TEXT NOT NULL, object_key TEXT NOT NULL UNIQUE, media_type TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL);
+CREATE TABLE documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), model_revision_id TEXT REFERENCES revisions(id), kind TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE skills (id TEXT NOT NULL, version INTEGER NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, content TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES members(email), created_at TEXT NOT NULL, PRIMARY KEY(id,version));
+CREATE TABLE tool_settings (name TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1);
