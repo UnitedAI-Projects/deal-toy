@@ -6,4 +6,4 @@ Run `bash ci/run.sh`. Runtime changes also require a Linux container build and `
 
 Open a PR describing the problem, resulting behavior, evidence, remaining gaps and migration/release effects. Passing current-revision tests and applicable reviews are required before merge. Deploy only through the separate production workflow. Do not change billing, visibility or branch protection to make failing work pass.
 
-For issues, include a minimal synthetic source, expected/actual behavior, runtime versions and reproducible steps. Do not include personal tokens, customer briefs, confidential transaction details or private logs.
+For issues, include a minimal synthetic source, expected/actual behavior, runtime versions and reproducible steps. Do not include API keys, sign-in links, customer briefs, confidential transaction details or private logs.

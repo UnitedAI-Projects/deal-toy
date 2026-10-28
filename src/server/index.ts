@@ -1,7 +1,17 @@
 import { z } from "zod";
-import { authenticate } from "./auth";
+import {
+  authenticateBrowser,
+  authenticateKey,
+  readCookie,
+  redeemLink,
+  SESSION_COOKIE,
+  signOut,
+} from "./auth";
 import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
+import { requirePermission } from "./access";
 import { consume } from "./builds";
+import { settingsRoute } from "./settings";
+import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
 import { mcp } from "./mcp";
 export { CadContainer } from "./builds";
@@ -33,7 +43,12 @@ export default {
         });
       }
       const origin = request.headers.get("Origin");
-      if (origin && origin !== url.origin)
+      // A cookie-authenticated write must prove it comes from this app's own pages.
+      const cookieWrite =
+        url.pathname.startsWith("/api/") &&
+        !["GET", "HEAD"].includes(request.method) &&
+        readCookie(request, SESSION_COOKIE) !== undefined;
+      if ((origin && origin !== url.origin) || (cookieWrite && !origin))
         throw new AppError(403, "Cross-origin requests are not allowed");
       // Browsers cannot send bearer headers on a WebSocket. The socket presents a single-use
       // ticket issued below over the authenticated API; the project's relay checks it.
@@ -47,14 +62,62 @@ export default {
           throw new AppError(401, "Ticket expired; request a new one");
         return env.LIVE.getByName(liveMatch[1]).fetch(request);
       }
-      const identity = await authenticate(request, env);
+      const userAgent = request.headers.get("User-Agent") ?? "";
+      if (url.pathname === "/api/auth/google/start" && request.method === "GET")
+        return secure(await googleStart(request, env));
+      if (
+        url.pathname === "/api/auth/google/callback" &&
+        request.method === "GET"
+      )
+        return secure(await googleCallback(request, env));
+      // Sign-in links open the app at /link#token; the page redeems the token with a
+      // same-origin POST, so another site cannot sign a browser into someone else's account.
+      if (url.pathname === "/api/auth/link" && request.method === "POST") {
+        if (origin !== url.origin)
+          throw new AppError(403, "Cross-origin requests are not allowed");
+        const { token } = z
+          .object({ token: z.string().max(100) })
+          .strict()
+          .parse(JSON.parse((await boundedText(request, 1000)) || "{}"));
+        const set = await redeemLink(env, token, userAgent).catch(() => null);
+        if (!set)
+          throw new AppError(
+            401,
+            "This sign-in link has expired or was already used",
+          );
+        return secure(
+          Response.json({ ok: true }, { headers: { "Set-Cookie": set } }),
+        );
+      }
+      if (url.pathname === "/api/auth/signout" && request.method === "POST") {
+        const body = z
+          .object({ everywhere: z.boolean().default(false) })
+          .strict()
+          .parse(JSON.parse((await boundedText(request, 1000)) || "{}"));
+        return secure(
+          Response.json(
+            { ok: true },
+            {
+              headers: {
+                "Set-Cookie": await signOut(request, env, body.everywhere),
+              },
+            },
+          ),
+        );
+      }
+      // API keys are accepted only by the MCP endpoint; the browser API takes only sessions.
+      const identity =
+        url.pathname === "/mcp"
+          ? await authenticateKey(request, env)
+          : await authenticateBrowser(request, env);
       const c = { env, identity };
       const ticketMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
       if (ticketMatch && request.method === "POST") {
-        await projectAccess(c, ticketMatch[1]);
+        const project = await projectAccess(c, ticketMatch[1], "read");
         const ticket = await env.LIVE.getByName(ticketMatch[1]).issueTicket(
           identity.email,
+          project.owner !== identity.email,
         );
         return secure(Response.json({ ticket }));
       }
@@ -73,15 +136,16 @@ export default {
       if (url.pathname === "/api/session" && request.method === "GET")
         return secure(
           Response.json({
-            ...identity,
-            authentication:
-              request.headers.has("Cf-Access-Jwt-Assertion") &&
-              env.ACCESS_AUD &&
-              env.ACCESS_TEAM_DOMAIN
-                ? "access"
-                : "token",
+            email: identity.email,
+            name: identity.name,
+            owner: identity.owner,
+            permissions: [...identity.permissions],
           }),
         );
+      if (url.pathname.startsWith("/api/settings/")) {
+        const response = await settingsRoute(request, url, c);
+        if (response) return secure(response);
+      }
       if (url.pathname === "/api/tools" && request.method === "GET")
         return secure(Response.json(await catalog(c)));
       const artifactMatch = /^\/api\/artifacts\/([a-f0-9-]+)$/.exec(
@@ -99,7 +163,10 @@ export default {
             revision_id: string;
           }>();
         if (!artifact) throw new AppError(404, "Artifact not found");
-        await revisionAccess(c, artifact.revision_id);
+        await revisionAccess(c, artifact.revision_id, "read");
+        // The viewer's GLB preview needs only read access; exports need a permission.
+        if (!artifact.name.endsWith(".glb"))
+          requirePermission(c, "exports.download");
         const object = await env.ARTIFACTS.get(artifact.object_key);
         if (!object) throw new AppError(404, "Artifact missing");
         return secure(

@@ -6,3 +6,4 @@ work
 dist
 .wrangler
 package-lock.json
+.superpowers

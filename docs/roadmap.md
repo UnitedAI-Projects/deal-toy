@@ -9,6 +9,7 @@
 - Versioned skills, tool enable/disable controls, draft manufacturing documents.
 - GitHub-hosted tests and isolated Cloudflare release workflow; no agent runner.
 - Live agent sessions: verbatim prompts, progress notes, recorded tool calls, team notes delivered on the next tool call, WebSocket updates, click-to-edit part parameters and light/dark themes.
+- Accounts: Google sign-in and signup, owner-edited access levels with per-person adjustments, a read-only demo project, self-service API keys, and the Mantel sign-in screen.
 
 ## Next: manufacturer-ready package
 
@@ -20,8 +21,10 @@
 ## Next: team and client access
 
 - Project sharing with explicit viewer/editor/approver roles. Sessions, events and notes are already keyed by project, so sharing changes access checks, not the activity model.
+- Email-and-password accounts once a domain is set up for verification and reset email, with Turnstile on signup.
 - OAuth for clients that require browser consent rather than bearer configuration.
-- Per-member quotas, cancellation and usage accounting.
+- An audit log view in Settings (changes are already recorded in `audit_events`).
+- Usage accounting and budgets beyond the daily build cap, and build cancellation.
 - Reference uploads with scoped read access, asset provenance and independent artifact checks.
 
 ## Intentionally absent

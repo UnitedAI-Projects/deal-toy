@@ -2,30 +2,21 @@ import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { dispatch, execute } from "./tools";
-import { hash, type Context } from "./core";
+import type { Context } from "./core";
 import type { ProjectEvent } from "./activity";
-const carol: Context = {
-  env,
-  identity: { email: "carol@example.test", role: "maker" },
-};
-const dave: Context = {
-  env,
-  identity: { email: "dave@example.test", role: "maker" },
-};
-const token = "carol-token-with-at-least-thirty-two-characters";
-const daveToken = "dave-token-with-at-least-thirty-two-characters";
+import { apiKey, cookieFor, member } from "./test-helpers";
+let carol: Context;
+let dave: Context;
+let token: string;
+let carolCookie: string;
+let daveCookie: string;
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
-  await env.DB.prepare(
-    "INSERT OR IGNORE INTO members VALUES ('carol@example.test','maker',1),('dave@example.test','maker',1)",
-  ).run();
-  for (const [t, email] of [
-    [token, "carol@example.test"],
-    [daveToken, "dave@example.test"],
-  ])
-    await env.DB.prepare("INSERT OR IGNORE INTO tokens VALUES (?,?,?,?)")
-      .bind(await hash(t), email, "test", "2099-01-01T00:00:00.000Z")
-      .run();
+  carol = await member("carol@example.test", { level: "Maker" });
+  dave = await member("dave@example.test", { level: "Maker" });
+  token = await apiKey("carol@example.test");
+  carolCookie = await cookieFor("carol@example.test");
+  daveCookie = await cookieFor("dave@example.test");
 });
 const mcp = (name: string, input: unknown, c = carol) =>
   dispatch(c, name, input, "mcp");
@@ -103,7 +94,7 @@ describe("Agent sessions", () => {
       [null, "models_create", "http"],
     ]);
   });
-  it("summarizes long arguments instead of storing source code", async () => {
+  it("leaves source code out of recorded arguments", async () => {
     const p = await project();
     const m = (await execute(carol, "models_create", {
       projectId: p.id,
@@ -117,9 +108,8 @@ describe("Agent sessions", () => {
       source: "#".repeat(5000),
     });
     const { events } = await activity(p.id);
-    const args = events.at(-1)!.payload.args as { source: string };
-    expect(args.source.length).toBeLessThan(400);
-    expect(args.source).toContain("5000 characters");
+    const args = events.at(-1)!.payload.args as Record<string, unknown>;
+    expect(args).toEqual({ modelId: m.id, expectedRevision: 0 });
   });
   it("refuses another member's session and a session for another project", async () => {
     const p = await project();
@@ -235,7 +225,9 @@ def build():
         WIDTH: { value: 10, unit: "mm", part: "Base", min: 5, max: 50 },
       },
     };
-    await env.DB.prepare("INSERT INTO jobs VALUES (?,?,'succeeded',NULL,?,?,?)")
+    await env.DB.prepare(
+      "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at) VALUES (?,?,'succeeded',NULL,?,?,?)",
+    )
       .bind(
         crypto.randomUUID(),
         r.id,
@@ -342,15 +334,15 @@ def build():
   });
 });
 describe("Live relay", () => {
-  const post = (path: string, t = token) =>
+  const post = (path: string, cookie = carolCookie) =>
     exports.default.fetch(`https://example.test${path}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${t}` },
+      headers: { Cookie: cookie, Origin: "https://example.test" },
     });
   it("issues single-use tickets only to the project owner", async () => {
     const p = await project();
     expect(
-      (await post(`/api/projects/${p.id}/live-ticket`, daveToken)).status,
+      (await post(`/api/projects/${p.id}/live-ticket`, daveCookie)).status,
     ).toBe(404);
     const { ticket } = (await (
       await post(`/api/projects/${p.id}/live-ticket`)

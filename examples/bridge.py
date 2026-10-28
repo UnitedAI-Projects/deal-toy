@@ -1,4 +1,5 @@
 """Synthetic demonstration, millimetres and Z up; not a production design."""
+
 import build123d as bd
 
 PARAMS = {
@@ -27,7 +28,8 @@ def build():
     piers.label = "Piers"
     piers.color = bd.Color(0.72, 0.74, 0.77)
     span = bd.Pos(0, 0, top + size("PIER_H")) * bd.Box(
-        size("PIER_GAP") + 10, 15, size("SPAN_T"), align=bottom)
+        size("PIER_GAP") + 10, 15, size("SPAN_T"), align=bottom
+    )
     span.label = "Span"
     span.color = bd.Color(0.65, 0.42, 0.19)
     return bd.Compound(children=[base, piers, span], label="Bridge study")

@@ -74,3 +74,54 @@ Not yet verified in production:
 - A signed-in session. No production token was available on the verifying host.
 - A real agent session over the production MCP endpoint.
 - A session watched from a second browser.
+
+## Accounts, access levels and API keys — 2026-10-28
+
+Branch `feat/accounts-access`. Local evidence only; production is pending the owner's Google OAuth client and the Access cutover in [deployment](deployment.md#cutover-from-cloudflare-access).
+
+- `bash ci/run.sh` passed: formatting, TypeScript (server and web), 76 Worker tests in 10 files, the web build, `npm audit` (0 vulnerabilities), ruff, 8 Python tests (1 skipped) and the Wrangler packaging dry run.
+- **Worker tests:**
+  - the accounts migration;
+  - effective permissions;
+  - sign-in links;
+  - session expiry, sign-out and suspension;
+  - same-origin cookie writes;
+  - keys only on `/mcp`;
+  - Google start and callback with mocked token and certificate endpoints: forged state, audience, nonce, expiry, unverified email, account linking and rate limits;
+  - permissions per tool;
+  - demo reads and refused demo writes;
+  - source and member emails withheld from viewers, including the live feed;
+  - the daily build cap;
+  - API key lifecycle;
+  - member and level management, including delegated-admin limits and the last owner.
+- **Browser (Chrome DevTools, local Worker on port 8788):**
+  - The sign-in screen renders the Mantel GLB in light, dark and at 390 px. Dragging spins the name, the tab copy changes, and `?auth_error=` messages show and clear.
+  - A sign-in link signed in the owner, with the session cookie not readable by page scripts, and sign-out ended the session.
+  - The owner built a project with the local CAD container, marked it as the demo, created an API key that listed tools over `/mcp`, and edited a member and the levels.
+  - A Demo-level member opened straight into the demo: view-only chip, no composer, read-only dimensions, "team" in place of emails.
+  - Promotion to Maker took effect on reload.
+
+  Screenshots: `docs/images/signin-*.png`, `settings-*.png`, `demo-viewer.png`.
+
+- **Not yet verified:**
+  - real Google sign-in (no OAuth client configured locally);
+  - production deployment and migration;
+  - deleting the Access applications.
+
+## Accounts migration rehearsal — 2026-10-28
+
+Before activating PR #13, a private production D1 export was restored to a local SQLite database, migration `0003_accounts.sql` was applied, and foreign-key checks passed. Existing row counts were preserved: 2 projects, 1 model, 1 revision, 3 jobs, 4 artifacts, 1 document and 1 member. The existing token's hash/email/expiry migrated unchanged to an API key, and the active administrator became an active owner. A second local database restored from the export matched the original row counts and token records. Production migration and real Google OAuth verification remain pending configuration and deployment.
+
+Pre-merge regressions reproduced two account failures: legacy migrated key IDs returned 404 when revoked, and a database batch could remove all active owners. The revoke route now accepts legacy IDs; migration `0004_last_owner.sql` enforces the active-owner invariant inside the transaction. Both regressions pass, including rollback of the attempted multi-owner update. The guard was also exercised on the private production-data rehearsal copy. Full local checks pass with 78 Worker tests and 8 Python tests (1 existing skip).
+
+### Google OAuth client configuration — 2026-10-28
+
+Created the Mantel production web client in Google Cloud project `unitedai-mantel-prod`, with the production and localhost callback URLs requested by the owner. Set its public client ID in Wrangler and stored `GOOGLE_CLIENT_SECRET` directly in the Worker; the temporary plaintext file was removed after secret-list verification. No secret is committed.
+
+`npm run types` now uses `--strict-vars=false` so regenerated environment types support different test/deployment values. Full local `bash ci/run.sh` passed: 78 Worker tests, 8 Python tests with 1 existing skip, format/types/build/audit and Wrangler dry run. Real Google sign-in and this accounts release remain unverified in production. Google publishing is blocked until the required public branding pages and privacy-policy URL are available; the OAuth audience remains External / Testing. PR #13 is not yet merged.
+
+### Approved privacy publication — 2026-10-28
+
+The owner approved the policy for publication. PR #14 publishes the canonical HTML policy and public homepage under `/info/`, independently of the accounts migration. Desktop and 400px mobile rendering were inspected, and a paragraph comparison verified preservation of the approved policy text. A dedicated Access application and reusable Bypass policy expose only `/info/*`; anonymous `/api/session` and `/infox` still return the Access redirect, and `/mcp` still returns 401.
+
+Integrated the public-page release into the accounts branch and linked the policy from Sign in and Settings → Account. Replaced the draft with a pointer to the approved canonical HTML. Full local `bash ci/run.sh` passed again: 78 Worker tests, 8 Python tests / 1 existing skip, formatting, types, build, audit and dry run. Google publishing and live accounts acceptance are pending at this checkpoint.

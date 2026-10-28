@@ -1,0 +1,1224 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deal Toy accounts mockup</title>
+    <style>
+      :root,
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f6f6f4;
+        --canvas: #f1f1ee;
+        --surface: #ffffff;
+        --surface-glass: rgba(255, 255, 255, 0.86);
+        --surface-2: #f0f0ed;
+        --ink: #1b1c20;
+        --muted: #676b74;
+        --faint: #9a9ea6;
+        --line: #e3e3df;
+        --line-strong: #cfcfca;
+        --primary: #1b1c20;
+        --on-primary: #fff;
+        --agent: #6366f1;
+        --agent-soft: rgba(99, 102, 241, 0.1);
+        --ok: #0f9f6e;
+        --bad: #d93a32;
+        --bad-soft: #fdecea;
+        --shadow:
+          0 8px 28px rgba(20, 22, 28, 0.08), 0 1px 3px rgba(20, 22, 28, 0.06);
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #111214;
+        --canvas: #141518;
+        --surface: #1a1b1f;
+        --surface-glass: rgba(26, 27, 31, 0.88);
+        --surface-2: #232529;
+        --ink: #ecedf0;
+        --muted: #9a9fa9;
+        --faint: #6c707a;
+        --line: #2b2d33;
+        --line-strong: #3b3e45;
+        --primary: #ecedf0;
+        --on-primary: #111214;
+        --agent: #818cf8;
+        --agent-soft: rgba(129, 140, 248, 0.14);
+        --ok: #34d399;
+        --bad: #f87171;
+        --bad-soft: rgba(248, 113, 113, 0.12);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      :root {
+        font-family:
+          Inter,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--ink);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        min-height: 100vh;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+        border: 0;
+      }
+      .mark {
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        border: 2px solid currentColor;
+        transform: rotate(45deg);
+        border-radius: 1px;
+        flex: none;
+      }
+
+      /* Mockup-only switcher, not part of the product */
+      .switcher {
+        position: fixed;
+        z-index: 50;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 999px;
+        background: #1b1c20;
+        color: #fff;
+        box-shadow: var(--shadow);
+        font-size: 12px;
+      }
+      .switcher button {
+        white-space: nowrap;
+        background: transparent;
+        color: #b9bcc4;
+        padding: 5px 12px;
+        border-radius: 999px;
+      }
+      .switcher button.on {
+        background: #fff;
+        color: #1b1c20;
+      }
+      .switcher .sep {
+        width: 1px;
+        background: #3b3e45;
+        margin: 4px 2px;
+      }
+      .view {
+        display: none;
+      }
+      .view.on {
+        display: block;
+      }
+
+      /* Sign in */
+      #signin {
+        position: fixed;
+        inset: 0;
+        background: var(--canvas);
+      }
+      #stage {
+        position: absolute;
+        inset: 0;
+        cursor: grab;
+        touch-action: none;
+      }
+      #stage:active {
+        cursor: grabbing;
+      }
+      .hint {
+        position: absolute;
+        left: calc((100% - max(40px, 6vw) - 380px) / 2);
+        bottom: 28px;
+        transform: translateX(-50%);
+        color: var(--faint);
+        font-size: 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        pointer-events: none;
+      }
+      .auth {
+        position: absolute;
+        right: max(40px, 6vw);
+        top: 50%;
+        transform: translateY(-50%);
+        width: 360px;
+        background: var(--surface-glass);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 26px;
+      }
+      .auth-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        margin-bottom: 18px;
+      }
+      .seg {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        background: var(--surface-2);
+        border-radius: 9px;
+        padding: 3px;
+        margin-bottom: 18px;
+      }
+      .seg button {
+        background: transparent;
+        padding: 7px;
+        border-radius: 7px;
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .seg button.on {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      }
+      .google {
+        width: 100%;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        border-radius: 9px;
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        font-weight: 500;
+      }
+      .or {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--faint);
+        font-size: 12px;
+        margin: 16px 0;
+      }
+      .or::before,
+      .or::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--line);
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0 0 5px;
+      }
+      .field {
+        margin-bottom: 12px;
+      }
+      input[type="email"],
+      input[type="password"],
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 9px 11px;
+        border-radius: 9px;
+        border: 1px solid var(--line-strong);
+        background: var(--surface);
+        outline: none;
+      }
+      input:focus,
+      select:focus {
+        border-color: var(--agent);
+        box-shadow: 0 0 0 3px var(--agent-soft);
+      }
+      .primary {
+        width: 100%;
+        padding: 10px;
+        border-radius: 9px;
+        background: var(--primary);
+        color: var(--on-primary);
+        font-weight: 600;
+        margin-top: 4px;
+      }
+      .fine {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 14px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .fine a {
+        color: var(--muted);
+      }
+      .signup-only {
+        display: none;
+      }
+      .auth.signup .signup-only {
+        display: block;
+      }
+      .auth.signup .signin-only {
+        display: none;
+      }
+
+      /* Settings */
+      .settings {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 64px 28px 48px;
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 36px;
+      }
+      .settings h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        letter-spacing: -0.01em;
+      }
+      .settings .lede {
+        color: var(--muted);
+        margin: 0 0 24px;
+      }
+      .side {
+        position: sticky;
+        top: 64px;
+        align-self: start;
+      }
+      .side .back {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        margin-bottom: 22px;
+      }
+      .side nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .side nav a {
+        padding: 7px 10px;
+        border-radius: 8px;
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .side nav a.on {
+        background: var(--surface-2);
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .side nav .group {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--faint);
+        margin: 14px 10px 4px;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        margin-bottom: 22px;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      .panel-head h2 {
+        font-size: 15px;
+        margin: 0;
+      }
+      .panel-head p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .btn {
+        padding: 7px 12px;
+        border-radius: 8px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        font-weight: 500;
+      }
+      .btn.dark {
+        background: var(--primary);
+        color: var(--on-primary);
+        border-color: transparent;
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--muted);
+      }
+      .btn.danger {
+        color: var(--bad);
+        background: transparent;
+        border-color: var(--line);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 11px 18px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      th {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      .matrix td:not(:first-child),
+      .matrix th:not(:first-child) {
+        text-align: center;
+        width: 110px;
+      }
+      .perm b {
+        font-weight: 500;
+        display: block;
+      }
+      .perm span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .check {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        border: 1.5px solid var(--line-strong);
+        display: inline-grid;
+        place-items: center;
+        background: var(--surface);
+      }
+      .check.on {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--on-primary);
+      }
+      .check.on::after {
+        content: "✓";
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .check.lock {
+        opacity: 0.55;
+      }
+      .lvl-name {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      .lvl-name small {
+        color: var(--faint);
+        font-weight: 400;
+      }
+      .who {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .av {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--surface-2);
+        color: var(--muted);
+        flex: none;
+      }
+      .who small {
+        display: block;
+        color: var(--muted);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        background: var(--surface-2);
+      }
+      .chip.owner {
+        background: var(--primary);
+        color: var(--on-primary);
+        border-color: transparent;
+      }
+      .chip.custom {
+        color: var(--agent);
+        background: var(--agent-soft);
+        border-color: transparent;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ok);
+        display: inline-block;
+      }
+      .row-sel {
+        background: var(--agent-soft);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 22px;
+        align-items: start;
+      }
+      .sheet .panel-head {
+        border-bottom: 1px solid var(--line);
+      }
+      .sheet-body {
+        padding: 16px 18px;
+      }
+      .ov {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+        gap: 10px;
+      }
+      .ov:last-child {
+        border-bottom: 0;
+      }
+      .ov .perm b {
+        font-size: 13px;
+      }
+      .tri {
+        display: inline-grid;
+        grid-template-columns: repeat(3, auto);
+        background: var(--surface-2);
+        border-radius: 7px;
+        padding: 2px;
+        font-size: 11px;
+        flex: none;
+      }
+      .tri span {
+        padding: 3px 7px;
+        border-radius: 5px;
+        color: var(--muted);
+      }
+      .tri span.on {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      }
+      .tri span.on.allow {
+        color: var(--ok);
+      }
+      .tri span.on.revoke {
+        color: var(--bad);
+      }
+      .eff {
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 12px 18px;
+        border-top: 1px solid var(--line);
+      }
+      .keyreveal {
+        margin: 16px 18px;
+        padding: 14px;
+        border-radius: 10px;
+        border: 1px solid var(--agent);
+        background: var(--agent-soft);
+      }
+      .keyreveal code {
+        display: block;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: var(--surface);
+        padding: 9px 11px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        margin: 8px 0;
+        word-break: break-all;
+      }
+      .keyreveal p {
+        margin: 0;
+        font-size: 13px;
+      }
+      .mono {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .demo-banner {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 18px;
+      }
+
+      @media (max-width: 760px) {
+        .switcher {
+          font-size: 11px;
+          top: 8px;
+        }
+        .switcher button {
+          padding: 4px 8px;
+        }
+        .auth {
+          left: 16px;
+          right: 16px;
+          top: auto;
+          bottom: 16px;
+          transform: none;
+          width: auto;
+          padding: 20px;
+        }
+        .hint {
+          display: none;
+        }
+        .settings {
+          grid-template-columns: 1fr;
+          padding: 60px 16px 32px;
+          gap: 16px;
+        }
+        .side {
+          position: static;
+        }
+        .side nav {
+          flex-direction: row;
+          overflow-x: auto;
+        }
+        .side nav .group {
+          display: none;
+        }
+        .split {
+          grid-template-columns: 1fr;
+        }
+        .matrix td:not(:first-child),
+        .matrix th:not(:first-child) {
+          width: 64px;
+          padding: 11px 6px;
+        }
+        th,
+        td {
+          padding: 10px 12px;
+        }
+        .hide-sm {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="switcher" role="tablist" aria-label="Mockup screens">
+      <button class="on" data-view="signin">Sign in</button>
+      <button data-view="access">Access levels</button>
+      <button data-view="keys">API keys</button>
+      <span class="sep"></span>
+      <button id="themeBtn">Dark</button>
+    </div>
+
+    <!-- 1. Sign in -->
+    <section id="signin" class="view on">
+      <div id="stage" aria-label="Deal Toy name in 3D. Drag to rotate."></div>
+      <div class="hint"><span>↻</span> Drag to spin · modelled in Deal Toy</div>
+      <form class="auth" id="auth" onsubmit="return false;">
+        <div class="auth-brand"><span class="mark"></span> Deal Toy</div>
+        <div class="seg">
+          <button type="button" class="on" data-mode="signin">Sign in</button>
+          <button type="button" data-mode="signup">Create account</button>
+        </div>
+        <button type="button" class="google">
+          <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+            <path
+              fill="#EA4335"
+              d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.2l7.8 6.1C12.3 13.6 17.6 9.5 24 9.5z"
+            />
+            <path
+              fill="#4285F4"
+              d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.8l7.8-6.1z"
+            />
+            <path
+              fill="#34A853"
+              d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.4 0-11.7-4.1-13.6-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"
+            />
+          </svg>
+          Continue with Google
+        </button>
+        <div class="or">or with email</div>
+        <div class="field signup-only">
+          <label for="nm">Name</label
+          ><input id="nm" type="text" placeholder="Ada Lovelace" />
+        </div>
+        <div class="field">
+          <label for="em">Email</label
+          ><input id="em" type="email" placeholder="you@company.com" />
+        </div>
+        <div class="field">
+          <label for="pw">Password</label
+          ><input id="pw" type="password" placeholder="••••••••••" />
+        </div>
+        <button class="primary signin-only">Sign in</button>
+        <button class="primary signup-only">Create account</button>
+        <div class="fine signin-only"><a href="#">Forgot password?</a></div>
+        <div class="fine signup-only">
+          <span
+            >We'll email a link to confirm your address. New accounts start with
+            the demo.</span
+          >
+        </div>
+      </form>
+    </section>
+
+    <!-- 2. Access levels + members -->
+    <section id="access" class="view">
+      <div class="settings">
+        <aside class="side">
+          <div class="back"><span class="mark"></span> Settings</div>
+          <nav>
+            <span class="group">You</span>
+            <a href="#">Account</a>
+            <a href="#" data-goto="keys">API keys</a>
+            <span class="group">Admin</span>
+            <a href="#" class="on">Members</a>
+            <a
+              href="#"
+              class="on"
+              style="
+                background: transparent;
+                color: var(--muted);
+                font-weight: 400;
+              "
+              >Access levels</a
+            >
+          </nav>
+        </aside>
+        <main>
+          <h1>Members and access</h1>
+          <p class="lede">
+            A level is a set of permissions. Everyone has one level; you can
+            adjust any single person on top of it.
+          </p>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Access levels</h2>
+                <p>Changing a level changes it for everyone at that level.</p>
+              </div>
+              <button class="btn">New level</button>
+            </div>
+            <table class="matrix">
+              <thead>
+                <tr>
+                  <th>Permission</th>
+                  <th>
+                    <span class="lvl-name"
+                      >Demo<small>default · 14</small></span
+                    >
+                  </th>
+                  <th>
+                    <span class="lvl-name">Maker<small>3</small></span>
+                  </th>
+                  <th>
+                    <span class="lvl-name">Admin<small>1</small></span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="matrix"></tbody>
+            </table>
+            <div class="note">
+              New accounts start at <b>Demo</b>. Owners have every permission
+              and are not limited by their level.
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Members</h2>
+                  <p>18 people</p>
+                </div>
+                <input type="text" placeholder="Search" style="width: 160px" />
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Person</th>
+                    <th>Level</th>
+                    <th class="hide-sm">Last active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span class="av">IC</span>
+                        <div>Ivan Chen<small>ivan27chen@gmail.com</small></div>
+                      </div>
+                    </td>
+                    <td><span class="chip owner">Owner</span></td>
+                    <td class="hide-sm">now</td>
+                  </tr>
+                  <tr class="row-sel">
+                    <td>
+                      <div class="who">
+                        <span class="av">MR</span>
+                        <div>Maya Rivera<small>maya@example.com</small></div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="chip">Demo</span>
+                      <span class="chip custom">+2</span>
+                    </td>
+                    <td class="hide-sm">2 h ago</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span class="av">JO</span>
+                        <div>
+                          Jordan Okafor<small>jordan@example.com</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span class="chip">Maker</span></td>
+                    <td class="hide-sm">yesterday</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span class="av">SL</span>
+                        <div>Sam Lee<small>sam@example.com</small></div>
+                      </div>
+                    </td>
+                    <td><span class="chip">Demo</span></td>
+                    <td class="hide-sm">3 days ago</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span class="av">PK</span>
+                        <div>Priya Kumar<small>priya@example.com</small></div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="chip">Maker</span>
+                      <span class="chip custom">−1</span>
+                    </td>
+                    <td class="hide-sm">last week</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="panel sheet">
+              <div class="panel-head">
+                <div class="who">
+                  <span class="av">MR</span>
+                  <div>
+                    <b>Maya Rivera</b
+                    ><small style="color: var(--muted)"
+                      >Joined Oct 21 · <span class="dot"></span> active</small
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="sheet-body">
+                <div class="field">
+                  <label for="lv">Level</label>
+                  <select id="lv">
+                    <option>Demo</option>
+                    <option>Maker</option>
+                    <option>Admin</option>
+                  </select>
+                </div>
+                <label style="margin-top: 14px">Adjust for Maya only</label>
+                <div id="overrides"></div>
+              </div>
+              <div
+                class="note"
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                "
+              >
+                <button class="btn danger">Suspend</button
+                ><button class="btn dark">Save</button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <!-- 3. API keys -->
+    <section id="keys" class="view">
+      <div class="settings">
+        <aside class="side">
+          <div class="back"><span class="mark"></span> Settings</div>
+          <nav>
+            <span class="group">You</span>
+            <a href="#">Account</a>
+            <a href="#" class="on">API keys</a>
+            <span class="group">Admin</span>
+            <a href="#" data-goto="access">Members</a>
+            <a href="#" data-goto="access">Access levels</a>
+          </nav>
+        </aside>
+        <main>
+          <h1>API keys</h1>
+          <p class="lede">
+            Use a key to connect Claude Code or another MCP client. A key acts
+            as you and has your current access.
+          </p>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Your keys</h2>
+                <p>
+                  Up to 10 keys. Each expires after 90 days unless you pick
+                  another length.
+                </p>
+              </div>
+              <button class="btn dark">Create key</button>
+            </div>
+            <div class="keyreveal">
+              <p>
+                <b>Copy “MacBook Claude Code” now.</b> You won’t see it again.
+              </p>
+              <code>dtk_7Qm2vX9cLr4hTn8WbKp0sYjE3uFa6GdZ</code>
+              <div style="display: flex; gap: 8px">
+                <button class="btn dark">Copy key</button
+                ><button class="btn">Copy Claude Code command</button>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th class="hide-sm">Key</th>
+                  <th>Last used</th>
+                  <th class="hide-sm">Expires</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>MacBook Claude Code</td>
+                  <td class="hide-sm mono">dtk_7Qm2…GdZ</td>
+                  <td>never</td>
+                  <td class="hide-sm">Jan 26</td>
+                  <td style="text-align: right">
+                    <button class="btn danger">Revoke</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mac mini agent</td>
+                  <td class="hide-sm mono">dtk_p31L…x8Q</td>
+                  <td>4 min ago</td>
+                  <td class="hide-sm">Jan 12</td>
+                  <td style="text-align: right">
+                    <button class="btn danger">Revoke</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <div class="demo-banner">
+              <span class="chip">Demo</span
+              ><span style="color: var(--muted)"
+                >On the Demo level this page shows: “API keys need the
+                <b>API keys and MCP</b> permission. Ask an admin.”</span
+              >
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { FontLoader } from "three/addons/loaders/FontLoader.js";
+      import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
+
+      // ---- mockup chrome ----
+      const root = document.documentElement;
+      document
+        .querySelectorAll(".switcher [data-view]")
+        .forEach((b) =>
+          b.addEventListener("click", () => show(b.dataset.view)),
+        );
+      document.querySelectorAll("[data-goto]").forEach((a) =>
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          show(a.dataset.goto);
+        }),
+      );
+      function show(id) {
+        document
+          .querySelectorAll(".view")
+          .forEach((v) => v.classList.toggle("on", v.id === id));
+        document
+          .querySelectorAll(".switcher [data-view]")
+          .forEach((b) => b.classList.toggle("on", b.dataset.view === id));
+      }
+      const themeBtn = document.getElementById("themeBtn");
+      themeBtn.addEventListener("click", () => {
+        root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+        themeBtn.textContent = root.dataset.theme === "dark" ? "Light" : "Dark";
+        paint();
+      });
+      const auth = document.getElementById("auth");
+      auth.querySelectorAll("[data-mode]").forEach((b) =>
+        b.addEventListener("click", () => {
+          auth.classList.toggle("signup", b.dataset.mode === "signup");
+          auth
+            .querySelectorAll("[data-mode]")
+            .forEach((x) => x.classList.toggle("on", x === b));
+        }),
+      );
+
+      // ---- permissions ----
+      const perms = [
+        ["View the demo", "Open the demo project and its build", [1, 1, 1]],
+        ["Create projects", "Start their own projects", [0, 1, 1]],
+        ["Run builds", "Queue CAD builds (uses compute)", [0, 1, 1]],
+        ["Edit models", "Change source and dimensions", [0, 1, 1]],
+        ["Download exports", "STEP, STL and GLB files", [0, 1, 1]],
+        ["Leave notes", "Send notes to agents", [0, 1, 1]],
+        ["API keys and MCP", "Create keys and connect agents", [0, 1, 1]],
+        ["Manage members", "Change levels and suspend people", [0, 0, 1]],
+      ];
+      document.getElementById("matrix").innerHTML = perms
+        .map(
+          ([n, d, v]) =>
+            `<tr><td class="perm"><b>${n}</b><span>${d}</span></td>${v
+              .map(
+                (x, i) =>
+                  `<td><span class="check ${x ? "on" : ""} ${i === 0 && x ? "lock" : ""}"></span></td>`,
+              )
+              .join("")}</tr>`,
+        )
+        .join("");
+      // Maya: Demo level, plus Download exports and Leave notes allowed.
+      const maya = { "Download exports": "allow", "Leave notes": "allow" };
+      document.getElementById("overrides").innerHTML = perms
+        .map(([n, , v]) => {
+          const o = maya[n] || "level";
+          const eff = o === "allow" ? true : o === "revoke" ? false : !!v[0];
+          return `<div class="ov"><div class="perm"><b>${n}</b><span class="eff">${eff ? "Has access" : "No access"}${o === "level" ? " · from Demo" : ""}</span></div>
+    <div class="tri"><span class="${o === "level" ? "on" : ""}">Level</span><span class="allow ${o === "allow" ? "on" : ""}">Allow</span><span class="revoke ${o === "revoke" ? "on" : ""}">Revoke</span></div></div>`;
+        })
+        .join("");
+
+      // ---- 3D name ----
+      const stage = document.getElementById("stage");
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setClearColor(0, 0);
+      stage.append(renderer.domElement);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(32, 1, 1, 5000);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      Object.assign(controls, {
+        enableDamping: true,
+        dampingFactor: 0.06,
+        enableZoom: false,
+        enablePan: false,
+        rotateSpeed: 0.8,
+        autoRotate: true,
+        autoRotateSpeed: 0.6,
+        minPolarAngle: 0.35,
+        maxPolarAngle: 1.9,
+      });
+      let idle;
+      controls.addEventListener("start", () => {
+        controls.autoRotate = false;
+        clearTimeout(idle);
+      });
+      controls.addEventListener("end", () => {
+        idle = setTimeout(() => (controls.autoRotate = true), 4000);
+      });
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f98, 2.0));
+      const key = new THREE.DirectionalLight(0xffffff, 2.6);
+      key.position.set(120, 200, 260);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight(0xffffff, 1.0);
+      rim.position.set(-200, 80, -160);
+      scene.add(rim);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xd9d9d6,
+        metalness: 0.15,
+        roughness: 0.42,
+      });
+      const accent = new THREE.MeshStandardMaterial({
+        color: 0x6366f1,
+        metalness: 0.1,
+        roughness: 0.35,
+      });
+      let grid;
+      const group = new THREE.Group();
+      scene.add(group);
+
+      function paint() {
+        const dark = root.dataset.theme === "dark";
+        material.color.setHex(dark ? 0x9fa3ad : 0xe4e4e1);
+        accent.color.setHex(dark ? 0x818cf8 : 0x6366f1);
+        if (grid) {
+          scene.remove(grid);
+          grid.dispose();
+        }
+        grid = new THREE.GridHelper(
+          1200,
+          48,
+          dark ? 0x3a3d44 : 0xc7c7c1,
+          dark ? 0x2a2c31 : 0xdcdcd7,
+        );
+        grid.position.y = -58;
+        scene.add(grid);
+        const bg = getComputedStyle(root).getPropertyValue("--canvas").trim();
+        scene.fog = new THREE.Fog(
+          bg,
+          scene.fog?.near ?? 700,
+          scene.fog?.far ?? 1700,
+        );
+      }
+      paint();
+
+      new FontLoader().load(
+        "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/fonts/helvetiker_bold.typeface.json",
+        (font) => {
+          const text = new TextGeometry("Deal Toy", {
+            font,
+            size: 56,
+            depth: 22,
+            curveSegments: 8,
+            bevelEnabled: true,
+            bevelThickness: 2.2,
+            bevelSize: 1.6,
+            bevelSegments: 3,
+          });
+          text.computeBoundingBox();
+          const b = text.boundingBox;
+          text.translate(
+            -(b.max.x + b.min.x) / 2 + 36,
+            -(b.max.y + b.min.y) / 2,
+            -(b.max.z + b.min.z) / 2,
+          );
+          group.add(new THREE.Mesh(text, material));
+          // The diamond mark: a square frame turned 45°, extruded.
+          const outer = new THREE.Shape();
+          const s = 24,
+            t = 6;
+          outer.moveTo(-s, -s);
+          outer.lineTo(s, -s);
+          outer.lineTo(s, s);
+          outer.lineTo(-s, s);
+          outer.closePath();
+          const hole = new THREE.Path();
+          const h = s - t;
+          hole.moveTo(-h, -h);
+          hole.lineTo(-h, h);
+          hole.lineTo(h, h);
+          hole.lineTo(h, -h);
+          hole.closePath();
+          outer.holes.push(hole);
+          const mark = new THREE.Mesh(
+            new THREE.ExtrudeGeometry(outer, {
+              depth: 22,
+              bevelEnabled: true,
+              bevelThickness: 2,
+              bevelSize: 1.4,
+              bevelSegments: 3,
+            }),
+            accent,
+          );
+          mark.geometry.translate(0, 0, -11);
+          mark.rotation.z = Math.PI / 4;
+          mark.position.x = (b.min.x - b.max.x) / 2 - 12;
+          group.add(mark);
+          fit();
+        },
+      );
+
+      function fit() {
+        const { width: W, height: H } = stage.getBoundingClientRect();
+        renderer.setSize(W, H);
+        camera.aspect = W / Math.max(H, 1);
+        // Full-bleed canvas; shift the view's centre away from the card instead of shrinking the canvas.
+        const card = auth.getBoundingClientRect();
+        const narrow = W < 760;
+        const dx = narrow ? 0 : (W - card.left) / 2;
+        const dy = narrow ? (H - card.top) / 2 : 0;
+        camera.setViewOffset(W + 2 * dx, H + 2 * dy, 2 * dx, 2 * dy, W, H);
+        // Fit the ~570 mm-wide name into about 70% of the free width.
+        const free = (W - 2 * dx) / W;
+        const visible =
+          2 * Math.tan(THREE.MathUtils.degToRad(16)) * camera.aspect;
+        const dist = 570 / (visible * free * (narrow ? 0.88 : 0.7));
+        camera.position.set(dist * 0.18, dist * 0.16, dist);
+        controls.target.set(0, 0, 0);
+        if (scene.fog) {
+          scene.fog.near = dist * 1.05;
+          scene.fog.far = dist * 2.6;
+        }
+        camera.updateProjectionMatrix();
+      }
+      new ResizeObserver(fit).observe(stage);
+      (function draw() {
+        controls.update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(draw);
+      })();
+    </script>
+  </body>
+</html>

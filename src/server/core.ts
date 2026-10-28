@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Permission } from "./access";
 export class AppError extends Error {
   constructor(
     public status: number,
@@ -9,7 +10,12 @@ export class AppError extends Error {
 }
 export const id = z.string().uuid();
 export const shortText = z.string().trim().min(1).max(120);
-export type Identity = { email: string; role: "admin" | "maker" };
+export type Identity = {
+  email: string;
+  name: string;
+  owner: boolean;
+  permissions: Set<Permission>;
+};
 export type Context = { env: Env; identity: Identity };
 export async function hash(value: string | Uint8Array): Promise<string> {
   const data =
@@ -19,46 +25,71 @@ export async function hash(value: string | Uint8Array): Promise<string> {
     b.toString(16).padStart(2, "0"),
   ).join("");
 }
-export async function projectAccess(c: Context, projectId: string) {
+/**
+ * "write" admits only the project's owner. "read" also admits demo projects for members who
+ * may view the demo. Both report a project the caller cannot see as not found.
+ */
+export type AccessMode = "read" | "write";
+function visible(c: Context, mode: AccessMode) {
+  const demo = mode === "read" && c.identity.permissions.has("demo.view");
+  return {
+    sql: demo ? "(projects.owner=?1 OR projects.demo=1)" : "projects.owner=?1",
+    email: c.identity.email,
+  };
+}
+export async function projectAccess(
+  c: Context,
+  projectId: string,
+  mode: AccessMode = "write",
+) {
+  const v = visible(c, mode);
   const row = await c.env.DB.prepare(
-    "SELECT * FROM projects WHERE id=? AND owner=?",
+    `SELECT * FROM projects WHERE id=?2 AND ${v.sql}`,
   )
-    .bind(projectId, c.identity.email)
-    .first();
+    .bind(v.email, projectId)
+    .first<{ id: string; owner: string; demo: number }>();
   if (!row) throw new AppError(404, "Project not found");
   return row;
 }
-export async function modelAccess(c: Context, modelId: string) {
+export async function modelAccess(
+  c: Context,
+  modelId: string,
+  mode: AccessMode = "write",
+) {
+  const v = visible(c, mode);
   const row = await c.env.DB.prepare(
-    "SELECT models.* FROM models JOIN projects ON projects.id=models.project_id WHERE models.id=? AND projects.owner=?",
+    `SELECT models.*, projects.owner FROM models JOIN projects ON projects.id=models.project_id WHERE models.id=?2 AND ${v.sql}`,
   )
-    .bind(modelId, c.identity.email)
+    .bind(v.email, modelId)
     .first<{
       id: string;
       project_id: string;
       name: string;
       revision: number;
+      owner: string;
     }>();
   if (!row) throw new AppError(404, "Model not found");
   return row;
 }
-export async function revisionAccess(c: Context, revisionId: string) {
+export async function revisionAccess(
+  c: Context,
+  revisionId: string,
+  mode: AccessMode = "write",
+) {
+  const v = visible(c, mode);
   const row = await c.env.DB.prepare(
-    "SELECT revisions.*, models.project_id FROM revisions JOIN models ON models.id=revisions.model_id JOIN projects ON projects.id=models.project_id WHERE revisions.id=? AND projects.owner=?",
+    `SELECT revisions.*, models.project_id, projects.owner FROM revisions JOIN models ON models.id=revisions.model_id JOIN projects ON projects.id=models.project_id WHERE revisions.id=?2 AND ${v.sql}`,
   )
-    .bind(revisionId, c.identity.email)
+    .bind(v.email, revisionId)
     .first<{
       id: string;
       source: string;
       number: number;
       project_id: string;
+      owner: string;
     }>();
   if (!row) throw new AppError(404, "Revision not found");
   return row;
-}
-export function admin(c: Context) {
-  if (c.identity.role !== "admin")
-    throw new AppError(403, "Administrator access required");
 }
 export async function boundedText(
   request: Request,

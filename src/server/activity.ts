@@ -52,10 +52,30 @@ export function parseEvent(row: EventRow): ProjectEvent {
   return { ...row, payload };
 }
 
+/**
+ * An event as someone who does not own the project sees it: who did it is withheld (members'
+ * emails are private), and so is any model source an older event carried.
+ */
+export function forViewer(event: ProjectEvent): ProjectEvent {
+  const args = event.payload.args as Record<string, unknown> | undefined;
+  let payload = event.payload;
+  if (args && "source" in args) {
+    const { source: _, ...rest } = args;
+    payload = { ...payload, args: rest };
+  }
+  return { ...event, actor: "team", payload };
+}
+
 /** Best effort: live delivery never fails the operation that caused it. D1 stays the record. */
 export async function notify(env: Env, projectId: string, message: unknown) {
+  const m = message as { type?: string; event?: ProjectEvent };
+  const viewer =
+    m.type === "event" && m.event ? { ...m, event: forViewer(m.event) } : m;
   try {
-    await env.LIVE.getByName(projectId).broadcast(JSON.stringify(message));
+    await env.LIVE.getByName(projectId).broadcast(
+      JSON.stringify(message),
+      JSON.stringify(viewer),
+    );
   } catch {
     console.error(JSON.stringify({ event: "live_notify_failed", projectId }));
   }
@@ -123,7 +143,11 @@ export async function sessionFor(c: Context, sessionId: string) {
   return session;
 }
 
-/** The project a tool call acts on, if any. Lookups enforce the same ownership checks. */
+/**
+ * The project a tool call acts on, if the caller owns it. Reading a demo project someone else
+ * owns resolves to nothing, so it is neither recorded in that project's activity nor handed
+ * the owner's team notes.
+ */
 export async function resolveProject(
   c: Context,
   input: unknown,

@@ -1,9 +1,6 @@
-export const tokenKey = "deal-toy-token";
+/** Calls the app's API with the browser's session cookie; API keys are for MCP clients only. */
 export async function request(path: string, init: RequestInit = {}) {
-  const headers = new Headers(init.headers);
-  const token = sessionStorage.getItem(tokenKey);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(path, { credentials: "same-origin", ...init });
   if (!response.ok) {
     const error = await response
       .json()
@@ -12,6 +9,45 @@ export async function request(path: string, init: RequestInit = {}) {
   }
   return response;
 }
+export async function send<T>(
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: unknown,
+): Promise<T> {
+  return (
+    await request(path, {
+      method,
+      headers:
+        body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  ).json();
+}
+export const PERMISSIONS = [
+  ["demo.view", "View the demo", "Open the demo project and its build"],
+  ["projects.create", "Create projects", "Start their own projects"],
+  ["models.edit", "Edit models", "Change source and dimensions"],
+  ["builds.run", "Run builds", "Queue CAD builds (uses compute)"],
+  ["exports.download", "Download exports", "STEP, STL and source code"],
+  ["notes.write", "Leave notes", "Send notes to agents"],
+  ["keys.use", "API keys and MCP", "Create keys and connect agents"],
+  ["members.manage", "Manage members", "Change levels and suspend people"],
+  [
+    "settings.manage",
+    "Configure skills and tools",
+    "Skills, tools and the demo project",
+  ],
+] as const;
+export type Permission = (typeof PERMISSIONS)[number][0];
+/** The signed-in person and their current access. */
+export type Me = {
+  email: string;
+  name: string;
+  owner: boolean;
+  permissions: Permission[];
+};
+export const can = (me: Me, permission: Permission) =>
+  me.owner || me.permissions.includes(permission);
 export async function call<T>(name: string, input: unknown = {}): Promise<T> {
   return (
     await request(`/api/tools/${name}`, {
@@ -37,16 +73,20 @@ export function saveBlob(blob: Blob, name: string) {
 }
 export type Project = {
   id: string;
+  owner: string;
   name: string;
   brief: string;
+  demo: number;
   created_at: string;
 };
+export type ProjectList = { own: Project[]; demo: Project[] };
 export type Model = { id: string; name: string; revision: number };
 export type Revision = {
   id: string;
   model_id: string;
   number: number;
-  source: string;
+  /** Absent on someone else's project unless you may download exports. */
+  source?: string;
 };
 export type Job = {
   id: string;
@@ -135,8 +175,8 @@ export type Activity = { sessions: Session[]; events: ProjectEvent[] };
 export type LiveMessage =
   { type: "event"; event: ProjectEvent } | { type: "workspace" };
 /**
- * Follows a project's live activity. A socket cannot carry the bearer token, so each attempt
- * first asks the authenticated API for a single-use ticket. Reconnects with backoff.
+ * Follows a project's live activity. Each attempt first asks the signed-in API for a
+ * single-use ticket that the socket presents. Reconnects with backoff.
  */
 export function connectLive(
   projectId: string,

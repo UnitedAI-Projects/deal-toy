@@ -1,11 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   call,
+  can,
   connectLive,
   download,
   saveBlob,
+  send,
   type Activity,
   type Facts,
+  type Me,
   type ParamSpec,
   type Revision,
   type Workspace as WorkspaceData,
@@ -22,12 +25,13 @@ type Drawer = "code" | "downloads" | "documents" | "connect" | null;
 type Props = {
   data: WorkspaceData;
   reload: () => Promise<WorkspaceData>;
-  me: { email: string; role: string };
+  me: Me;
   theme: "light" | "dark";
   themeChoice: ThemeChoice;
   chooseTheme: (choice: ThemeChoice) => void;
   onBack: () => void;
   onExtensions: () => void;
+  onSettings: () => void;
   onSignOut: () => void;
 };
 export function Workspace(props: Props) {
@@ -150,7 +154,22 @@ export function Workspace(props: Props) {
   const params = Object.entries(facts?.params ?? {});
   const running = activity.sessions.find((s) => s.active && !s.ended_at);
   const lastSession = activity.sessions[0];
+  // Only the owner writes to a project; a demo is read-only for everyone else.
+  const { me } = props;
+  const owns = data.project.owner === me.email;
+  const canEdit = owns && can(me, "models.edit") && can(me, "builds.run");
+  const canNote = owns && can(me, "notes.write");
+  const canDownload = can(me, "exports.download");
+  const hasSource = owns || data.revisions.some((r) => r.source !== undefined);
+  const [demo, setDemo] = useState(data.project.demo === 1);
+  async function toggleDemo() {
+    await send(`/api/settings/projects/${projectId}/demo`, "PATCH", {
+      demo: !demo,
+    });
+    setDemo(!demo);
+  }
   const editable =
+    canEdit &&
     !!latest &&
     shown?.id === latest.id &&
     viewed?.id === latest.id &&
@@ -207,9 +226,10 @@ export function Workspace(props: Props) {
             title="All projects"
           >
             <span className="mark" aria-hidden="true" />
-            Deal Toy
+            Mantel
           </button>
           <span className="chip project-name">{data.project.name}</span>
+          {!owns && <span className="chip demo-chip">Demo · view only</span>}
           {data.models.length > 1 && (
             <select
               className="chip"
@@ -261,7 +281,20 @@ export function Workspace(props: Props) {
               setMenu(false);
             }}
             onExtensions={props.onExtensions}
+            onSettings={props.onSettings}
             onSignOut={props.onSignOut}
+            hasSource={hasSource}
+            demo={
+              owns && can(me, "settings.manage")
+                ? {
+                    on: demo,
+                    toggle: () =>
+                      void toggleDemo().catch((e: Error) =>
+                        setError(e.message),
+                      ),
+                  }
+                : undefined
+            }
           />
         )}
       </header>
@@ -282,11 +315,18 @@ export function Workspace(props: Props) {
             composer={composer}
             onSend={sendNote}
             onViewRevision={viewRevision}
+            readOnly={
+              canNote
+                ? undefined
+                : owns
+                  ? "Notes to agents need the “Leave notes” permission."
+                  : "You're viewing the demo. Ask an admin for access to build your own."
+            }
           />
         )}
       </div>
 
-      {!data.models.length && (
+      {!data.models.length && owns && (
         <div className="canvas-empty">
           <span className="mark large" aria-hidden="true" />
           <h2>Start with your agent</h2>
@@ -315,8 +355,13 @@ export function Workspace(props: Props) {
           building={
             viewedJob?.status === "queued" || viewedJob?.status === "running"
           }
+          readOnly={!canEdit}
           onClose={() => setSelection(null)}
-          onAsk={(specs) => askAboutPart(selection.label, specs)}
+          onAsk={
+            canNote
+              ? (specs) => askAboutPart(selection.label, specs)
+              : undefined
+          }
           onApply={async (name, value) => {
             if (!model || !latest) return;
             await call("models_set_parameter", {
@@ -335,9 +380,11 @@ export function Workspace(props: Props) {
         <div className="build-banner" role="alert">
           <strong>Revision {viewed?.number} failed to build.</strong>
           <span>{viewedJob.error?.split("\n").at(-2) ?? viewedJob.error}</span>
-          <button className="link" onClick={() => setDrawer("code")}>
-            View code
-          </button>
+          {hasSource && (
+            <button className="link" onClick={() => setDrawer("code")}>
+              View code
+            </button>
+          )}
         </div>
       )}
 
@@ -394,6 +441,7 @@ export function Workspace(props: Props) {
                   (r) => r.number === (viewed?.number ?? 0) - 1,
                 )}
                 error={viewedJob?.status === "failed" ? viewedJob.error : null}
+                readOnly={!owns || !can(me, "models.edit")}
                 onSave={async (source, build) => {
                   let id = model?.id;
                   if (!id)
@@ -426,8 +474,13 @@ export function Workspace(props: Props) {
                 ) : (
                   <p className="muted">No built revision yet.</p>
                 )}
+                {!canDownload && (
+                  <p className="muted">
+                    Downloads need the “Download exports” permission.
+                  </p>
+                )}
                 <div className="downloads">
-                  {artifacts.map((a) => (
+                  {(canDownload ? artifacts : []).map((a) => (
                     <button
                       key={a.id}
                       className="secondary"
@@ -472,9 +525,17 @@ export function Workspace(props: Props) {
                 data={data}
                 revisionId={shown?.id}
                 reload={props.reload}
+                readOnly={!owns || !can(me, "models.edit")}
               />
             )}
-            {drawer === "connect" && <Connect />}
+            {drawer === "connect" && (
+              <Connect
+                onSettings={() => {
+                  setDrawer(null);
+                  props.onSettings();
+                }}
+              />
+            )}
           </div>
         </aside>
       )}
@@ -497,16 +558,25 @@ function Menu(props: {
   choice: ThemeChoice;
   chooseTheme: (c: ThemeChoice) => void;
   onExtensions: () => void;
+  onSettings: () => void;
   onSignOut: () => void;
+  hasSource: boolean;
+  demo?: { on: boolean; toggle: () => void };
 }) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => first.current?.focus(), []);
   return (
     <div className="menu" role="menu">
-      <button ref={first} role="menuitem" onClick={() => props.open("code")}>
-        Source code <kbd>diff</kbd>
-      </button>
-      <button role="menuitem" onClick={() => props.open("downloads")}>
+      {props.hasSource && (
+        <button ref={first} role="menuitem" onClick={() => props.open("code")}>
+          Source code <kbd>diff</kbd>
+        </button>
+      )}
+      <button
+        ref={props.hasSource ? undefined : first}
+        role="menuitem"
+        onClick={() => props.open("downloads")}
+      >
         Downloads and facts
       </button>
       <button role="menuitem" onClick={() => props.open("documents")}>
@@ -515,7 +585,27 @@ function Menu(props: {
       <button role="menuitem" onClick={() => props.open("connect")}>
         Connect an agent
       </button>
+      {props.demo && (
+        <button
+          role="menuitem"
+          onClick={() => {
+            props.onClose();
+            props.demo?.toggle();
+          }}
+        >
+          {props.demo.on ? "Stop showing as demo" : "Show as demo"}
+        </button>
+      )}
       <hr />
+      <button
+        role="menuitem"
+        onClick={() => {
+          props.onClose();
+          props.onSettings();
+        }}
+      >
+        Settings
+      </button>
       <button
         role="menuitem"
         onClick={() => {
@@ -551,8 +641,9 @@ function PartPopover(props: {
   params: [string, ParamSpec][];
   editable: boolean;
   building: boolean;
+  readOnly: boolean;
   onClose: () => void;
-  onAsk: (specs: [string, ParamSpec][]) => void;
+  onAsk?: (specs: [string, ParamSpec][]) => void;
   onApply: (name: string, value: number) => Promise<void>;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -626,7 +717,9 @@ function PartPopover(props: {
       ))}
       {!props.editable && !!props.params.length && (
         <p className="muted small">
-          Viewing an older revision. Follow live to edit.
+          {props.readOnly
+            ? "Dimensions are view only here."
+            : "Viewing an older revision. Follow live to edit."}
         </p>
       )}
       {props.building && (
@@ -640,9 +733,11 @@ function PartPopover(props: {
           {error}
         </p>
       )}
-      <button className="ask" onClick={() => props.onAsk(props.params)}>
-        ✦ Ask the agent to change this part…
-      </button>
+      {props.onAsk && (
+        <button className="ask" onClick={() => props.onAsk?.(props.params)}>
+          ✦ Ask the agent to change this part…
+        </button>
+      )}
     </div>
   );
 }
@@ -651,9 +746,10 @@ function CodeDrawer(props: {
   revision?: Revision;
   previous?: Revision;
   error: string | null;
+  readOnly: boolean;
   onSave: (source: string, build: boolean) => Promise<void>;
 }) {
-  const original = props.revision?.source ?? sample;
+  const original = props.revision?.source ?? (props.readOnly ? "" : sample);
   const [source, setSource] = useState(original);
   const [mode, setMode] = useState<"view" | "edit" | "diff">(
     props.revision ? "view" : "edit",
@@ -663,7 +759,7 @@ function CodeDrawer(props: {
   const dirty = source !== original;
   const diff =
     props.previous && mode === "diff"
-      ? diffLines(props.previous.source, original)
+      ? diffLines(props.previous.source ?? "", original)
       : null;
   useEffect(() => {
     if (!dirty) return;
@@ -699,12 +795,14 @@ function CodeDrawer(props: {
         >
           Changes
         </button>
-        <button
-          className={mode === "edit" ? "on" : ""}
-          onClick={() => setMode("edit")}
-        >
-          Edit
-        </button>
+        {!props.readOnly && (
+          <button
+            className={mode === "edit" ? "on" : ""}
+            onClick={() => setMode("edit")}
+          >
+            Edit
+          </button>
+        )}
       </div>
       {props.error && <pre className="code error-block">{props.error}</pre>}
       {mode === "view" && <pre className="code">{original}</pre>}
@@ -726,7 +824,7 @@ function CodeDrawer(props: {
         ) : (
           <p className="muted">This change is too large to compare here.</p>
         ))}
-      {mode === "edit" && (
+      {mode === "edit" && !props.readOnly && (
         <>
           <textarea
             className="code editor"
@@ -769,6 +867,7 @@ function Documents(props: {
   data: WorkspaceData;
   revisionId?: string;
   reload: () => Promise<WorkspaceData>;
+  readOnly: boolean;
 }) {
   const [content, setContent] = useState(briefTemplate);
   const [revisionId, setRevisionId] = useState(props.revisionId ?? "");
@@ -777,50 +876,58 @@ function Documents(props: {
   const { data } = props;
   return (
     <div className="stack">
-      <p className="muted">
-        Record materials, finishes, tolerances, assembly and inspection needs.
-        New entries keep previous versions.
-      </p>
-      <label>
-        Revision
-        <select
-          value={revisionId}
-          onChange={(e) => setRevisionId(e.target.value)}
-        >
-          <option value="">Whole project</option>
-          {data.revisions.map((r) => (
-            <option key={r.id} value={r.id}>
-              {data.models.find((m) => m.id === r.model_id)?.name} · revision{" "}
-              {r.number}
-            </option>
-          ))}
-        </select>
-      </label>
-      <textarea
-        className="code editor short"
-        value={content}
-        maxLength={30000}
-        onChange={(e) => setContent(e.target.value)}
-      />
-      <button
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          setError("");
-          call("documents_add", {
-            projectId: data.project.id,
-            revisionId: revisionId || undefined,
-            kind: "manufacturing-brief",
-            title: "Manufacturing brief",
-            content,
-          })
-            .then(() => props.reload())
-            .catch((e: Error) => setError(e.message))
-            .finally(() => setBusy(false));
-        }}
-      >
-        Save draft brief
-      </button>
+      {props.readOnly ? (
+        <p className="muted">
+          Manufacturing notes for this project. They are view only here.
+        </p>
+      ) : (
+        <>
+          <p className="muted">
+            Record materials, finishes, tolerances, assembly and inspection
+            needs. New entries keep previous versions.
+          </p>
+          <label>
+            Revision
+            <select
+              value={revisionId}
+              onChange={(e) => setRevisionId(e.target.value)}
+            >
+              <option value="">Whole project</option>
+              {data.revisions.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {data.models.find((m) => m.id === r.model_id)?.name} ·
+                  revision {r.number}
+                </option>
+              ))}
+            </select>
+          </label>
+          <textarea
+            className="code editor short"
+            value={content}
+            maxLength={30000}
+            onChange={(e) => setContent(e.target.value)}
+          />
+          <button
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError("");
+              call("documents_add", {
+                projectId: data.project.id,
+                revisionId: revisionId || undefined,
+                kind: "manufacturing-brief",
+                title: "Manufacturing brief",
+                content,
+              })
+                .then(() => props.reload())
+                .catch((e: Error) => setError(e.message))
+                .finally(() => setBusy(false));
+            }}
+          >
+            Save draft brief
+          </button>
+        </>
+      )}
       {error && <p className="inline-error">{error}</p>}
       {data.documents.map((d) => (
         <article className="doc" key={d.id}>
@@ -835,9 +942,14 @@ function Documents(props: {
           </p>
           <pre>{d.content}</pre>
           <div className="row">
-            <button className="secondary" onClick={() => setContent(d.content)}>
-              Use as next draft
-            </button>
+            {!props.readOnly && (
+              <button
+                className="secondary"
+                onClick={() => setContent(d.content)}
+              >
+                Use as next draft
+              </button>
+            )}
             <button
               className="ghost"
               onClick={() =>
@@ -858,7 +970,7 @@ function Documents(props: {
   );
 }
 
-function Connect() {
+function Connect(props: { onSettings: () => void }) {
   return (
     <div className="stack">
       <p>
@@ -874,9 +986,12 @@ function Connect() {
         />
       </label>
       <p className="muted">
-        Use your administrator-issued personal token as the{" "}
-        <code>Authorization: Bearer</code> header, kept in the client's secret
-        store.
+        Create a key in{" "}
+        <button className="link" onClick={props.onSettings}>
+          Settings → API keys
+        </button>{" "}
+        and use it as the <code>Authorization: Bearer</code> header, kept in the
+        client's secret store.
       </p>
       <pre className="code">{`session_start  → your prompt appears here
 session_update → short progress notes
@@ -884,8 +999,7 @@ models_save → models_build → builds_get
 session_end    → a summary of the result`}</pre>
       <p className="muted small">
         The agent reads the modeling skill with <code>skills_list</code>. Notes
-        you leave here reach it on its next tool call. Clients that require
-        OAuth need the planned OAuth adapter.
+        you leave here reach it on its next tool call.
       </p>
     </div>
   );
