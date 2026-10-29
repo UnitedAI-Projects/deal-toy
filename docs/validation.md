@@ -162,9 +162,9 @@ In production, the demo model's rebuild succeeded in 57.9 s from queue to result
 
 Two more timing probes showed the effect of compiled bytecode:
 
-| Probe | Start-up | Model build |
-|---|---|---|
-| Typical host | 8.5 s, down from 22.1 s | 7.5 s |
-| Slow host | 30.7 s | 21.9 s |
+| Probe        | Start-up                | Model build |
+| ------------ | ----------------------- | ----------- |
+| Typical host | 8.5 s, down from 22.1 s | 7.5 s       |
+| Slow host    | 30.7 s                  | 21.9 s      |
 
 On a typical host the demo model has ample margin. The slow host ran about 2.5× slower, and a model this large could still exceed 60 s there. Probe exports used build123d's defaults, so they are not the runner's export times.
