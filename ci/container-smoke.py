@@ -1,10 +1,11 @@
 """Exercise the production HTTP listener as well as native exports."""
+import base64
 import json
 import threading
 import urllib.request
 from pathlib import Path
 
-from service import Handler, HTTPServer
+from service import Handler, HTTPServer, execute
 
 with HTTPServer(("0.0.0.0", 0), Handler) as server:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -21,6 +22,15 @@ with HTTPServer(("0.0.0.0", 0), Handler) as server:
         assert {a["name"] for a in result["artifacts"]} == {
             "model.step", "model.stl", "model.glb", "facts.json"}
         print("CAD HTTP startup and STEP/STL/GLB/facts exports verified")
+        # Text in the default font (Arial) must come out in an outline font with Arial's
+        # metrics, not OCCT's single-line fallback or a monospace face. The listener takes one
+        # job per container, so this runs the same sandboxed runner directly.
+        result = execute("import build123d as bd\n"
+                         "def build():\n    return bd.extrude(bd.Text('Mantel 2026', 7.0), 1.0)\n")
+        facts = next(a for a in result["artifacts"] if a["name"] == "facts.json")
+        width = json.loads(base64.b64decode(facts["base64"]))["bounds"][0]
+        assert abs(width - 37.7) < 0.8, f"default-font text is {width} mm wide, not Arial's 37.7"
+        print(f"Default-font text renders with Arial metrics ({width:.2f} mm)")
     finally:
         server.shutdown()
         thread.join(timeout=5)
