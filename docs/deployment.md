@@ -43,7 +43,7 @@ Mantel signs people in itself, with Google. Cloudflare Access is no longer requi
 3. Put the client ID in `GOOGLE_CLIENT_ID` in `wrangler.jsonc` (an identifier, not a secret) and store the secret with `npx wrangler secret put GOOGLE_CLIENT_SECRET`. Never commit the secret.
 4. Until both are set, the sign-in button reports "Google sign-in isn't set up yet" and the release check prints a warning.
 
-Production uses Google Cloud project `unitedai-mantel-prod` (Mantel), with the **Mantel production** web client. Its public client ID is recorded in `wrangler.jsonc`; its secret is stored only as the Worker secret `GOOGLE_CLIENT_SECRET`. Google publishing also requires a public application homepage and privacy-policy link. Basic identity scopes do not remove branding requirements. The owner-approved [privacy policy](../public/info/privacy/index.html) and [homepage](../public/info/index.html) are public under `/info/`; a dedicated Access exception covers only `/info/*`. See [public page operations](public-pages.md). Keep the existing Access gate until the owner has verified the new sign-in path.
+Production uses Google Cloud project `unitedai-mantel-prod` (Mantel), with the **Mantel production** web client. Its public client ID is recorded in `wrangler.jsonc`; its secret is stored only as the Worker secret `GOOGLE_CLIENT_SECRET`. Google publishing also requires a public application homepage and privacy-policy link. Basic identity scopes do not remove branding requirements. The owner-approved [privacy policy](../public/info/privacy/index.html) and [homepage](../public/info/index.html) are public under `/info/`; these pages are served publicly without Cloudflare Access. See [public page operations](public-pages.md). The owner verified Google sign-in before approving removal of the outer Access gate.
 
 `AUTH_LIMITER` (Workers rate limiting, 20 requests a minute per IP) protects the Google start and callback routes. `DAILY_BUILD_LIMIT` (default 100) caps builds per member per day.
 
@@ -68,15 +68,17 @@ Keep the export and log private: the export contains application data and the lo
 
 ### Cutover from Cloudflare Access
 
-The two Access applications (**Deal Toy**, `b4fb98b3-7170-4b94-a2b8-51282ef84308`, and **Deal Toy machine endpoints**, `8522c68a-87a7-403e-941c-618b21e59d80`) still front the hostname after this release deploys, so only the approved owner reaches the new sign-in page at first.
+The owner-approved cutover completed on October 28, 2026. Mantel now handles browser authentication directly; Cloudflare Access no longer fronts this hostname. The following app-specific Access applications were deleted:
 
-1. Deploy, then sign in as the owner with Google. The existing member links by verified email.
-2. In production, check:
-   - a second Google account signs up and lands on the demo;
-   - the owner promotes it in **Settings → Members** and its next request has the new access;
-   - an API key works with Claude Code and stops working when revoked;
-   - suspending a member ends their open session.
-3. With the owner's approval, delete both Access applications (Zero Trust → Access → Applications). Then confirm an anonymous visitor sees the sign-in page, and that `/api/session` and `/mcp` return 401.
+- **Deal Toy Studio** — `b4fb98b3-7170-4b94-a2b8-51282ef84308` (root gate).
+- **Deal Toy machine endpoints** — `8522c68a-87a7-403e-941c-618b21e59d80` (former `/health` and `/mcp` exceptions).
+- **Mantel public information** — `03878ed6-cc4b-4215-903a-47ca0c2441ec` (former `/info/*` exception).
+
+Shared Access policies, the Google identity provider, and other applications were left intact. Do not recreate the exceptions: without an outer Access gate, they are unnecessary. Browser APIs require Mantel sessions, and MCP requires API keys; public static pages do not grant access to project data.
+
+After any identity or routing change, verify anonymous `/` returns the Mantel page, `/api/auth/google/start` redirects directly to `accounts.google.com`, and `/api/session` and `/mcp` return 401. Check owner sign-in and sign-out, an existing MCP key, and the public homepage/privacy links. New Google accounts receive the default Demo level; owners grant additional permissions in Settings.
+
+Owner sign-in and these routing checks passed during cutover. A second-account signup, live promotion/suspension, and new-key revocation remain separate production acceptance items; automated coverage does not substitute for those live checks.
 
 No members or keys are seeded automatically. Project sharing and OAuth for MCP clients are not implemented.
 

@@ -7,8 +7,8 @@ Production URLs:
 - https://unitedai-deal-toy.ivan27chen.workers.dev/info/
 - https://unitedai-deal-toy.ivan27chen.workers.dev/info/privacy/
 
-Cloudflare Access must exempt only this information-page prefix using a dedicated `Mantel public information` application for `unitedai-deal-toy.ivan27chen.workers.dev/info/*` and the reusable `Mantel - public homepage and privacy` Bypass/Everyone policy. The application ID is `03878ed6-cc4b-4215-903a-47ca0c2441ec`; the reusable policy ID is `399195f7-cce8-4300-a566-e3f5b3b13d4e`. The workspace, `/api/`, and neighboring `/infox` must retain their existing protection. The machine endpoint exceptions are separate. Verify anonymous HTTP routing after any Access change.
+Cloudflare Access was removed from the Mantel hostname on October 28, 2026 after owner Google sign-in was verified. The temporary `Mantel public information` Access application (`03878ed6-cc4b-4215-903a-47ca0c2441ec`) was deleted with the root gate and machine endpoint exceptions. No Access bypass is now needed. Mantel protects private APIs with its own sessions and MCP with API keys. Verify anonymous HTTP routing after any authentication change; see [deployment operations](deployment.md#cutover-from-cloudflare-access).
 
-The pages support Google OAuth production branding before the accounts release deploys. Google Cloud project `unitedai-mantel-prod` should use these homepage/privacy URLs. Publishing OAuth does not by itself establish brand verification.
+Google Cloud project `unitedai-mantel-prod` uses these homepage/privacy URLs. Its External OAuth app is in production. Publishing OAuth does not by itself establish brand verification; Google's account chooser currently identifies the destination as `ivan27chen.workers.dev`.
 
 The owner approved the policy's operator/contact and Google-data use commitments before publication. Future changes must reflect actual practices. Do not introduce deletion deadlines, provider claims or legal guarantees that operations cannot meet.

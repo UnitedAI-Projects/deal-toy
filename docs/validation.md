@@ -125,3 +125,15 @@ Created the Mantel production web client in Google Cloud project `unitedai-mante
 The owner approved the policy for publication. PR #14 publishes the canonical HTML policy and public homepage under `/info/`, independently of the accounts migration. Desktop and 400px mobile rendering were inspected, and a paragraph comparison verified preservation of the approved policy text. A dedicated Access application and reusable Bypass policy expose only `/info/*`; anonymous `/api/session` and `/infox` still return the Access redirect, and `/mcp` still returns 401.
 
 Integrated the public-page release into the accounts branch and linked the policy from Sign in and Settings → Account. Replaced the draft with a pointer to the approved canonical HTML. Full local `bash ci/run.sh` passed again: 78 Worker tests, 8 Python tests / 1 existing skip, formatting, types, build, audit and dry run. Google publishing and live accounts acceptance are pending at this checkpoint.
+
+### Production Google login and Access cutover — 2026-10-28
+
+PR #13 deployed successfully in [run 40764526525](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40764526525), release `c784673921ce11d917b511c3fe8fbf1f69e62cd2`. The owner then approved removing all three Mantel-specific Access applications. Cloudflare's applications list showed only the four unrelated applications afterwards; the shared personal-app policy was preserved.
+
+Post-cutover verification:
+
+- Anonymous HTTP checks from the MacBook: `/` 200, `/api/session` 401 JSON, Google start 302 directly to `accounts.google.com`, `/health` 200 with the expected release, and both public information pages 200.
+- Chrome on the Mac mini: owner sign-out showed Mantel's own sign-in page; Continue with Google opened Google's account chooser directly, and signing in as the existing owner restored both projects.
+- The migrated MCP key successfully called `projects_list`; anonymous MCP returned 401.
+
+No application code or database data changed for this cutover. MacBook browser sign-in and second-account production signup/promotion/suspension were not tested. Earlier sections record historical pre-deployment limitations; this entry supersedes their pending Google OAuth and Access-cutover status.
