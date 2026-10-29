@@ -85,6 +85,7 @@ export type Revision = {
   id: string;
   model_id: string;
   number: number;
+  created_at: string;
   /** Absent on someone else's project unless you may download exports. */
   source?: string;
 };
@@ -94,6 +95,8 @@ export type Job = {
   status: string;
   facts: string | null;
   error: string | null;
+  created_at: string;
+  updated_at: string;
 };
 export type Artifact = {
   id: string;

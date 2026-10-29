@@ -15,6 +15,7 @@ import {
 } from "./api";
 import { ChatPanel } from "./ChatPanel";
 import { diffLines } from "./diff";
+import { changedModel, initialModel } from "./follow";
 import type { ThemeChoice } from "./theme";
 import sample from "../../examples/bridge.py?raw";
 const Viewer = lazy(() =>
@@ -42,7 +43,7 @@ export function Workspace(props: Props) {
     events: [],
   });
   const [connected, setConnected] = useState(false);
-  const [modelId, setModelId] = useState(data.models[0]?.id ?? "");
+  const [modelId, setModelId] = useState(() => initialModel(data));
   const [follow, setFollow] = useState(true);
   const [viewNumber, setViewNumber] = useState(0);
   const [selection, setSelection] = useState<{
@@ -108,6 +109,17 @@ export function Workspace(props: Props) {
     if (!data.models.some((m) => m.id === modelId) && data.models[0])
       setModelId(data.models[0].id);
   }, [data.models, modelId]);
+  // Follow the model an agent creates or changes, as the view follows its newest revision.
+  // Viewing an older revision turns following off.
+  const seen = useRef(data);
+  useEffect(() => {
+    const changed = changedModel(seen.current, data);
+    seen.current = data;
+    if (changed && follow && changed !== modelId) {
+      setModelId(changed);
+      setSelection(null);
+    }
+  }, [data]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
