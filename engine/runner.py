@@ -13,6 +13,7 @@ from OCP.OSD import OSD_Parallel, OSD_ThreadPool
 from OCP.TCollection import TCollection_AsciiString
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
+MESH_TOLERANCE = 0.05
 
 def limits():
     # OCCT's parallel exporters can deadlock when Linux refuses new threads
@@ -111,11 +112,15 @@ def build(source: Path, destination: Path) -> dict:
     if max(bounds) > 2000:
         raise ValueError("Model exceeds the 2000 mm workspace limit")
     destination.mkdir(exist_ok=True)
-    if not bd.export_step(shape, destination / "model.step"):
+    # STEP readers rebuild surface curves (pcurves) from the 3D geometry; writing them
+    # roughly doubles the file and its export time.
+    if not bd.export_step(shape, destination / "model.step", write_pcurves=False):
         raise ValueError("STEP export failed")
-    if not bd.export_stl(shape, destination / "model.stl", tolerance=0.05):
+    if not bd.export_stl(shape, destination / "model.stl", tolerance=MESH_TOLERANCE):
         raise ValueError("STL export failed")
-    bd.export_gltf(shape, destination / "model.glb", binary=True)
+    # The viewer mesh uses the STL tolerances rather than build123d's much finer default.
+    bd.export_gltf(shape, destination / "model.glb", binary=True,
+                   linear_deflection=MESH_TOLERANCE, angular_deflection=0.1)
     # volume_mm3 sums part volumes, so overlapping parts count twice; it is not a
     # manufacturing volume.
     facts = {"units": "mm", "bounds": list(bounds), "volume_mm3": shape.volume,

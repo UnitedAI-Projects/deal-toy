@@ -137,3 +137,18 @@ Post-cutover verification:
 - The migrated MCP key successfully called `projects_list`; anonymous MCP returned 401.
 
 No application code or database data changed for this cutover. MacBook browser sign-in and second-account production signup/promotion/suspension were not tested. Earlier sections record historical pre-deployment limitations; this entry supersedes their pending Google OAuth and Access-cutover status.
+
+### Engine build time and export size — 2026-10-29
+
+After PR #17's font fix, the 41.9 KB DigitalBridge × ArcLight demo model (49 parts, 168 solids, two vector logos and four lines of lettering) still exceeded the 60-second limit in production. A timing probe built in production reported, at one CPU share:
+
+- 22.1 s of interpreter start-up before the model ran. The image installed packages without bytecode, and each job's fresh, read-only container compiled every module from source. On a Mac, a cold compile added about 2.7 s to a 1.8 s import.
+- 8.8 s for the model, 5.4 s for its 14.2 MB STEP file and 6.3 s for its GLB.
+
+The demo model's outputs also totalled 22.3 MB, over the 15 MiB artifact limit, so faster hardware alone would not have fixed it. The engine now:
+
+- **Ships compiled bytecode:** dependencies and the standard library are compiled when the image is built. The container smoke test checks that build123d and the standard library have bytecode in the read-only image.
+- **Writes STEP without surface curves:** pcurves are left out, because readers rebuild them from the 3D geometry. The demo model's STEP file drops from 12.4 MB to 5.1 MB and exports 40% faster. The existing round-trip test still re-reads the STEP and checks it is valid with the same volume.
+- **Meshes GLB at STL tolerances:** the viewer mesh uses the STL tolerances (0.05 linear, 0.1 rad), not build123d's 0.001 default. The demo model's GLB drops from 6.3 MB to 4.5 MB. A new test checks that the GLB has no more triangles than the STL.
+
+No timeout or resource limit was changed. Production timing after deployment is recorded with the demo model's rebuild.
