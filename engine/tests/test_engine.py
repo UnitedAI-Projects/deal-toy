@@ -1,4 +1,5 @@
 import json
+import struct
 import sys
 import threading
 from pathlib import Path
@@ -38,6 +39,26 @@ def test_params_and_labelled_parts_reach_the_facts(tmp_path):
     assert facts["parts"][0]["volume_mm3"] == pytest.approx(400)
     glb = (tmp_path / "out" / "model.glb").read_bytes()
     assert b'"Base"' in glb and b'"Post"' in glb
+
+
+def glb_triangles(path):
+    data = path.read_bytes()
+    length = struct.unpack_from("<I", data, 12)[0]
+    gltf = json.loads(data[20:20 + length])
+    return sum(gltf["accessors"][primitive["indices"]]["count"] // 3
+               for mesh in gltf["meshes"] for primitive in mesh["primitives"])
+
+
+def test_exports_stay_compact(tmp_path):
+    source = tmp_path / "model.py"
+    source.write_text("import build123d as bd\n"
+                      "def build():\n    return bd.extrude(bd.Text('Mantel 2026', 10.0), 1.0)\n")
+    build(source, tmp_path / "out")
+    # STEP readers rebuild surface curves from the 3D geometry; writing them doubles the file.
+    assert b"PCURVE" not in (tmp_path / "out" / "model.step").read_bytes()
+    # The viewer mesh is no finer than the STL mesh.
+    stl_triangles = ((tmp_path / "out" / "model.stl").stat().st_size - 84) // 50
+    assert glb_triangles(tmp_path / "out" / "model.glb") <= stl_triangles * 1.05
 
 
 def test_invalid_params_fail_the_build(tmp_path):

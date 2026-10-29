@@ -1,11 +1,19 @@
 """Exercise the production HTTP listener as well as native exports."""
 import base64
+import importlib.util
 import json
 import threading
 import urllib.request
 from pathlib import Path
 
+import build123d
 from service import Handler, HTTPServer, execute
+
+# The image is read-only at run time, so bytecode exists only if the image build compiled it.
+for module in (build123d, json):
+    cached = Path(importlib.util.cache_from_source(module.__file__))
+    assert cached.is_file(), f"{module.__name__} has no compiled bytecode in the image"
+print("Dependencies and standard library ship compiled bytecode")
 
 with HTTPServer(("0.0.0.0", 0), Handler) as server:
     thread = threading.Thread(target=server.serve_forever, daemon=True)

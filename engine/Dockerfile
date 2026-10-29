@@ -4,7 +4,11 @@ COPY --from=uv /uv /usr/local/bin/uv
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglu1-mesa libxrender1 libxext6 fonts-liberation && rm -rf /var/lib/apt/lists/*
 WORKDIR /opt/cad
 COPY engine/pyproject.toml engine/uv.lock ./
-RUN uv sync --no-cache --link-mode copy --frozen --no-dev && useradd --uid 1000 --create-home cad
+# Each job runs in a fresh, read-only container, so compile the dependencies and the
+# standard library once here rather than from source on every build.
+RUN uv sync --no-cache --link-mode copy --frozen --no-dev --compile-bytecode \
+    && python -m compileall -q -x '/(test|tests|idle_test)/' /usr/local/lib/python3.12 \
+    && useradd --uid 1000 --create-home cad
 COPY engine/runner.py engine/service.py ./
 USER cad
 EXPOSE 8080
