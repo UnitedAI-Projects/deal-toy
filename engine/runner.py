@@ -8,7 +8,9 @@ import sys
 from pathlib import Path
 
 import build123d as bd
+from OCP.Font import Font_FontAspect, Font_FontMgr, Font_StrictLevel
 from OCP.OSD import OSD_Parallel, OSD_ThreadPool
+from OCP.TCollection import TCollection_AsciiString
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 
@@ -25,6 +27,37 @@ def limits():
         resource.setrlimit(resource.RLIMIT_AS, (3 * 1024**3, 3 * 1024**3))
         resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
 
+
+
+# Metric-compatible free fonts for the names scripts usually ask for; build123d's Text defaults to
+# Arial. The container image installs these (fonts-liberation).
+FONT_SUBSTITUTES = {
+    "Arial": "Liberation Sans",
+    "Helvetica": "Liberation Sans",
+    "Times New Roman": "Liberation Serif",
+    "Courier New": "Liberation Mono",
+}
+
+
+def fonts():
+    """Map missing common fonts to their Liberation equivalents. Without this, OCCT falls back to a
+    single-line stroke font on Linux, which looks wrong and is slow to turn into solid text."""
+    manager = Font_FontMgr.GetInstance_s()
+    manager.InitFontDataBase()
+
+    def has(name):
+        return manager.FindFont(
+            TCollection_AsciiString(name),
+            Font_StrictLevel.Font_StrictLevel_Strict,
+            Font_FontAspect.Font_FontAspect_Regular,
+            False,
+        ) is not None
+
+    for name, free in FONT_SUBSTITUTES.items():
+        if not has(name) and has(free):
+            # OCCT ships its own aliases for these names; replace them rather than add to them.
+            manager.RemoveFontAlias(TCollection_AsciiString(name.lower()), TCollection_AsciiString(""))
+            manager.AddFontAlias(TCollection_AsciiString(name.lower()), TCollection_AsciiString(free.lower()))
 
 
 PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
@@ -98,4 +131,5 @@ def build(source: Path, destination: Path) -> dict:
 
 if __name__ == "__main__":
     limits()
+    fonts()
     build(Path(sys.argv[1]), Path(sys.argv[2]))
