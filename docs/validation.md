@@ -151,4 +151,20 @@ The demo model's outputs also totalled 22.3 MB, over the 15 MiB artifact limit, 
 - **Writes STEP without surface curves:** pcurves are left out, because readers rebuild them from the 3D geometry. The demo model's STEP file drops from 12.4 MB to 5.1 MB and exports 40% faster. The existing round-trip test still re-reads the STEP and checks it is valid with the same volume.
 - **Meshes GLB at STL tolerances:** the viewer mesh uses the STL tolerances (0.05 linear, 0.1 rad), not build123d's 0.001 default. The demo model's GLB drops from 6.3 MB to 4.5 MB. A new test checks that the GLB has no more triangles than the STL.
 
-No timeout or resource limit was changed. Production timing after deployment is recorded with the demo model's rebuild.
+No timeout or resource limit was changed.
+
+PR #18 merged as `8ad4dd5`. Its Deploy run, [40905595697](https://github.com/UnitedAI-Projects/deal-toy/actions/runs/40905595697), deployed successfully, but its last step failed. That step checks the release on `/health` once, and it read it before the new release was serving, the same race as PR #17's run. Run again by hand afterwards, the same script passed against release `8ad4dd5`.
+
+In production, the demo model's rebuild succeeded in 57.9 s from queue to result, including container start:
+
+- **Model:** 200 × 90.25 × 123 mm, 49 parts, 168 solids, valid, with 8 parameters.
+- **Files:** STEP 5.9 MB, STL 3.5 MB and GLB 4.7 MB, 13.2 MB in total.
+
+Two more timing probes showed the effect of compiled bytecode:
+
+| Probe | Start-up | Model build |
+|---|---|---|
+| Typical host | 8.5 s, down from 22.1 s | 7.5 s |
+| Slow host | 30.7 s | 21.9 s |
+
+On a typical host the demo model has ample margin. The slow host ran about 2.5× slower, and a model this large could still exceed 60 s there. Probe exports used build123d's defaults, so they are not the runner's export times.
