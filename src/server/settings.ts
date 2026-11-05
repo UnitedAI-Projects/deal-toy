@@ -42,6 +42,29 @@ async function json(request: Request) {
 }
 const now = () => new Date().toISOString();
 
+/** The member's OAuth grants (one per connected app), newest first. */
+async function listConnectedApps(c: Context) {
+  const grants = [];
+  let cursor: string | undefined;
+  do {
+    const page = await c.env.OAUTH_PROVIDER.listUserGrants(c.identity.email, {
+      cursor,
+    });
+    grants.push(...page.items);
+    cursor = page.cursor;
+  } while (cursor);
+  return grants
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((grant) => ({
+      id: grant.id,
+      name:
+        typeof grant.metadata?.clientName === "string"
+          ? grant.metadata.clientName
+          : "Unnamed app",
+      connected_at: new Date(grant.createdAt * 1000).toISOString(),
+    }));
+}
+
 /** Handles /api/settings/* for the signed-in member, or returns null for other paths. */
 export async function settingsRoute(
   request: Request,
@@ -50,6 +73,16 @@ export async function settingsRoute(
 ): Promise<Response | null> {
   const path = url.pathname.slice("/api/settings".length);
   const method = request.method;
+  // Any member may see and disconnect their own connected apps, whatever their permissions.
+  if (path === "/connected-apps" && method === "GET")
+    return Response.json(await listConnectedApps(c));
+  const appMatch = /^\/connected-apps\/([^/]*)$/.exec(path);
+  if (appMatch && method === "DELETE") {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(appMatch[1]))
+      throw new AppError(400, "Invalid app id");
+    await c.env.OAUTH_PROVIDER.revokeGrant(appMatch[1], c.identity.email);
+    return Response.json({ ok: true });
+  }
   if (path === "/keys" && method === "GET")
     return Response.json(await listKeys(c));
   if (path === "/keys" && method === "POST")

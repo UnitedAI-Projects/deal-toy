@@ -230,13 +230,15 @@ function Keys({ me }: { me: Me }) {
     <>
       <h1>API keys</h1>
       <p className="muted lede">
-        Use a key to connect Claude Code or another MCP client. A key acts as
-        you and has your current access.
+        Connect Claude Code or another MCP client by adding{" "}
+        <code>{location.origin}/mcp</code> and signing in when it asks. Keys are
+        for scripts and CI. Either way, the app acts as you and has your current
+        access.
       </p>
       {!allowed && (
         <div className="panel">
           <p className="panel-body muted">
-            API keys need the “API keys and MCP” permission. Ask an admin.
+            API keys need the “API keys” permission. Ask an admin.
           </p>
         </div>
       )}
@@ -362,7 +364,77 @@ function Keys({ me }: { me: Me }) {
           </table>
         </div>
       )}
+      <ConnectedApps />
     </>
+  );
+}
+
+type ConnectedApp = { id: string; name: string; connected_at: string };
+
+/** Apps the member approved through MCP sign-in. Shown to every member. */
+function ConnectedApps() {
+  const [apps, setApps] = useState<ConnectedApp[]>([]);
+  const { busy, error, run } = useAction();
+  const load = async () =>
+    setApps(await get<ConnectedApp[]>("/api/settings/connected-apps"));
+  useEffect(() => {
+    void load();
+  }, []);
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>Connected apps</h2>
+          <p className="muted small">
+            Apps you allowed through sign-in. Disconnecting one stops it at
+            once.
+          </p>
+        </div>
+      </div>
+      {error && <p className="inline-error panel-body">{error}</p>}
+      <table>
+        <thead>
+          <tr>
+            <th>App</th>
+            <th>Connected</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {apps.map((app) => (
+            <tr key={app.id}>
+              <td>{app.name}</td>
+              <td>{day(app.connected_at)}</td>
+              <td className="right">
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      await send(
+                        `/api/settings/connected-apps/${app.id}`,
+                        "DELETE",
+                      );
+                      await load();
+                    })
+                  }
+                >
+                  Disconnect
+                </button>
+              </td>
+            </tr>
+          ))}
+          {!apps.length && (
+            <tr>
+              <td colSpan={3} className="muted">
+                No connected apps. Add <code>{location.origin}/mcp</code> in
+                your AI app to connect it.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

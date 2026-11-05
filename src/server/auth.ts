@@ -115,7 +115,7 @@ export async function authenticateKey(
   if (!identity.permissions.has("keys.use"))
     throw new AppError(
       403,
-      "API keys need the “API keys and MCP” permission. Ask an admin.",
+      "API keys need the “API keys” permission. Ask an admin.",
     );
   if (
     !row.last_used_at ||

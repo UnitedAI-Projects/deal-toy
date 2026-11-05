@@ -20,7 +20,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "builds.run": "Run builds",
   "exports.download": "Download exports",
   "notes.write": "Leave notes",
-  "keys.use": "API keys and MCP",
+  "keys.use": "API keys",
   "members.manage": "Manage members",
   "settings.manage": "Configure skills and tools",
 };

@@ -60,7 +60,7 @@ describe("API keys on /mcp", () => {
     await member("nokey@oauth.test", { level: "Maker", revoke: ["keys.use"] });
     const r = await mcpWith(key);
     expect(r.status).toBe(403);
-    expect(await r.text()).toContain("API keys");
+    expect(await r.text()).toContain("need the “API keys” permission");
   });
   it("refuses an unknown key", async () => {
     expect((await mcpWith(`mtl_${"x".repeat(43)}`)).status).toBe(401);
@@ -290,6 +290,15 @@ describe("connecting an app", () => {
     expect(flow.html).not.toContain("<script");
     expect(flow.page.headers.get("Content-Type")).toContain("text/html");
   });
+  it("consent page lets a real browser post the form and follow the redirect", async () => {
+    await member("browser@oauth.test", { level: "Maker" });
+    const flow = await begin(await cookieFor("browser@oauth.test"));
+    // no-referrer would make browsers send "Origin: null" with the form post.
+    expect(flow.page.headers.get("Referrer-Policy")).toBe("same-origin");
+    // Browsers apply form-action to the redirect after the post, so allow the app's address.
+    const csp = flow.page.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toMatch(/form-action 'self' https:\/\/client\.test(;|$)/);
+  });
   it("allow without a session does not authorise", async () => {
     await member("nosession@oauth.test", { level: "Maker" });
     const flow = await begin(await cookieFor("nosession@oauth.test"));
@@ -335,5 +344,66 @@ describe("connecting an app", () => {
       body: new URLSearchParams({ handle: flow.handle, action: "allow" }),
     });
     expect(r.status).toBe(403);
+  });
+});
+
+function settings(cookie: string, path: string, method = "GET") {
+  return exports.default.fetch(`${origin}/api/settings${path}`, {
+    method,
+    headers: { Cookie: cookie, Origin: origin },
+  });
+}
+type ConnectedApp = { id: string; name: string; connected_at: string };
+
+describe("connected apps", () => {
+  it("lists connected apps and disconnecting cuts access at once", async () => {
+    const t = await connect("apps@oauth.test", "Maker");
+    const apps = await (
+      await settings(t.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    expect(apps).toEqual([expect.objectContaining({ name: "Test client" })]);
+    expect(
+      Math.abs(Date.parse(apps[0].connected_at) - Date.now()),
+    ).toBeLessThan(60_000);
+    const removed = await settings(
+      t.session,
+      `/connected-apps/${apps[0].id}`,
+      "DELETE",
+    );
+    expect(await removed.json()).toEqual({ ok: true });
+    expect((await mcpWith(t.access_token)).status).toBe(401);
+    expect(await (await settings(t.session, "/connected-apps")).json()).toEqual(
+      [],
+    );
+  });
+  it("are listed for a member without keys.use", async () => {
+    const t = await connect("appsnokeys@oauth.test", "Demo", {
+      revoke: ["keys.use"],
+    });
+    const r = await settings(t.session, "/connected-apps");
+    expect(r.status).toBe(200);
+    expect(await r.json()).toHaveLength(1);
+  });
+  it("cannot disconnect another member's app", async () => {
+    const mine = await connect("mine@oauth.test", "Maker");
+    const theirs = await connect("theirs@oauth.test", "Maker");
+    const [app] = await (
+      await settings(theirs.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    await settings(mine.session, `/connected-apps/${app.id}`, "DELETE");
+    expect((await mcpWith(theirs.access_token)).status).toBe(200);
+  });
+  it("rejects a malformed app id", async () => {
+    await member("badid@oauth.test", { level: "Maker" });
+    const cookie = await cookieFor("badid@oauth.test");
+    const r = await settings(cookie, "/connected-apps/a%20b", "DELETE");
+    expect(r.status).toBe(400);
+  });
+  it("need a browser session, not a token", async () => {
+    const t = await connect("apptoken@oauth.test", "Maker");
+    const r = await get("/api/settings/connected-apps", {
+      Authorization: `Bearer ${t.access_token}`,
+    });
+    expect(r.status).toBe(401);
   });
 });
