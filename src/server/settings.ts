@@ -80,7 +80,13 @@ export async function settingsRoute(
       throw new AppError(400, "Invalid app id");
     const grant = (await connectedApps(c)).find((g) => g.id === appMatch[1]);
     if (!grant) throw new AppError(404, "App not found");
-    await c.env.OAUTH_PROVIDER.revokeGrant(grant.id, grant.userId);
+    // Cut the app off completely, including any sign-in it has not finished yet.
+    const all = await listGrants(c.env.OAUTH_PROVIDER, grant.userId);
+    await Promise.all(
+      all
+        .filter((g) => g.clientId === grant.clientId)
+        .map((g) => c.env.OAUTH_PROVIDER.revokeGrant(g.id, grant.userId)),
+    );
     await recordApp(c.env, c.identity.email, "app.disconnect", {
       app: appName(grant),
       grant: grant.id,

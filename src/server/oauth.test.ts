@@ -496,6 +496,27 @@ describe("staying connected", () => {
     expect(events.map((e) => e.action)).toEqual(["app.connect", "app.signout"]);
     expect(JSON.parse(events[1].detail)).toMatchObject({ app: "Test client" });
   });
+  it("disconnecting an app also cancels its unfinished sign-ins", async () => {
+    const t = await connect("cut@oauth.test", "Maker");
+    const pending = await approve(t.session, "cut@oauth.test", t.clientId);
+    const [app] = await (
+      await settings(t.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    await settings(t.session, `/connected-apps/${app.id}`, "DELETE");
+    const late = await exports.default.fetch(`${origin}/oauth/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: pending.code,
+        redirect_uri: "https://client.test/cb",
+        client_id: t.clientId,
+        code_verifier: pending.flow.verifier,
+        resource: `${origin}/mcp`,
+      }),
+    });
+    expect(late.status).toBe(400);
+  });
   it("reports disconnecting an app that is not yours as not found", async () => {
     const mine = await connect("mine2@oauth.test", "Maker");
     const theirs = await connect("theirs2@oauth.test", "Maker");
