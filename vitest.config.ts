@@ -16,6 +16,7 @@ export default defineConfig({
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
         r2Buckets: ["ARTIFACTS"],
+        kvNamespaces: ["OAUTH_KV"],
         queueProducers: { BUILDS: "test-builds" },
         durableObjects: { LIVE: { className: "ProjectLive", useSQLite: true } },
         ratelimits: {
@@ -30,6 +31,7 @@ export default defineConfig({
           GOOGLE_CLIENT_SECRET: "test-google-secret",
           DAILY_BUILD_LIMIT: "100",
           RELEASE_SHA: "test",
+          APP_ORIGIN: "https://example.test",
         },
       },
     })),

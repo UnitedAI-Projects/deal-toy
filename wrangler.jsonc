@@ -18,6 +18,13 @@
       "migrations_dir": "migrations",
     },
   ],
+  "kv_namespaces": [
+    {
+      // Grants and tokens for MCP sign-in (@cloudflare/workers-oauth-provider).
+      "binding": "OAUTH_KV",
+      "id": "00000000000000000000000000000000",
+    },
+  ],
   "r2_buckets": [
     {
       "binding": "ARTIFACTS",
@@ -82,6 +89,7 @@
     "GOOGLE_CLIENT_ID": "704587941992-1gff7b427l59odf5kefmmjlsgtfagajn.apps.googleusercontent.com",
     "DAILY_BUILD_LIMIT": "100",
     "RELEASE_SHA": "development",
+    "APP_ORIGIN": "https://unitedai-deal-toy.ivan27chen.workers.dev",
   },
   "ratelimits": [
     {
