@@ -56,9 +56,7 @@ export function Workspace(props: Props) {
   const [chatOpen, setChatOpen] = useState(
     () => !matchMedia("(max-width: 760px)").matches,
   );
-  const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
-  const composer = useRef<HTMLTextAreaElement>(null);
   const refresh = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   async function loadActivity() {
@@ -170,7 +168,6 @@ export function Workspace(props: Props) {
   const { me } = props;
   const owns = data.project.owner === me.email;
   const canEdit = owns && can(me, "models.edit") && can(me, "builds.run");
-  const canNote = owns && can(me, "notes.write");
   const canDownload = can(me, "exports.download");
   const hasSource = owns || data.revisions.some((r) => r.source !== undefined);
   const [demo, setDemo] = useState(data.project.demo === 1);
@@ -192,20 +189,6 @@ export function Workspace(props: Props) {
     setViewNumber(r.number);
     setSelection(null);
     if (r.model_id !== modelId) setModelId(r.model_id);
-  }
-  async function sendNote(text: string) {
-    await call("notes_add", { projectId, message: text });
-  }
-  function askAboutPart(label: string, specs: [string, ParamSpec][]) {
-    const values = specs.map(
-      ([n, s]) => `${n} ${s.value}${s.unit ? ` ${s.unit}` : ""}`,
-    );
-    setDraft(
-      `About the ${label}${values.length ? ` (${values.join(", ")})` : ""}: `,
-    );
-    setSelection(null);
-    setChatOpen(true);
-    setTimeout(() => composer.current?.focus(), 0);
   }
 
   const status = running
@@ -322,18 +305,7 @@ export function Workspace(props: Props) {
             revisions={data.revisions}
             jobs={data.jobs}
             me={props.me.email}
-            draft={draft}
-            setDraft={setDraft}
-            composer={composer}
-            onSend={sendNote}
             onViewRevision={viewRevision}
-            readOnly={
-              canNote
-                ? undefined
-                : owns
-                  ? "Notes to agents need the “Leave notes” permission."
-                  : "You're viewing the demo. Ask an admin for access to build your own."
-            }
           />
         )}
       </div>
@@ -369,11 +341,6 @@ export function Workspace(props: Props) {
           }
           readOnly={!canEdit}
           onClose={() => setSelection(null)}
-          onAsk={
-            canNote
-              ? (specs) => askAboutPart(selection.label, specs)
-              : undefined
-          }
           onApply={async (name, value) => {
             if (!model || !latest) return;
             await call("models_set_parameter", {
@@ -655,7 +622,6 @@ function PartPopover(props: {
   building: boolean;
   readOnly: boolean;
   onClose: () => void;
-  onAsk?: (specs: [string, ParamSpec][]) => void;
   onApply: (name: string, value: number) => Promise<void>;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -744,11 +710,6 @@ function PartPopover(props: {
         <p className="inline-error small" role="alert">
           {error}
         </p>
-      )}
-      {props.onAsk && (
-        <button className="ask" onClick={() => props.onAsk?.(props.params)}>
-          ✦ Ask the agent to change this part…
-        </button>
       )}
     </div>
   );

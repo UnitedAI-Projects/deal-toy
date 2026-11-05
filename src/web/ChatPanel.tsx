@@ -1,17 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Activity, Job, ProjectEvent, Revision, Session } from "./api";
 type Props = {
   activity: Activity;
   revisions: Revision[];
   jobs: Job[];
   me: string;
-  draft: string;
-  setDraft: (text: string) => void;
-  composer: RefObject<HTMLTextAreaElement | null>;
-  onSend: (text: string) => Promise<void>;
   onViewRevision: (revision: Revision) => void;
-  /** When set, the composer is replaced by this explanation. */
-  readOnly?: string;
 };
 type Item =
   | { type: "event"; event: ProjectEvent; count: number }
@@ -55,8 +49,6 @@ function feed(activity: Activity): Item[] {
 
 export function ChatPanel(props: Props) {
   const list = useRef<HTMLDivElement>(null);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
   const items = useMemo(() => feed(props.activity), [props.activity]);
   const running = props.activity.sessions.find((s) => s.active && !s.ended_at);
   const lastEvent = props.activity.events.at(-1);
@@ -81,20 +73,6 @@ export function ChatPanel(props: Props) {
       el.scrollTop = el.scrollHeight;
     opened.current = true;
   }, [items.length]);
-  async function send() {
-    const text = props.draft.trim();
-    if (!text) return;
-    setSending(true);
-    setError("");
-    try {
-      await props.onSend(text);
-      props.setDraft("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Note was not saved");
-    } finally {
-      setSending(false);
-    }
-  }
   const revisionFor = (event: ProjectEvent) => {
     const number = /Saved revision (\d+)/.exec(
       String(event.payload.summary),
@@ -197,57 +175,42 @@ export function ChatPanel(props: Props) {
                     ? "busy"
                     : "ok";
               return (
-                <div className={`step ${tone}`} key={event.id}>
-                  {revision ? (
-                    <button
-                      className="step-main"
-                      onClick={() => props.onViewRevision(revision)}
-                      title={`Show revision ${revision.number}`}
-                    >
-                      <span className="step-icon" aria-hidden="true">
-                        {icon}
-                      </span>
-                      <span className="step-title">
-                        {String(p.summary)}
-                        {revision && status && (
-                          <span className="step-status"> · build {status}</span>
-                        )}
-                      </span>
-                      <span className="step-meta">
-                        {count > 1 ? `×${count} · ` : ""}
-                        {p.channel !== "http"
-                          ? String(p.tool)
-                          : event.actor === props.me
-                            ? "you"
-                            : "team"}
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="step-main">
-                      <span className="step-icon" aria-hidden="true">
-                        {icon}
-                      </span>
-                      <span className="step-title">
-                        {String(p.summary)}
-                        {revision && status && (
-                          <span className="step-status"> · build {status}</span>
-                        )}
-                      </span>
-                      <span className="step-meta">
-                        {count > 1 ? `×${count} · ` : ""}
-                        {p.channel !== "http"
-                          ? String(p.tool)
-                          : event.actor === props.me
-                            ? "you"
-                            : "team"}
-                      </span>
-                    </div>
-                  )}
-                  <details>
-                    <summary>Details</summary>
-                    <pre>{JSON.stringify(p.args, null, 1)}</pre>
-                  </details>
-                </div>
+                <details className={`step ${tone}`} key={event.id}>
+                  <summary className="step-main">
+                    <span className="step-caret" aria-hidden="true" />
+                    <span className="step-icon" aria-hidden="true">
+                      {icon}
+                    </span>
+                    <span className="step-title">
+                      {String(p.summary)}
+                      {revision && status && (
+                        <span className="step-status"> · build {status}</span>
+                      )}
+                    </span>
+                    <span className="step-meta">
+                      {count > 1 ? `×${count} · ` : ""}
+                      {p.channel !== "http"
+                        ? String(p.tool)
+                        : event.actor === props.me
+                          ? "you"
+                          : "team"}
+                    </span>
+                    {revision && (
+                      <button
+                        className="step-view"
+                        title={`Show revision ${revision.number}`}
+                        onClick={(e) => {
+                          // Show the revision without expanding the row.
+                          e.preventDefault();
+                          props.onViewRevision(revision);
+                        }}
+                      >
+                        r{revision.number}
+                      </button>
+                    )}
+                  </summary>
+                  <pre>{JSON.stringify(p.args, null, 1)}</pre>
+                </details>
               );
             }
           }
@@ -260,52 +223,6 @@ export function ChatPanel(props: Props) {
           </div>
         )}
       </div>
-      {props.readOnly ? (
-        <p className="composer composer-readonly">{props.readOnly}</p>
-      ) : (
-        <form
-          className="composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-        >
-          <div className="composer-row">
-            <textarea
-              ref={props.composer}
-              rows={2}
-              maxLength={4000}
-              aria-label="Note for the agent"
-              placeholder="Leave a note for the agent…"
-              value={props.draft}
-              onChange={(e) => props.setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-            />
-            <button
-              className="send"
-              aria-label="Send note"
-              disabled={sending || !props.draft.trim()}
-            >
-              ↑
-            </button>
-          </div>
-          <p className="composer-hint">
-            {running
-              ? "Your agent sees this on its next step."
-              : "The next agent to work on this project will see this."}
-          </p>
-          {error && (
-            <p className="inline-error" role="alert">
-              {error}
-            </p>
-          )}
-        </form>
-      )}
     </section>
   );
 }
