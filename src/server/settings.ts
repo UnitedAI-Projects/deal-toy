@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requirePermission } from "./access";
 import { secret } from "./auth";
+import { grantUser } from "./oauth";
 import { AppError, boundedText, hash, type Context } from "./core";
 import {
   account,
@@ -45,11 +46,10 @@ const now = () => new Date().toISOString();
 /** The member's OAuth grants (one per connected app), newest first. */
 async function listConnectedApps(c: Context) {
   const grants = [];
+  const user = await grantUser(c.identity.email);
   let cursor: string | undefined;
   do {
-    const page = await c.env.OAUTH_PROVIDER.listUserGrants(c.identity.email, {
-      cursor,
-    });
+    const page = await c.env.OAUTH_PROVIDER.listUserGrants(user, { cursor });
     grants.push(...page.items);
     cursor = page.cursor;
   } while (cursor);
@@ -80,7 +80,10 @@ export async function settingsRoute(
   if (appMatch && method === "DELETE") {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(appMatch[1]))
       throw new AppError(400, "Invalid app id");
-    await c.env.OAUTH_PROVIDER.revokeGrant(appMatch[1], c.identity.email);
+    await c.env.OAUTH_PROVIDER.revokeGrant(
+      appMatch[1],
+      await grantUser(c.identity.email),
+    );
     return Response.json({ ok: true });
   }
   if (path === "/keys" && method === "GET")

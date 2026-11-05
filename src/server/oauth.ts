@@ -4,7 +4,7 @@ import {
 } from "@cloudflare/workers-oauth-provider";
 import { loadIdentity } from "./access";
 import { authenticateKey } from "./auth";
-import { AppError, boundedText, failure, secure } from "./core";
+import { AppError, boundedText, failure, hash, secure } from "./core";
 import { mcp } from "./mcp";
 
 /** Access tokens last a week; every request still re-reads the member's current access. */
@@ -13,6 +13,14 @@ export const ACCESS_TOKEN_TTL = 7 * 86400;
 export const REFRESH_TOKEN_TTL = 30 * 86400;
 /** The single scope: a connected app acts as the member, with exactly their access. */
 export const SCOPE = "mantel";
+/**
+ * The grant's user id. The library puts it in plain text at the front of every code and token,
+ * so it is a digest of the email rather than the email itself, which would otherwise appear in
+ * redirect URLs, browser history and client logs.
+ */
+export async function grantUser(email: string) {
+  return (await hash(`mantel-oauth-user:${email}`)).slice(0, 32);
+}
 /** What a grant (OAuth) or an API key carries to the /mcp handler. */
 export type GrantProps = { email: string; keyId?: string };
 

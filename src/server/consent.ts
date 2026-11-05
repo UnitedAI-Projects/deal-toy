@@ -4,7 +4,7 @@ import {
 } from "@cloudflare/workers-oauth-provider";
 import { authenticateBrowser } from "./auth";
 import { AppError, boundedText, type Identity } from "./core";
-import { SCOPE } from "./oauth";
+import { grantUser, SCOPE } from "./oauth";
 
 const escape = (value: string) =>
   value.replace(
@@ -176,7 +176,7 @@ export async function authorize(request: Request, env: Env): Promise<Response> {
       const description = await helpers.describeConsent(approved.request);
       const { redirectTo } = await helpers.completeAuthorization({
         request: approved.request,
-        userId: member.email,
+        userId: await grantUser(member.email),
         scope: [SCOPE],
         props: { email: member.email },
         metadata: { clientName: description.clientName },

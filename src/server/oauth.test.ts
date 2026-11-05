@@ -184,6 +184,8 @@ async function connect(
   const redirect = new URL(approved.headers.get("Location") ?? "");
   expect(redirect.origin + redirect.pathname).toBe("https://client.test/cb");
   expect(redirect.searchParams.get("state")).toBe("state-1");
+  // Codes and tokens embed the grant's user id; it must not be the member's email.
+  expect(redirect.searchParams.get("code")).not.toContain(email);
   const exchange = await exports.default.fetch(`${origin}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -197,14 +199,14 @@ async function connect(
     }),
   });
   expect(exchange.status).toBe(200);
-  return {
-    session,
-    ...(await exchange.json<{
-      access_token: string;
-      refresh_token: string;
-      expires_in: number;
-    }>()),
-  };
+  const tokens = await exchange.json<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  }>();
+  expect(tokens.access_token).not.toContain(email);
+  expect(tokens.refresh_token).not.toContain(email);
+  return { session, ...tokens };
 }
 async function toolNames(token: string) {
   const r = await mcpWith(token);
