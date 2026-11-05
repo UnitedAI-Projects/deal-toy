@@ -21,16 +21,20 @@ function page(
   title: string,
   body: string,
   headers?: Headers,
+  returnOrigin?: string,
 ): Response {
   const out = new Headers(headers);
   out.set("Content-Type", "text/html; charset=utf-8");
   out.set(
     "Content-Security-Policy",
-    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    // Browsers check form-action against the redirect after the post, so the app's own
+    // address must be allowed alongside this one.
+    `default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'${returnOrigin ? ` ${returnOrigin}` : ""}`,
   );
   out.set("X-Frame-Options", "DENY");
   out.set("X-Content-Type-Options", "nosniff");
-  out.set("Referrer-Policy", "no-referrer");
+  // Not no-referrer: that makes browsers send "Origin: null" with the consent form's post.
+  out.set("Referrer-Policy", "same-origin");
   out.set("Cache-Control", "private, no-store");
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · Mantel</title><style>
@@ -91,6 +95,7 @@ function consentPage(
 ) {
   const name = escape(description.clientName);
   const host = escape(description.redirectHost);
+  const target = new URL(description.redirectUri).origin;
   return page(
     200,
     `Connect ${description.clientName} to Mantel`,
@@ -105,6 +110,7 @@ function consentPage(
 <div class="actions"><button type="submit" name="action" value="cancel">Cancel</button><button type="submit" name="action" value="allow">Allow</button></div>
 </form>`,
     headers,
+    target === "null" ? undefined : target,
   );
 }
 
