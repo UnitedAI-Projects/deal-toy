@@ -39,11 +39,45 @@ async function challenge(verifier: string) {
 const callbackUrl = (request: Request) =>
   `${new URL(request.url).origin}/api/auth/google/callback`;
 
-/** Sends the browser to Google with PKCE, state and nonce kept in a short-lived cookie. */
+/**
+ * Where sign-in may return to besides the app's home page: only this app's own OAuth consent
+ * screen, so the parameter cannot become an open redirect.
+ */
+export function safeNext(value: string | null): string | null {
+  if (!value || !value.startsWith("/authorize?") || value.includes("\\"))
+    return null;
+  try {
+    return new URL(value, "https://x").origin === "https://x" ? value : null;
+  } catch {
+    return null;
+  }
+}
+const encodeNext = (next: string) =>
+  btoa(String.fromCharCode(...new TextEncoder().encode(next)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+function decodeNext(segment: string | undefined) {
+  if (!segment) return null;
+  try {
+    const binary = atob(segment.replaceAll("-", "+").replaceAll("_", "/"));
+    return safeNext(
+      new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0))),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sends the browser to Google with PKCE, state and nonce kept in a short-lived cookie, along
+ * with a safe path to return to afterwards (the MCP consent screen), if one was given.
+ */
 export async function googleStart(request: Request, env: GoogleEnv) {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
     return fail("unavailable");
   if (await limited(request, env)) return fail("rate");
+  const next = safeNext(new URL(request.url).searchParams.get("next"));
   const state = secret();
   const verifier = secret();
   const nonce = secret();
@@ -60,7 +94,11 @@ export async function googleStart(request: Request, env: GoogleEnv) {
     code_challenge_method: "S256",
   }).toString();
   return redirect(url.toString(), [
-    cookie(STATE_COOKIE, `${state}.${verifier}.${nonce}`, 600),
+    cookie(
+      STATE_COOKIE,
+      `${state}.${verifier}.${nonce}${next ? `.${encodeNext(next)}` : ""}`,
+      600,
+    ),
   ]);
 }
 
@@ -74,12 +112,19 @@ export async function googleCallback(request: Request, env: GoogleEnv) {
   const url = new URL(request.url);
   const stored = readCookie(request, STATE_COOKIE)?.split(".");
   const state = url.searchParams.get("state");
-  if (!stored || stored.length !== 3 || !state || state !== stored[0])
+  // Three segments, or four with a return path (cookies from before return paths have three).
+  if (
+    !stored ||
+    stored.length < 3 ||
+    stored.length > 4 ||
+    !state ||
+    state !== stored[0]
+  )
     return fail("state");
   // Cancelling on Google's screen returns the person to the sign-in card.
   if (url.searchParams.get("error"))
     return redirect("/", [cookie(STATE_COOKIE, "", 0)]);
-  const [, verifier, nonce] = stored;
+  const [, verifier, nonce, nextSegment] = stored;
   const exchange = await fetch(TOKEN, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -123,7 +168,7 @@ export async function googleCallback(request: Request, env: GoogleEnv) {
       return fail("suspended");
     throw error;
   }
-  return redirect("/", [
+  return redirect(decodeNext(nextSegment) ?? "/", [
     await createSession(env, email, request.headers.get("User-Agent") ?? ""),
     cookie(STATE_COOKIE, "", 0),
   ]);

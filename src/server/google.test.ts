@@ -20,9 +20,10 @@ afterEach(() => vi.restoreAllMocks());
 
 let ip = 0;
 const nextIp = () => `203.0.113.${++ip}`;
-async function start(address = nextIp()) {
+async function start(address = nextIp(), next?: string) {
+  const query = next === undefined ? "" : `?next=${encodeURIComponent(next)}`;
   const response = await googleStart(
-    new Request(`${origin}/api/auth/google/start`, {
+    new Request(`${origin}/api/auth/google/start${query}`, {
       headers: { "CF-Connecting-IP": address },
     }),
     env,
@@ -93,6 +94,28 @@ async function callback(
 }
 
 describe("Google sign-in", () => {
+  it("returns to a safe /authorize path after sign-in", async () => {
+    const next = "/authorize?client_id=a&state=b";
+    const result = await callback(await start(nextIp(), next), {
+      sub: "sub-next",
+      email: "next@example.test",
+    });
+    expect(result.location).toBe(next);
+    expect(result.session).toBeDefined();
+  });
+  it.each([
+    "https://evil.test/authorize?x",
+    "//evil.test/authorize?x",
+    "/api/session",
+    "/authorize?next=\\evil.test",
+    "/authorize",
+  ])("ignores an unsafe next %s", async (next) => {
+    const result = await callback(await start(nextIp(), next), {
+      sub: "sub-unsafe",
+      email: "unsafe@example.test",
+    });
+    expect(result.location).toBe("/");
+  });
   it("start sets a state cookie and redirects with PKCE", async () => {
     const { response, location } = await start();
     expect(response.status).toBe(302);
