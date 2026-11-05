@@ -45,19 +45,29 @@ Create a project, open its model workspace and select **Build model**. The edito
 ## Accounts and access
 
 - **Sign in:** Continue with Google. The first sign-in creates an account at the default level (Demo). Email-and-password accounts are planned once Mantel has a domain for verification email.
-- **Levels:** an owner edits named sets of permissions in **Settings → Access levels**: view the demo, create projects, edit models, run builds, download exports, leave notes, API keys and MCP, manage members, configure skills and tools. Each person has one level, plus optional per-person Allow and Revoke adjustments in **Settings → Members**. Revoke wins; owners have every permission.
+- **Levels:** an owner edits named sets of permissions in **Settings → Access levels**: view the demo, create projects, edit models, run builds, download exports, leave notes, API keys, manage members, configure skills and tools. Each person has one level, plus optional per-person Allow and Revoke adjustments in **Settings → Members**. Revoke wins; owners have every permission.
 - **Demo:** an owner marks one of their projects **Show as demo** from the workspace menu. People with "View the demo" can open it read-only; without "Download exports" they see the model and its activity but not its source or exports.
 - **Recovery:** `node ci/member.mjs --remote email owner link.txt https://YOUR_APP` restores an owner and writes a one-time sign-in link, using your Wrangler D1 access.
 
 ## Connect an agent
 
-Create a key in **Settings → API keys** (it needs the "API keys and MCP" permission) and copy it once. In Claude Code:
+In Claude Code:
+
+```sh
+claude mcp add --transport http mantel https://YOUR_APP/mcp
+```
+
+Sign in when Claude Code asks: it opens Mantel in your browser, you sign in with Google if needed and select **Allow**. In Claude's web or desktop app, add the same URL as a custom connector. Any MCP client that supports the MCP authorization standard (OAuth 2.1 with dynamic client registration) connects the same way.
+
+A connected app acts as you, with your current access level: a Demo member's app can read the demo but not edit or build. Its sign-in lasts a week and renews itself while you keep using it. See and disconnect your apps in **Settings → API keys → Connected apps**; disconnecting stops an app at once, as do suspension and access changes.
+
+For scripts and CI, create an API key in **Settings → API keys** (it needs the "API keys" permission), copy it once and send it as a header:
 
 ```sh
 claude mcp add --transport http mantel https://YOUR_APP/mcp --header "Authorization: Bearer YOUR_KEY"
 ```
 
-Any Streamable HTTP MCP client works with the same URL and header; prefer the client's secret store where it has one. A key acts as you, with your current access, and stops working when you revoke it or lose the permission. Retrieve `skills_list` and follow the `modeling` skill before modeling.
+Prefer the client's secret store where it has one. A key stops working when you revoke it or lose the permission. Retrieve `skills_list` and follow the `modeling` skill before modeling.
 
 Typical sequence:
 
@@ -74,7 +84,7 @@ session_end({sessionId, summary})
 
 Every tool accepts an optional `sessionId`. The app records every agent tool call itself; the prompt and progress notes are reported by the agent and labelled that way. Notes left by the team are appended to the agent's next tool result as quoted data.
 
-Python source defines `build()` returning build123d parts. Declare editable dimensions in a top-level `PARAMS` dictionary and return a `Compound` of labelled parts so each part is selectable. Use millimetres and Z up. See [the editable bridge example](examples/bridge.py). Clients that only support OAuth cannot connect yet; that adapter is planned.
+Python source defines `build()` returning build123d parts. Declare editable dimensions in a top-level `PARAMS` dictionary and return a `Compound` of labelled parts so each part is selectable. Use millimetres and Z up. See [the editable bridge example](examples/bridge.py).
 
 ## Extend
 

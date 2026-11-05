@@ -8,7 +8,7 @@ There is no agent runner, provider key or advisory AI review. GitHub-hosted priv
 
 ## Cloudflare resources
 
-Create a dedicated D1 database, R2 bucket and queue, then set their identifiers in `wrangler.jsonc`. Keep them separate from Slice. The Worker name is `unitedai-deal-toy`. Queue concurrency is limited to two jobs. Native jobs are Linux/amd64 in production; local Apple Silicon testing is useful but does not replace hosted amd64 verification.
+Create a dedicated D1 database, R2 bucket, queue and Workers KV namespace (`npx wrangler kv namespace create OAUTH_KV`, for MCP sign-in grants and tokens), then set their identifiers in `wrangler.jsonc`. Set `vars.APP_ORIGIN` to the Worker's public HTTPS origin; it names the protected `/mcp` resource in the sign-in metadata. Keep them separate from Slice. The Worker name is `unitedai-deal-toy`. Queue concurrency is limited to two jobs. Native jobs are Linux/amd64 in production; local Apple Silicon testing is useful but does not replace hosted amd64 verification.
 
 The account requires the `durable_object` container scheduling policy. Wrangler builds the named `cad` image; each job selects its version-pinned image and `standard-1` size at startup, with internet disabled. Readiness has a sixty-second deadline, and a persistent three-minute alarm destroys abandoned containers. This policy does not support an application-level `max_instances` cap; queue concurrency and account limits bound normal execution. See [Cloudflare scheduling policies](https://developers.cloudflare.com/containers/configuration/scheduling-policy/).
 
@@ -80,7 +80,7 @@ After any identity or routing change, verify anonymous `/` returns the Mantel pa
 
 Owner sign-in and these routing checks passed during cutover. A second-account signup, live promotion/suspension, and new-key revocation remain separate production acceptance items; automated coverage does not substitute for those live checks.
 
-No members or keys are seeded automatically. Project sharing and OAuth for MCP clients are not implemented.
+No members or keys are seeded automatically. Project sharing is not implemented.
 
 ## Rollback and recovery
 
