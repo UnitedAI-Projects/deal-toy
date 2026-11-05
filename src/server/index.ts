@@ -1,34 +1,36 @@
 import { z } from "zod";
 import {
   authenticateBrowser,
-  authenticateKey,
   readCookie,
   redeemLink,
   SESSION_COOKIE,
   signOut,
 } from "./auth";
-import { AppError, boundedText, projectAccess, revisionAccess } from "./core";
+import {
+  AppError,
+  boundedText,
+  failure,
+  projectAccess,
+  revisionAccess,
+  secure,
+} from "./core";
 import { requirePermission } from "./access";
 import { consume } from "./builds";
 import { settingsRoute } from "./settings";
 import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
-import { mcp } from "./mcp";
+import { authorize } from "./consent";
+import { provider } from "./oauth";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
-function secure(response: Response) {
-  const headers = new Headers(response.headers);
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "no-referrer");
-  headers.set("Cache-Control", "private, no-store");
-  return new Response(response.body, { status: response.status, headers });
-}
-export default {
+/** The app itself: every route except the OAuth endpoints and /mcp, which the provider owns. */
+export const app = {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
     try {
       if (url.pathname === "/health")
         return Response.json({ status: "ok", release: env.RELEASE_SHA });
+      if (url.pathname === "/authorize") return await authorize(request, env);
       if (!url.pathname.startsWith("/api/") && url.pathname !== "/mcp") {
         const response = await env.ASSETS.fetch(request);
         const headers = new Headers(response.headers);
@@ -105,11 +107,9 @@ export default {
           ),
         );
       }
-      // API keys are accepted only by the MCP endpoint; the browser API takes only sessions.
-      const identity =
-        url.pathname === "/mcp"
-          ? await authenticateKey(request, env)
-          : await authenticateBrowser(request, env);
+      // The browser API takes only sessions. /mcp (OAuth tokens and API keys) is served by
+      // the OAuth provider before a request reaches this handler.
+      const identity = await authenticateBrowser(request, env);
       const c = { env, identity };
       const ticketMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
@@ -120,18 +120,6 @@ export default {
           project.owner !== identity.email,
         );
         return secure(Response.json({ ticket }));
-      }
-      if (url.pathname === "/mcp") {
-        let mcpRequest: Request = request;
-        if (request.method === "POST") {
-          const body = await boundedText(request);
-          mcpRequest = new Request(request.url, {
-            method: "POST",
-            headers: request.headers,
-            body,
-          });
-        }
-        return secure(await mcp(mcpRequest, c));
       }
       if (url.pathname === "/api/session" && request.method === "GET")
         return secure(
@@ -197,30 +185,30 @@ export default {
       }
       throw new AppError(404, "Route not found");
     } catch (error) {
-      const status =
-        error instanceof AppError
-          ? error.status
-          : error instanceof z.ZodError
-            ? 400
-            : 500;
-      if (status === 500)
-        console.error(
-          JSON.stringify({ event: "request_failed", path: url.pathname }),
-        );
-      return secure(
-        Response.json(
-          {
-            error:
-              status === 500
-                ? "Request failed"
-                : error instanceof Error
-                  ? error.message
-                  : "Invalid request",
-          },
-          { status },
-        ),
-      );
+      return failure(error, url);
     }
+  },
+} satisfies ExportedHandler<Env>;
+
+export default {
+  async fetch(request, env, ctx): Promise<Response> {
+    const url = new URL(request.url);
+    // Registration is open to any client, so cap it per address. The key is separate from
+    // Google sign-in's so a flood of one cannot lock out the other.
+    if (url.pathname === "/oauth/register" && request.method === "POST") {
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      if (!(await env.AUTH_LIMITER.limit({ key: `register:${ip}` })).success)
+        return secure(
+          Response.json(
+            {
+              error: "temporarily_unavailable",
+              error_description: "Too many registrations; try again shortly",
+            },
+            { status: 429, headers: { "Retry-After": "60" } },
+          ),
+        );
+    }
+    return provider(env, app).fetch(request, env, ctx);
   },
   async queue(batch, env) {
     for (const message of batch.messages) await consume(message, env);

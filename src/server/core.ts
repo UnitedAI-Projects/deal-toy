@@ -117,3 +117,38 @@ export async function boundedText(
   }
   return new TextDecoder().decode(output);
 }
+
+/** Security headers for every API, MCP and OAuth response. */
+export function secure(response: Response) {
+  const headers = new Headers(response.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("Cache-Control", "private, no-store");
+  return new Response(response.body, { status: response.status, headers });
+}
+/** The JSON error response for a failed request. Unexpected errors are logged, not shown. */
+export function failure(error: unknown, url: URL) {
+  const status =
+    error instanceof AppError
+      ? error.status
+      : error instanceof z.ZodError
+        ? 400
+        : 500;
+  if (status === 500)
+    console.error(
+      JSON.stringify({ event: "request_failed", path: url.pathname }),
+    );
+  return secure(
+    Response.json(
+      {
+        error:
+          status === 500
+            ? "Request failed"
+            : error instanceof Error
+              ? error.message
+              : "Invalid request",
+      },
+      { status },
+    ),
+  );
+}
