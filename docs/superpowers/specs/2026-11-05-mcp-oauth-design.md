@@ -19,7 +19,7 @@ The MCP server itself already follows the protocol: the official SDK over Stream
 
 ## Non-goals
 
-- **No new permission model.** Connecting needs the existing **API keys and MCP** permission (`keys.use`), and a token can do what the member can do. There are no OAuth scopes beyond a single `mantel` scope.
+- **No new permission model.** Owner decision: a connected app has exactly the member's own access level, with their level's permissions and any per-person adjustments, and nothing more or less. Any active member can connect, because connecting is not gated by a separate permission. There are no OAuth scopes beyond a single `mantel` scope.
 - **No other sign-in providers.** Google remains the only one.
 - **No browser API access.** OAuth tokens do not work on `/api/*`. As today, the browser API accepts only sessions.
 - **No admin view.** Seeing or revoking other members' connected apps is out of scope.
@@ -60,7 +60,7 @@ The alternative was writing the OAuth server on D1 to match the existing tables.
 The Worker's default export becomes an `OAuthProvider`:
 
 - **API route:** `/mcp`, with the current MCP handler. The handler reads the member's email from the token's stored props and calls `loadIdentity`, so access is current on every request. It keeps the existing request-size limit.
-- **External tokens:** the `resolveExternalToken` hook calls the existing `authenticateKey`, so `mtl_…` API keys work unchanged. It keeps their `keys.use` check and last-used tracking, and adds an explicit audience equal to the `/mcp` resource.
+- **External tokens:** the `resolveExternalToken` hook calls the existing `authenticateKey`, so `mtl_…` API keys work unchanged. It keeps their `keys.use` check and last-used tracking, and adds an explicit audience equal to the `/mcp` resource. Keys keep needing the `keys.use` permission. Its label changes from "API keys and MCP" to "API keys", because MCP access through OAuth no longer depends on it. (My call)
 - **Endpoints:**
   - `/authorize` is the consent flow below;
   - `/oauth/token` issues and refreshes tokens;
@@ -73,7 +73,7 @@ The Worker's default export becomes an `OAuthProvider`:
 1. **`GET /authorize`:** the provider parses the client's request. If the browser has no valid Mantel session, the person is sent to Google sign-in and returned to the same `/authorize` request afterwards.
    - This needs a return-to path carried in the existing Google state cookie.
    - The path must be same-origin and begin with `/authorize`, with any other value ignored, so it cannot become an open redirect.
-2. **Access check:** if the member is suspended or lacks **API keys and MCP**, they see an explanation and the client receives `access_denied`.
+2. **Access check:** if the member is suspended, they see an explanation and the client receives `access_denied`. Any active member may continue, whatever their level. What the app can then do is limited by that level, for example to read-only demo access.
 3. **Consent screen:** otherwise Mantel shows a server-rendered consent page in Mantel's styling. It names the client, the redirect address it will return to, and the account (email). It states that the app will be able to act as them with their current access. The buttons are **Allow** and **Cancel**.
 4. **`POST /authorize`:** **Allow** finishes the authorization with props `{ email }` and user id = email. **Cancel** returns `access_denied` to the client. The library's consent handle and binding cookie tie the approval to this browser.
 
@@ -81,7 +81,9 @@ The Worker's default export becomes an `OAuthProvider`:
 
 ### Tokens
 
-(My call) Access tokens expire after 1 hour. Refresh tokens rotate and expire after 30 days without use, matching the 30-day session length.
+Owner decision: access tokens last 1 week. (My call) Refresh tokens rotate and expire after 30 days without use, matching the 30-day session length.
+
+A week-long token is safe to allow because it carries no permissions of its own: every request re-reads the member's access, so suspension and level changes still apply at once. The remaining risk is a leaked token, which works for up to a week unless the member disconnects the app, which revokes it immediately.
 
 Revocation and suspension apply to a token on its next request. The props hold only the email, and access is re-read from D1 each time.
 
@@ -100,10 +102,12 @@ Revocation and suspension apply to a token on its next request. The props hold o
 - **Unit and integration tests**, in the existing Vitest setup with a KV binding:
   - the metadata and `WWW-Authenticate` responses;
   - registration;
-  - consent requires a session and the `keys.use` permission;
+  - consent requires a signed-in, active member. A member without `keys.use` can still connect, and their token is limited to their level's permissions;
   - Cancel returns `access_denied`;
   - a code-for-token exchange with PKCE;
   - an OAuth token works on `/mcp` and not on `/api/*`;
+  - an OAuth token for a demo-level member can read the demo but cannot edit or build;
+  - an issued access token expires after one week;
   - a suspended member's token is refused;
   - API keys still work;
   - disconnect revokes the token;
