@@ -22,7 +22,7 @@
     {
       // Grants and tokens for MCP sign-in (@cloudflare/workers-oauth-provider).
       "binding": "OAUTH_KV",
-      "id": "00000000000000000000000000000000",
+      "id": "183e74841b3f45679dbd15fc0ae3881e",
     },
   ],
   "r2_buckets": [
