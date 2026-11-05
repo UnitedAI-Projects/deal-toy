@@ -19,6 +19,7 @@ import { consume } from "./builds";
 import { settingsRoute } from "./settings";
 import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
+import { authorize } from "./consent";
 import { provider } from "./oauth";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
@@ -29,6 +30,7 @@ export const app = {
     try {
       if (url.pathname === "/health")
         return Response.json({ status: "ok", release: env.RELEASE_SHA });
+      if (url.pathname === "/authorize") return await authorize(request, env);
       if (!url.pathname.startsWith("/api/") && url.pathname !== "/mcp") {
         const response = await env.ASSETS.fetch(request);
         const headers = new Headers(response.headers);
