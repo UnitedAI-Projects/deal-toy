@@ -20,7 +20,7 @@ import { settingsRoute } from "./settings";
 import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
 import { authorize } from "./consent";
-import { provider } from "./oauth";
+import { serve } from "./oauth";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
 /** The app itself: every route except the OAuth endpoints and /mcp, which the provider owns. */
@@ -208,7 +208,7 @@ export default {
           ),
         );
     }
-    return provider(env, app).fetch(request, env, ctx);
+    return serve(request, env, ctx, app);
   },
   async queue(batch, env) {
     for (const message of batch.messages) await consume(message, env);

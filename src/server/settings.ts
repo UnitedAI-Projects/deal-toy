@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requirePermission } from "./access";
 import { secret } from "./auth";
-import { grantUser } from "./oauth";
+import { appName, grantUser, listGrants, recordApp } from "./oauth";
 import { AppError, boundedText, hash, type Context } from "./core";
 import {
   account,
@@ -43,26 +43,18 @@ async function json(request: Request) {
 }
 const now = () => new Date().toISOString();
 
-/** The member's OAuth grants (one per connected app), newest first. */
-async function listConnectedApps(c: Context) {
-  const grants = [];
-  const user = await grantUser(c.identity.email);
-  let cursor: string | undefined;
-  do {
-    const page = await c.env.OAUTH_PROVIDER.listUserGrants(user, { cursor });
-    grants.push(...page.items);
-    cursor = page.cursor;
-  } while (cursor);
+/**
+ * The member's connected apps, newest first. A sign-in the app has not finished yet (approved, but
+ * its code never swapped for passes) has no expiry and is not listed.
+ */
+async function connectedApps(c: Context) {
+  const grants = await listGrants(
+    c.env.OAUTH_PROVIDER,
+    await grantUser(c.identity.email),
+  );
   return grants
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .map((grant) => ({
-      id: grant.id,
-      name:
-        typeof grant.metadata?.clientName === "string"
-          ? grant.metadata.clientName
-          : "Unnamed app",
-      connected_at: new Date(grant.createdAt * 1000).toISOString(),
-    }));
+    .filter((grant) => grant.expiresAt !== undefined)
+    .sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** Handles /api/settings/* for the signed-in member, or returns null for other paths. */
@@ -75,15 +67,30 @@ export async function settingsRoute(
   const method = request.method;
   // Any member may see and disconnect their own connected apps, whatever their permissions.
   if (path === "/connected-apps" && method === "GET")
-    return Response.json(await listConnectedApps(c));
+    return Response.json(
+      (await connectedApps(c)).map((grant) => ({
+        id: grant.id,
+        name: appName(grant),
+        connected_at: new Date(grant.createdAt * 1000).toISOString(),
+      })),
+    );
   const appMatch = /^\/connected-apps\/([^/]*)$/.exec(path);
   if (appMatch && method === "DELETE") {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(appMatch[1]))
       throw new AppError(400, "Invalid app id");
-    await c.env.OAUTH_PROVIDER.revokeGrant(
-      appMatch[1],
-      await grantUser(c.identity.email),
+    const grant = (await connectedApps(c)).find((g) => g.id === appMatch[1]);
+    if (!grant) throw new AppError(404, "App not found");
+    // Cut the app off completely, including any sign-in it has not finished yet.
+    const all = await listGrants(c.env.OAUTH_PROVIDER, grant.userId);
+    await Promise.all(
+      all
+        .filter((g) => g.clientId === grant.clientId)
+        .map((g) => c.env.OAUTH_PROVIDER.revokeGrant(g.id, grant.userId)),
     );
+    await recordApp(c.env, c.identity.email, "app.disconnect", {
+      app: appName(grant),
+      grant: grant.id,
+    });
     return Response.json({ ok: true });
   }
   if (path === "/keys" && method === "GET")

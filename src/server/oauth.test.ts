@@ -125,9 +125,9 @@ const cookiePairs = (r: Response) =>
   r.headers.getSetCookie().map((c) => c.split(";")[0]);
 async function begin(
   cookie: string | null,
-  options: { name?: string; state?: string } = {},
+  options: { name?: string; state?: string; clientId?: string } = {},
 ) {
-  const clientId = await register(options.name);
+  const clientId = options.clientId ?? (await register(options.name));
   const { verifier, challenge } = await pkce();
   const query = new URLSearchParams({
     response_type: "code",
@@ -170,6 +170,47 @@ function decide(
     }),
   });
 }
+/** Signs in and clicks Allow; returns the authorization code the app receives. */
+async function approve(session: string, email: string, clientId?: string) {
+  const flow = await begin(session, { clientId });
+  expect(flow.page.status).toBe(200);
+  const approved = await decide(flow, [session], "allow");
+  expect(approved.status).toBe(302);
+  const redirect = new URL(approved.headers.get("Location") ?? "");
+  expect(redirect.origin + redirect.pathname).toBe("https://client.test/cb");
+  expect(redirect.searchParams.get("state")).toBe("state-1");
+  const code = redirect.searchParams.get("code") ?? "";
+  // Codes and tokens embed the grant's user id; it must not be the member's email.
+  expect(code).not.toContain(email);
+  return { code, flow };
+}
+/** The app's half: swaps the code for its passes. */
+async function exchange(
+  approval: Awaited<ReturnType<typeof approve>>,
+  email: string,
+) {
+  const r = await exports.default.fetch(`${origin}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: approval.code,
+      redirect_uri: "https://client.test/cb",
+      client_id: approval.flow.clientId,
+      code_verifier: approval.flow.verifier,
+      resource: `${origin}/mcp`,
+    }),
+  });
+  expect(r.status).toBe(200);
+  const tokens = await r.json<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  }>();
+  expect(tokens.access_token).not.toContain(email);
+  expect(tokens.refresh_token).not.toContain(email);
+  return { clientId: approval.flow.clientId, ...tokens };
+}
 async function connect(
   email: string,
   level: "Demo" | "Maker" | "Admin" = "Maker",
@@ -177,36 +218,7 @@ async function connect(
 ) {
   await member(email, { level, ...options });
   const session = await cookieFor(email);
-  const flow = await begin(session);
-  expect(flow.page.status).toBe(200);
-  const approved = await decide(flow, [session], "allow");
-  expect(approved.status).toBe(302);
-  const redirect = new URL(approved.headers.get("Location") ?? "");
-  expect(redirect.origin + redirect.pathname).toBe("https://client.test/cb");
-  expect(redirect.searchParams.get("state")).toBe("state-1");
-  // Codes and tokens embed the grant's user id; it must not be the member's email.
-  expect(redirect.searchParams.get("code")).not.toContain(email);
-  const exchange = await exports.default.fetch(`${origin}/oauth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code: redirect.searchParams.get("code") ?? "",
-      redirect_uri: "https://client.test/cb",
-      client_id: flow.clientId,
-      code_verifier: flow.verifier,
-      resource: `${origin}/mcp`,
-    }),
-  });
-  expect(exchange.status).toBe(200);
-  const tokens = await exchange.json<{
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
-  }>();
-  expect(tokens.access_token).not.toContain(email);
-  expect(tokens.refresh_token).not.toContain(email);
-  return { session, ...tokens };
+  return { session, ...(await exchange(await approve(session, email), email)) };
 }
 async function toolNames(token: string) {
   const r = await mcpWith(token);
@@ -407,5 +419,116 @@ describe("connected apps", () => {
       Authorization: `Bearer ${t.access_token}`,
     });
     expect(r.status).toBe(401);
+  });
+});
+
+const auditFor = async (email: string) =>
+  (
+    await env.DB.prepare(
+      "SELECT actor,action,detail FROM audit_events WHERE target=? AND action LIKE 'app.%' ORDER BY created_at, rowid",
+    )
+      .bind(email)
+      .all<{ actor: string; action: string; detail: string }>()
+  ).results;
+
+describe("staying connected", () => {
+  it("keeps the working connection while a new sign-in for the same app is unfinished", async () => {
+    const t = await connect("keep@oauth.test", "Maker");
+    // Allow is clicked again, but the code never reaches the app.
+    await approve(t.session, "keep@oauth.test", t.clientId);
+    expect((await mcpWith(t.access_token)).status).toBe(200);
+    // The unfinished sign-in is not listed as a second app.
+    const apps = await (
+      await settings(t.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    expect(apps).toHaveLength(1);
+  });
+  it("replaces the old connection once the new sign-in finishes", async () => {
+    const t = await connect("swap@oauth.test", "Maker");
+    const fresh = await exchange(
+      await approve(t.session, "swap@oauth.test", t.clientId),
+      "swap@oauth.test",
+    );
+    expect((await mcpWith(fresh.access_token)).status).toBe(200);
+    expect((await mcpWith(t.access_token)).status).toBe(401);
+    const apps = await (
+      await settings(t.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    expect(apps).toHaveLength(1);
+  });
+  it("records connecting, replacing and disconnecting in the audit log", async () => {
+    const t = await connect("log@oauth.test", "Maker");
+    await exchange(
+      await approve(t.session, "log@oauth.test", t.clientId),
+      "log@oauth.test",
+    );
+    const [app] = await (
+      await settings(t.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    await settings(t.session, `/connected-apps/${app.id}`, "DELETE");
+    const events = await auditFor("log@oauth.test");
+    expect(events.map((e) => e.action)).toEqual([
+      "app.connect",
+      "app.connect",
+      "app.disconnect",
+    ]);
+    expect(events.every((e) => e.actor === "log@oauth.test")).toBe(true);
+    expect(JSON.parse(events[1].detail)).toMatchObject({
+      app: "Test client",
+      replaced: 1,
+    });
+    expect(JSON.parse(events[2].detail)).toMatchObject({ app: "Test client" });
+  });
+  it("records an app signing itself out, which ends the connection", async () => {
+    const t = await connect("signout@oauth.test", "Maker");
+    const r = await exports.default.fetch(`${origin}/oauth/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        token: t.refresh_token,
+        token_type_hint: "refresh_token",
+        client_id: t.clientId,
+      }),
+    });
+    expect(r.status).toBe(200);
+    expect((await mcpWith(t.access_token)).status).toBe(401);
+    const events = await auditFor("signout@oauth.test");
+    expect(events.map((e) => e.action)).toEqual(["app.connect", "app.signout"]);
+    expect(JSON.parse(events[1].detail)).toMatchObject({ app: "Test client" });
+  });
+  it("disconnecting an app also cancels its unfinished sign-ins", async () => {
+    const t = await connect("cut@oauth.test", "Maker");
+    const pending = await approve(t.session, "cut@oauth.test", t.clientId);
+    const [app] = await (
+      await settings(t.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    await settings(t.session, `/connected-apps/${app.id}`, "DELETE");
+    const late = await exports.default.fetch(`${origin}/oauth/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: pending.code,
+        redirect_uri: "https://client.test/cb",
+        client_id: t.clientId,
+        code_verifier: pending.flow.verifier,
+        resource: `${origin}/mcp`,
+      }),
+    });
+    expect(late.status).toBe(400);
+  });
+  it("reports disconnecting an app that is not yours as not found", async () => {
+    const mine = await connect("mine2@oauth.test", "Maker");
+    const theirs = await connect("theirs2@oauth.test", "Maker");
+    const [app] = await (
+      await settings(theirs.session, "/connected-apps")
+    ).json<ConnectedApp[]>();
+    const r = await settings(
+      mine.session,
+      `/connected-apps/${app.id}`,
+      "DELETE",
+    );
+    expect(r.status).toBe(404);
+    expect(await auditFor("mine2@oauth.test")).toHaveLength(1);
   });
 });

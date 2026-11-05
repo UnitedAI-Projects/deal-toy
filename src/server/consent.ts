@@ -179,7 +179,10 @@ export async function authorize(request: Request, env: Env): Promise<Response> {
         userId: await grantUser(member.email),
         scope: [SCOPE],
         props: { email: member.email },
-        metadata: { clientName: description.clientName },
+        // The email lets a later sign-out by the app be attributed in the audit log.
+        metadata: { clientName: description.clientName, email: member.email },
+        // Older sign-ins for this app are replaced only once this one reaches the app.
+        revokeExistingGrants: false,
       });
       const headers = new Headers(approved.headers);
       headers.set("Location", redirectTo);
