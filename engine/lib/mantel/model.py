@@ -32,8 +32,23 @@ def last_log():
 
 
 def reset_log():
-    global _LAST
+    global _LAST, _LAST_MODEL
     _LAST = None
+    _LAST_MODEL = None
+
+
+_LAST_MODEL = None
+
+
+def last_model():
+    """The most recent Model, so the inspection record can name the faces its steps created."""
+    return _LAST_MODEL
+
+
+def created_names(model):
+    """(step, name, part label, signatures) for every name the model's steps created, in step order."""
+    return [(step, name, label, signatures)
+            for step, names in model._created.items() for name, (label, signatures) in names.items()]
 
 
 _STOP_AFTER = None
@@ -69,6 +84,8 @@ class Model:
         self._names: set[str] = set()
         self._warning = None
         _LAST = self.log
+        global _LAST_MODEL
+        _LAST_MODEL = self
         if base is None:
             return
         children = list(getattr(base, "children", None) or []) or [base]

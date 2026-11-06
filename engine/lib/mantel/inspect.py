@@ -131,11 +131,24 @@ def inspect_record(shape, module, max_faces=MAX_FACES):
     all_faces = []
     index = 0
     measured = 0
+    from . import geometry as g
+    from .model import created_names, last_model
+
+    model = last_model() if module is not None else None
+    names = created_names(model) if model is not None else []
     for part_index, part in enumerate(parts):
         faces = part.faces()
+        sides = {side: g.side_faces(part, side) for side in g.SIDES} if model is not None or module is not None else {}
         entries = []
         for face in faces:
             entry = _face_entry(face, index, part_index, part)
+            named = [{"of": step, "name": name} for step, name, label, signatures in names
+                     if label == part.label and any(g.matches(face, s) for s in signatures)]
+            if named:
+                entry["names"] = named
+            on_sides = [side for side, picked in sides.items() if any(face == f for f in picked)]
+            if on_sides:
+                entry["sides"] = on_sides
             if entry["type"] == "plane" and measured < MAX_THICKNESS_FACES:
                 measured += 1
                 thickness = _thickness(part, entry)
