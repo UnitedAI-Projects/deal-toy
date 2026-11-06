@@ -1108,7 +1108,7 @@
         "type": "object",
         "properties": {
           "on": {
-            "x-ref": ["face", "datum"],
+            "x-ref": "face",
             "description": "The flat face to put the text on"
           },
           "text": {
@@ -1187,12 +1187,6 @@
           "kind": "face",
           "min": 1,
           "max": 1
-        },
-        {
-          "input": "on",
-          "kind": "plane",
-          "min": 1,
-          "max": 1
         }
       ],
       "creates": {
@@ -1208,11 +1202,6 @@
           "code": "ambiguous_reference",
           "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
           "fix": "Move the reference point closer to the intended face, or pick it by a created name."
-        },
-        {
-          "code": "datum_not_found",
-          "explanation": "No construction plane has that name.",
-          "fix": "Use the name of an earlier plane step."
         },
         {
           "code": "not_planar",

@@ -26,7 +26,7 @@ jobs:
       - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           version: "0.11.26"
-      - run: sudo apt-get update && sudo apt-get install -y libgl1 libglu1-mesa libxrender1 libxext6
+      - run: sudo apt-get update && sudo apt-get install -y libgl1 libglu1-mesa libxrender1 libxext6 fonts-liberation
       - run: npm ci --ignore-scripts
       - run: bash ci/run.sh
       - name: Build Linux CAD runtime
