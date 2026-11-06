@@ -1,0 +1,314 @@
+{
+  "version": 1,
+  "units": "mm",
+  "warnings": [],
+  "parts": [
+    {
+      "index": 0,
+      "label": "Base",
+      "volume": 39928.0,
+      "area": 10827.6,
+      "bbox": { "min": [-50.0, -20.0, 0.0], "max": [50.0, 20.0, 10.0] },
+      "center_of_mass": [0.0, 0.035794, 5.0]
+    },
+    {
+      "index": 1,
+      "label": "Block",
+      "volume": 214642.831974,
+      "area": 26330.973355,
+      "bbox": { "min": [-30.0, -15.0, 10.0], "max": [30.0, 15.0, 130.0] },
+      "center_of_mass": [-0.063229, 0.075875, 70.0]
+    },
+    {
+      "index": 2,
+      "label": "Coin",
+      "volume": 1357.168026,
+      "area": 1130.973355,
+      "bbox": { "min": [-2.0, -13.5, 58.0], "max": [22.0, -10.5, 82.0] },
+      "center_of_mass": [10.0, -12.0, 70.0]
+    }
+  ],
+  "faces": [
+    {
+      "index": 0,
+      "part": 0,
+      "type": "plane",
+      "area": 400.0,
+      "center": [-50.0, 0.0, 5.0],
+      "bbox": { "min": [-50.0, -20.0, 0.0], "max": [-50.0, 20.0, 10.0] },
+      "plane": { "origin": [-50.0, 0.0, 5.0], "normal": [-1.0, -0.0, 0.0] },
+      "thickness": 100.0
+    },
+    {
+      "index": 1,
+      "part": 0,
+      "type": "plane",
+      "area": 760.0,
+      "center": [0.0, -20.0, 5.0],
+      "bbox": { "min": [-50.0, -20.0, 0.0], "max": [50.0, -20.0, 10.0] },
+      "plane": { "origin": [0.0, -20.0, 5.0], "normal": [0.0, -1.0, -0.0] },
+      "thickness": 0.3
+    },
+    {
+      "index": 2,
+      "part": 0,
+      "type": "plane",
+      "area": 4000.0,
+      "center": [0.0, 0.0, 10.0],
+      "bbox": { "min": [-50.0, -20.0, 10.0], "max": [50.0, 20.0, 10.0] },
+      "plane": { "origin": [0.0, 0.0, 10.0], "normal": [0.0, 0.0, 1.0] },
+      "thickness": 10.0
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "type": "plane",
+      "area": 1000.0,
+      "center": [0.0, 20.0, 5.0],
+      "bbox": { "min": [-50.0, 20.0, 0.0], "max": [50.0, 20.0, 10.0] },
+      "plane": { "origin": [0.0, 20.0, 5.0], "normal": [-0.0, 1.0, 0.0] },
+      "thickness": 39.7
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "type": "plane",
+      "area": 4000.0,
+      "center": [0.0, 0.0, 0.0],
+      "bbox": { "min": [-50.0, -20.0, 0.0], "max": [50.0, 20.0, 0.0] },
+      "plane": { "origin": [0.0, 0.0, 0.0], "normal": [-0.0, -0.0, -1.0] },
+      "thickness": 10.0
+    },
+    {
+      "index": 5,
+      "part": 0,
+      "type": "plane",
+      "area": 400.0,
+      "center": [50.0, 0.0, 5.0],
+      "bbox": { "min": [50.0, -20.0, 0.0], "max": [50.0, 20.0, 10.0] },
+      "plane": { "origin": [50.0, 0.0, 5.0], "normal": [1.0, 0.0, -0.0] },
+      "thickness": 100.0
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "type": "plane",
+      "area": 12.0,
+      "center": [0.0, -19.85, 8.0],
+      "bbox": { "min": [-20.0, -20.0, 8.0], "max": [20.0, -19.7, 8.0] },
+      "plane": { "origin": [0.0, -19.85, 8.0], "normal": [-0.0, -0.0, -1.0] },
+      "thickness": 2.0
+    },
+    {
+      "index": 7,
+      "part": 0,
+      "type": "plane",
+      "area": 1.8,
+      "center": [20.0, -19.85, 5.0],
+      "bbox": { "min": [20.0, -20.0, 2.0], "max": [20.0, -19.7, 8.0] },
+      "plane": { "origin": [20.0, -19.85, 5.0], "normal": [-1.0, -0.0, 0.0] },
+      "thickness": 30.0
+    },
+    {
+      "index": 8,
+      "part": 0,
+      "type": "plane",
+      "area": 12.0,
+      "center": [0.0, -19.85, 2.0],
+      "bbox": { "min": [-20.0, -20.0, 2.0], "max": [20.0, -19.7, 2.0] },
+      "plane": { "origin": [0.0, -19.85, 2.0], "normal": [0.0, 0.0, 1.0] },
+      "thickness": 2.0
+    },
+    {
+      "index": 9,
+      "part": 0,
+      "type": "plane",
+      "area": 1.8,
+      "center": [-20.0, -19.85, 5.0],
+      "bbox": { "min": [-20.0, -20.0, 2.0], "max": [-20.0, -19.7, 8.0] },
+      "plane": { "origin": [-20.0, -19.85, 5.0], "normal": [1.0, 0.0, -0.0] },
+      "thickness": 30.0
+    },
+    {
+      "index": 10,
+      "part": 0,
+      "type": "plane",
+      "area": 240.0,
+      "center": [0.0, -19.7, 5.0],
+      "bbox": { "min": [-20.0, -19.7, 2.0], "max": [20.0, -19.7, 8.0] },
+      "plane": { "origin": [0.0, -19.7, 5.0], "normal": [0.0, -1.0, -0.0] },
+      "thickness": 39.7
+    },
+    {
+      "index": 11,
+      "part": 1,
+      "type": "plane",
+      "area": 3600.0,
+      "center": [-30.0, 0.0, 70.0],
+      "bbox": { "min": [-30.0, -15.0, 10.0], "max": [-30.0, 15.0, 130.0] },
+      "plane": { "origin": [-30.0, 0.0, 70.0], "normal": [-1.0, -0.0, 0.0] },
+      "thickness": 60.0
+    },
+    {
+      "index": 12,
+      "part": 1,
+      "type": "plane",
+      "area": 7200.0,
+      "center": [0.0, -15.0, 70.0],
+      "bbox": { "min": [-30.0, -15.0, 10.0], "max": [30.0, -15.0, 130.0] },
+      "plane": { "origin": [0.0, -15.0, 70.0], "normal": [0.0, -1.0, -0.0] },
+      "thickness": 1.5
+    },
+    {
+      "index": 13,
+      "part": 1,
+      "type": "plane",
+      "area": 1800.0,
+      "center": [0.0, 0.0, 130.0],
+      "bbox": { "min": [-30.0, -15.0, 130.0], "max": [30.0, 15.0, 130.0] },
+      "plane": { "origin": [0.0, 0.0, 130.0], "normal": [0.0, 0.0, 1.0] },
+      "thickness": 120.0
+    },
+    {
+      "index": 14,
+      "part": 1,
+      "type": "plane",
+      "area": 7200.0,
+      "center": [0.0, 15.0, 70.0],
+      "bbox": { "min": [-30.0, 15.0, 10.0], "max": [30.0, 15.0, 130.0] },
+      "plane": { "origin": [0.0, 15.0, 70.0], "normal": [-0.0, 1.0, 0.0] },
+      "thickness": 25.5
+    },
+    {
+      "index": 15,
+      "part": 1,
+      "type": "plane",
+      "area": 1800.0,
+      "center": [0.0, 0.0, 10.0],
+      "bbox": { "min": [-30.0, -15.0, 10.0], "max": [30.0, 15.0, 10.0] },
+      "plane": { "origin": [0.0, 0.0, 10.0], "normal": [-0.0, -0.0, -1.0] },
+      "thickness": 120.0
+    },
+    {
+      "index": 16,
+      "part": 1,
+      "type": "plane",
+      "area": 3600.0,
+      "center": [30.0, 0.0, 70.0],
+      "bbox": { "min": [30.0, -15.0, 10.0], "max": [30.0, 15.0, 130.0] },
+      "plane": { "origin": [30.0, 0.0, 70.0], "normal": [1.0, 0.0, -0.0] },
+      "thickness": 60.0
+    },
+    {
+      "index": 17,
+      "part": 1,
+      "type": "cylinder",
+      "area": 226.194671,
+      "center": [-2.0, -12.0, 70.0],
+      "bbox": { "min": [-2.0, -13.5, 58.0], "max": [22.0, -10.5, 82.0] },
+      "cylinder": {
+        "origin": [10.0, -10.5, 70.0],
+        "axis": [0.0, -1.0, 0.0],
+        "radius": 12.0
+      }
+    },
+    {
+      "index": 18,
+      "part": 1,
+      "type": "plane",
+      "area": 452.389342,
+      "center": [10.0, -13.5, 70.0],
+      "bbox": { "min": [-2.0, -13.5, 58.0], "max": [22.0, -13.5, 82.0] },
+      "plane": { "origin": [10.0, -13.5, 70.0], "normal": [-0.0, 1.0, -0.0] },
+      "thickness": 1.5
+    },
+    {
+      "index": 19,
+      "part": 1,
+      "type": "plane",
+      "area": 452.389342,
+      "center": [10.0, -10.5, 70.0],
+      "bbox": { "min": [-2.0, -10.5, 58.0], "max": [22.0, -10.5, 82.0] },
+      "plane": { "origin": [10.0, -10.5, 70.0], "normal": [0.0, -1.0, 0.0] },
+      "thickness": 25.5
+    },
+    {
+      "index": 20,
+      "part": 2,
+      "type": "cylinder",
+      "area": 226.194671,
+      "center": [-2.0, -12.0, 70.0],
+      "bbox": { "min": [-2.0, -13.5, 58.0], "max": [22.0, -10.5, 82.0] },
+      "cylinder": {
+        "origin": [10.0, -10.5, 70.0],
+        "axis": [0.0, -1.0, 0.0],
+        "radius": 12.0
+      }
+    },
+    {
+      "index": 21,
+      "part": 2,
+      "type": "plane",
+      "area": 452.389342,
+      "center": [10.0, -13.5, 70.0],
+      "bbox": { "min": [-2.0, -13.5, 58.0], "max": [22.0, -13.5, 82.0] },
+      "plane": { "origin": [10.0, -13.5, 70.0], "normal": [0.0, -1.0, 0.0] },
+      "thickness": 3.0
+    },
+    {
+      "index": 22,
+      "part": 2,
+      "type": "plane",
+      "area": 452.389342,
+      "center": [10.0, -10.5, 70.0],
+      "bbox": { "min": [-2.0, -10.5, 58.0], "max": [22.0, -10.5, 82.0] },
+      "plane": { "origin": [10.0, -10.5, 70.0], "normal": [-0.0, 1.0, -0.0] },
+      "thickness": 3.0
+    }
+  ],
+  "holes": [
+    {
+      "part": 1,
+      "faces": [17],
+      "diameter": 24.0,
+      "axis": { "origin": [10.0, -10.5, 70.0], "direction": [0.0, -1.0, 0.0] },
+      "depth": 3.0,
+      "through": false
+    }
+  ],
+  "faces_truncated": false,
+  "pairs": [
+    { "a": 0, "b": 1, "distance": 0.0, "overlap_volume": 0.0 },
+    { "a": 0, "b": 2, "distance": 48.0, "overlap_volume": 0.0 },
+    { "a": 1, "b": 2, "distance": 0.0, "overlap_volume": 0.0 }
+  ],
+  "materials": {
+    "Base": { "name": "walnut", "density_g_cm3": 0.7 },
+    "Block": { "name": "cast acrylic", "density_g_cm3": 1.19 },
+    "Coin": { "name": "brass", "density_g_cm3": 8.5 }
+  },
+  "embeds": [{ "part": 2, "in": 1, "contained": true, "wall": 1.5 }],
+  "dimensions": [
+    {
+      "name": "Engraving depth",
+      "value": 0.3,
+      "faces": [1, 10],
+      "scale": 1.0,
+      "matches_param": false,
+      "moves": 10,
+      "param": "ENGRAVE_D"
+    }
+  ],
+  "stability": {
+    "center_of_mass": [0.336404, -0.400292, 63.839745],
+    "uniform_density": false,
+    "footprint": [
+      [-50.0, -20.0],
+      [50.0, -20.0],
+      [50.0, 20.0],
+      [-50.0, 20.0]
+    ],
+    "tip_angle_deg": 17.06723,
+    "tip_direction": [0.0, -1.0]
+  }
+}

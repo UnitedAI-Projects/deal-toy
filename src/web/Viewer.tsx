@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { request } from "./api";
+import { sceneScale, toModel, type InspectRecord, type Vec3 } from "./inspect";
+import { overlayGroup, sectionCaps, sectionPlane } from "./overlays";
 const palette = {
   light: { grid: 0xd9d9d4, gridMajor: 0xc7c7c1, highlight: 0x6366f1 },
   dark: { grid: 0x2a2c31, gridMajor: 0x3a3d44, highlight: 0x818cf8 },
@@ -14,7 +16,19 @@ type Props = {
   theme: "light" | "dark";
   parts: string[];
   selected: string | null;
-  onSelect: (label: string | null, point: { x: number; y: number }) => void;
+  /** hit is the clicked point in model coordinates (mm), when the inspection record is loaded. */
+  onSelect: (
+    label: string | null,
+    point: { x: number; y: number },
+    hit?: Vec3,
+    additive?: boolean,
+  ) => void;
+  /** The build's exact record; enables face picking, face highlights and sections. */
+  record?: InspectRecord | null;
+  /** Faces to draw over the model: the person's picks and the agent's highlights. */
+  highlights?: { faces: number[]; tone: "pick" | "agent" }[];
+  /** Cut the model where the model coordinate on `axis` exceeds `offset` (mm). */
+  section?: { axis: "x" | "y" | "z"; offset: number } | null;
 };
 type Scene = {
   scene: THREE.Scene;
@@ -23,6 +37,10 @@ type Scene = {
   grid: THREE.GridHelper;
   object: THREE.Object3D | null;
   fittedFor: string;
+  /** The loaded mesh's size in its own frame, to relate it to the record's millimetres. */
+  size: THREE.Vector3;
+  renderer: THREE.WebGLRenderer;
+  caps: THREE.Object3D | null;
 };
 export function Viewer(props: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -31,18 +49,24 @@ export function Viewer(props: Props) {
   latest.current = props;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(0);
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        stencil: true,
+      });
     } catch {
       setError("3D preview requires WebGL. You can still download the model.");
       return;
     }
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.localClippingEnabled = true;
     renderer.setClearColor(0x000000, 0);
     element.append(renderer.domElement);
     const scene = new THREE.Scene();
@@ -67,6 +91,9 @@ export function Viewer(props: Props) {
       grid,
       object: null,
       fittedFor: "",
+      size: new THREE.Vector3(1, 1, 1),
+      renderer,
+      caps: null,
     };
     const resize = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
@@ -105,10 +132,22 @@ export function Viewer(props: Props) {
       const labels = new Map(latest.current.parts.map((p) => [nodeName(p), p]));
       let node: THREE.Object3D | null = hit?.object ?? null;
       while (node && !labels.has(node.name)) node = node.parent;
-      latest.current.onSelect(node ? (labels.get(node.name) ?? null) : null, {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
+      const record = latest.current.record;
+      let model: Vec3 | undefined;
+      if (hit && record) {
+        const local = s.object.worldToLocal(hit.point.clone());
+        const size = s.size;
+        model = toModel(
+          [local.x, local.y, local.z],
+          sceneScale(record, [size.x, size.z, size.y]),
+        );
+      }
+      latest.current.onSelect(
+        node ? (labels.get(node.name) ?? null) : null,
+        { x: e.clientX - rect.left, y: e.clientY - rect.top },
+        model,
+        e.shiftKey,
+      );
     };
     renderer.domElement.addEventListener("pointerdown", onDown);
     renderer.domElement.addEventListener("pointerup", onUp);
@@ -177,6 +216,8 @@ export function Viewer(props: Props) {
         }
         s.scene.add(object);
         s.object = object;
+        s.size = size.clone();
+        setLoaded((n) => n + 1);
         if (s.fittedFor !== latest.current.modelKey) {
           // Portrait screens need more distance to fit the model's width.
           const radius = size.length() / Math.min(1, s.camera.aspect);
@@ -214,6 +255,81 @@ export function Viewer(props: Props) {
       palette[props.theme].highlight,
     );
   }, [props.selected]);
+
+  // Face highlights, drawn from the exact record in the model's own frame.
+  useEffect(() => {
+    const s = state.current;
+    const object = s?.object;
+    if (!s || !object) return;
+    object.getObjectByName("inspect-overlay")?.removeFromParent();
+    const record = props.record;
+    if (!record || !props.highlights?.length) return;
+    const scale = sceneScale(record, [s.size.x, s.size.z, s.size.y]);
+    const group = new THREE.Group();
+    group.name = "inspect-overlay";
+    for (const h of props.highlights) {
+      const color =
+        h.tone === "agent" ? 0xf59e0b : palette[props.theme].highlight;
+      for (const child of overlayGroup(record, h.faces, scale, color).children)
+        group.add(child.clone());
+    }
+    object.add(group);
+    return () => {
+      group.removeFromParent();
+      group.traverse(disposeMesh);
+    };
+  }, [props.record, props.highlights, props.theme, loaded]);
+
+  // Section: clip every mesh and fill the cut with stencil caps.
+  useEffect(() => {
+    const s = state.current;
+    const object = s?.object;
+    if (!s || !object) return;
+    const meshes: THREE.Mesh[] = [];
+    object.traverse((o) => {
+      // Overlays are clipped too, so a highlight never floats over removed material.
+      if (o instanceof THREE.Mesh) meshes.push(o);
+    });
+    const record = props.record;
+    if (!props.section || !record) {
+      for (const m of meshes)
+        for (const material of Array.isArray(m.material)
+          ? m.material
+          : [m.material])
+          material.clippingPlanes = [];
+      return;
+    }
+    const scale = sceneScale(record, [s.size.x, s.size.z, s.size.y]);
+    object.updateWorldMatrix(true, true);
+    const plane = sectionPlane(
+      props.section.axis,
+      props.section.offset,
+      scale,
+    ).applyMatrix4(object.matrixWorld);
+    for (const m of meshes)
+      for (const material of Array.isArray(m.material)
+        ? m.material
+        : [m.material])
+        material.clippingPlanes = [plane];
+    const caps = sectionCaps(
+      object,
+      plane,
+      props.theme === "dark"
+        ? [0x9aa0aa, 0xd9a441, 0x6fa8dc, 0x93c47d]
+        : [0xb9bcc2, 0xc98f1f, 0x4a86c5, 0x6aa84f],
+      s.size.length(),
+      record.parts.map((p) => nodeName(p.label)),
+    );
+    s.scene.add(caps);
+    s.caps = caps;
+    return () => {
+      caps.removeFromParent();
+      caps.traverse((o) => {
+        if (o instanceof THREE.Mesh && o.name !== "") o.geometry.dispose();
+      });
+      s.caps = null;
+    };
+  }, [props.section, props.record, props.theme, props.highlights, loaded]);
 
   return (
     <div className="viewer">

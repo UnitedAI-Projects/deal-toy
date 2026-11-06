@@ -26,11 +26,17 @@ export class CadContainer extends DurableObject<Env> {
   }
 }
 const artifact = z.object({
-  name: z.enum(["model.step", "model.stl", "model.glb", "facts.json"]),
+  name: z.enum([
+    "model.step",
+    "model.stl",
+    "model.glb",
+    "facts.json",
+    "inspect.json",
+  ]),
   mediaType: z.string(),
   base64: z.string().max(22_000_000),
 });
-const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(4) });
+const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(5) });
 /** A view-as-of preview exports only the viewer mesh and facts. */
 const PREVIEW = ["model.glb", "facts.json"];
 const jobOptions = z
@@ -99,7 +105,27 @@ const media: Record<string, string> = {
   "model.stl": "model/stl",
   "model.glb": "model/gltf-binary",
   "facts.json": "application/json",
+  "inspect.json": "application/json",
 };
+/** The exact-measurement record; items are checked by the reader, the outline here. */
+export const inspectSchema = z
+  .object({
+    version: z.literal(1),
+    units: z.literal("mm"),
+    warnings: z.array(z.string().max(600)).max(500),
+    parts: z.array(
+      z.object({ index: z.number(), label: z.string() }).passthrough(),
+    ),
+    faces: z.array(
+      z
+        .object({ index: z.number(), part: z.number(), type: z.string() })
+        .passthrough(),
+    ),
+    holes: z.array(z.object({ part: z.number() }).passthrough()),
+    faces_truncated: z.boolean(),
+  })
+  .passthrough();
+const INSPECT_LIMIT = 4 * 1024 * 1024;
 export async function consume(message: Message<unknown>, env: Env) {
   const { jobId } = z.object({ jobId: z.string().uuid() }).parse(message.body);
   const job = await env.DB.prepare(
@@ -227,6 +253,15 @@ export async function consume(message: Message<unknown>, env: Env) {
       if (total > 15 * 1024 * 1024) throw new Error("Artifact limit exceeded");
       const objectKey = `builds/${jobId}/${artifact.name}`;
       keys.push(objectKey);
+      if (artifact.name === "inspect.json") {
+        if (binary.length > INSPECT_LIMIT)
+          throw new Error("inspect.json exceeds its 4 MiB limit");
+        if (
+          !inspectSchema.safeParse(JSON.parse(new TextDecoder().decode(binary)))
+            .success
+        )
+          throw new Error("inspect.json is not a valid inspection record");
+      }
       if (artifact.name === "facts.json") {
         const data = factsSchema.parse(
           JSON.parse(new TextDecoder().decode(binary)),

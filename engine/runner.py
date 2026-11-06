@@ -15,6 +15,7 @@ from OCP.TCollection import TCollection_AsciiString
 # The mantel step library ships beside the runner; -I keeps the script's own directory off the path.
 sys.path.insert(0, str(Path(__file__).with_name("lib")))
 import mantel
+from mantel.inspect import inspect_record
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 MESH_TOLERANCE = 0.05
@@ -156,6 +157,14 @@ def build(source: Path, destination: Path, stop_after: int | None = None, previe
     if check is not None:
         facts["check"] = mantel.last_check() or {"key": check, "error": "The model did not reach m.result()"}
     (destination / "facts.json").write_text(json.dumps(facts))
+    if not preview:
+        # Exact measurements for picking and checks; a failure here never fails the build.
+        try:
+            record = inspect_record(shape, module)
+        except Exception as error:  # noqa: BLE001
+            record = {"version": 1, "units": "mm", "parts": [], "faces": [], "holes": [], "faces_truncated": True,
+                      "warnings": [f"Inspection failed: {type(error).__name__}: {error}"[:300]]}
+        (destination / "inspect.json").write_text(json.dumps(record))
     return facts
 
 

@@ -152,8 +152,8 @@ export const app = {
           }>();
         if (!artifact) throw new AppError(404, "Artifact not found");
         await revisionAccess(c, artifact.revision_id, "read");
-        // The viewer's GLB preview needs only read access; exports need a permission.
-        if (!artifact.name.endsWith(".glb"))
+        // The viewer's GLB preview and the inspection record need only read access; exports need a permission.
+        if (artifact.name !== "model.glb" && artifact.name !== "inspect.json")
           requirePermission(c, "exports.download");
         const object = await env.ARTIFACTS.get(artifact.object_key);
         if (!object) throw new AppError(404, "Artifact missing");

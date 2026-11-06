@@ -26,6 +26,7 @@ import { setParameter } from "./params";
 import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
 import { STEP_WRITES, stepTools } from "./step-tools";
 import { savedTools } from "./saved-tools";
+import { inspectTools } from "./inspect-tools";
 import { catalogIndex } from "./actions/catalog";
 import {
   catalogNews,
@@ -567,6 +568,7 @@ export const tools: Tool[] = [
   ),
   ...stepTools,
   ...savedTools,
+  ...inspectTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -631,6 +633,17 @@ function summarize(name: string, input: unknown, value: unknown) {
       return `Saved preset ${v.id} v${v.version}`;
     case "presets_list":
       return "Read the presets";
+    case "inspect_get":
+      return "Read the inspection record";
+    case "view_highlight":
+      return `Pointed at ${
+        [
+          ...(Array.isArray(i.faces) && i.faces.length
+            ? [`${i.faces.length} face${i.faces.length > 1 ? "s" : ""}`]
+            : []),
+          ...(Array.isArray(i.parts) ? i.parts : []),
+        ].join(", ") || "the model"
+      }`;
     case "builds_view_as_of":
       return `Viewed the model as of "${i.step}"`;
     case "documents_add":

@@ -1,13 +1,22 @@
 import modeling from "../../skills/modeling/SKILL.md";
 import manufacturing from "../../skills/manufacturing/SKILL.md";
+import inspecting from "../../skills/inspecting/SKILL.md";
 export const builtinSkills = [
   {
     id: "modeling",
-    version: 2,
+    version: 3,
     title: "Model and verify",
     description:
       "Build123d modeling, revision handling and geometry validation.",
     content: modeling,
+  },
+  {
+    id: "inspecting",
+    version: 0,
+    title: "Inspect and explain",
+    description:
+      "Read a build's exact measurements, report stability, embeds and dimensions, and point at faces.",
+    content: inspecting,
   },
   {
     id: "manufacturing",

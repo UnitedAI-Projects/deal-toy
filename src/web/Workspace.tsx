@@ -4,6 +4,7 @@ import {
   can,
   connectLive,
   download,
+  request,
   saveBlob,
   send,
   type Activity,
@@ -15,6 +16,8 @@ import {
 } from "./api";
 import { ChatPanel } from "./ChatPanel";
 import { Timeline } from "./Timeline";
+import { InspectPanel, type Picked } from "./InspectPanel";
+import { pickFace, type InspectRecord } from "./inspect";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
 import { changedModel, initialModel } from "./follow";
@@ -48,10 +51,20 @@ export function Workspace(props: Props) {
   const [modelId, setModelId] = useState(() => initialModel(data));
   const [follow, setFollow] = useState(true);
   const [viewNumber, setViewNumber] = useState(0);
-  const [selection, setSelection] = useState<{
-    label: string;
-    x: number;
-    y: number;
+  const [selection, setSelection] = useState<Picked | null>(null);
+  // A second pick (shift-click) measures between the two.
+  const [second, setSecond] = useState<Picked | null>(null);
+  const [section, setSection] = useState<{
+    axis: "x" | "y" | "z";
+    offset: number;
+  } | null>(null);
+  const [record, setRecord] = useState<InspectRecord | null>(null);
+  // What the agent is pointing at, until the person clicks.
+  const [agentPoint, setAgentPoint] = useState<{
+    jobId: string;
+    faces: number[];
+    parts: string[];
+    message: string;
   } | null>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [menu, setMenu] = useState(false);
@@ -69,6 +82,10 @@ export function Workspace(props: Props) {
     const stop = connectLive(
       projectId,
       (message) => {
+        if (message.type === "highlight") {
+          setAgentPoint(message);
+          return;
+        }
         if (message.type === "event")
           setActivity((current) => {
             if (current.events.some((e) => e.id === message.event.id))
@@ -127,8 +144,10 @@ export function Workspace(props: Props) {
         setMenu((open) => !open);
       } else if (e.key === "Escape") {
         if (menu) setMenu(false);
-        else if (selection) setSelection(null);
-        else if (drawer) setDrawer(null);
+        else if (selection) {
+          setSelection(null);
+          setSecond(null);
+        } else if (drawer) setDrawer(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -161,6 +180,7 @@ export function Workspace(props: Props) {
     : null;
   const artifacts = data.artifacts.filter((a) => a.job_id === shownJob?.id);
   const glb = artifacts.find((a) => a.name === "model.glb");
+  const inspectArtifact = artifacts.find((a) => a.name === "inspect.json");
   const viewedJob = jobsFor(viewed)[0];
   const parts = facts?.parts?.map((p) => p.label).filter(Boolean) ?? [];
   const params = Object.entries(facts?.params ?? {});
@@ -179,6 +199,49 @@ export function Workspace(props: Props) {
     });
     setDemo(!demo);
   }
+  // The build's exact measurements, for picking faces and measuring between picks.
+  useEffect(() => {
+    setRecord(null);
+    setSecond(null);
+    if (!inspectArtifact) return;
+    let cancelled = false;
+    void request(`/api/artifacts/${inspectArtifact.id}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled) setRecord(json as InspectRecord);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectArtifact?.id]);
+  const agentFaces =
+    agentPoint && agentPoint.jobId === shownJob?.id ? agentPoint.faces : [];
+  const highlights = useMemo(
+    () => [
+      {
+        faces: [selection?.face, second?.face].filter(
+          (f): f is number => f !== undefined,
+        ),
+        tone: "pick" as const,
+      },
+      { faces: agentFaces, tone: "agent" as const },
+    ],
+    [selection?.face, second?.face, agentFaces.join(",")],
+  );
+  const bounds = useMemo(() => {
+    if (!record?.parts.length) return null;
+    const axes = { x: 0, y: 1, z: 2 } as const;
+    return Object.fromEntries(
+      Object.entries(axes).map(([axis, k]) => [
+        axis,
+        [
+          Math.min(...record.parts.map((p) => p.bbox.min[k])),
+          Math.max(...record.parts.map((p) => p.bbox.max[k])),
+        ],
+      ]),
+    ) as Record<"x" | "y" | "z", [number, number]>;
+  }, [record]);
   // The model as it was after one step, from a view-as-of preview build.
   const [asOf, setAsOf] = useState<{
     step: string;
@@ -261,10 +324,30 @@ export function Workspace(props: Props) {
           modelKey={modelId}
           theme={props.theme}
           parts={parts}
-          selected={selection?.label ?? null}
-          onSelect={(label, point) =>
-            setSelection(label ? { label, ...point } : null)
+          selected={
+            selection && selection.face === undefined ? selection.label : null
           }
+          record={asOf ? null : record}
+          highlights={highlights}
+          section={asOf ? null : section}
+          onSelect={(label, point, hit, additive) => {
+            setAgentPoint(null);
+            if (!label) {
+              setSelection(null);
+              setSecond(null);
+              return;
+            }
+            const face =
+              record && hit
+                ? (pickFace(record, label, hit) ?? undefined)
+                : undefined;
+            const picked = { label, ...point, face };
+            if (additive && selection) setSecond(picked);
+            else {
+              setSelection(picked);
+              setSecond(null);
+            }
+          }}
         />
       </Suspense>
 
@@ -384,7 +467,74 @@ export function Workspace(props: Props) {
         </div>
       )}
 
-      {selection && (
+      {agentPoint && agentPoint.jobId === shownJob?.id && (
+        <div className="agent-point" role="status">
+          <span className="dot on" aria-hidden="true" />
+          <span>
+            {agentPoint.message || "The agent is pointing at this"}
+            {agentPoint.parts.length ? ` · ${agentPoint.parts.join(", ")}` : ""}
+          </span>
+          <button className="link" onClick={() => setAgentPoint(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {record && bounds && !asOf && (
+        <div className="inspect-tools" role="group" aria-label="Section">
+          {(["x", "y", "z"] as const).map((axis) => (
+            <button
+              key={axis}
+              className={`chip ${section?.axis === axis ? "on" : ""}`}
+              aria-pressed={section?.axis === axis}
+              onClick={() =>
+                setSection(
+                  section?.axis === axis
+                    ? null
+                    : { axis, offset: (bounds[axis][0] + bounds[axis][1]) / 2 },
+                )
+              }
+            >
+              Cut {axis.toUpperCase()}
+            </button>
+          ))}
+          {section && (
+            <input
+              type="range"
+              aria-label={`Section position along ${section.axis.toUpperCase()}`}
+              min={bounds[section.axis][0]}
+              max={bounds[section.axis][1]}
+              step={0.1}
+              value={section.offset}
+              onChange={(e) =>
+                setSection({ ...section, offset: Number(e.target.value) })
+              }
+            />
+          )}
+          {section && (
+            <span className="muted small">{section.offset.toFixed(1)} mm</span>
+          )}
+        </div>
+      )}
+
+      {selection && record && (selection.face !== undefined || second) && (
+        <InspectPanel
+          key={`${selection.label}-${selection.face}-${second?.label}-${second?.face}-${shown?.id}`}
+          record={record}
+          first={selection}
+          second={second}
+          onShowPart={() => {
+            setSelection({ ...selection, face: undefined });
+            setSecond(null);
+          }}
+          onClose={() => {
+            setSelection(null);
+            setSecond(null);
+          }}
+        />
+      )}
+
+      {selection && !(record && (selection.face !== undefined || second)) && (
         <PartPopover
           key={`${selection.label}-${shown?.id}`}
           label={selection.label}

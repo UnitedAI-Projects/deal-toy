@@ -166,13 +166,23 @@ const baseFacts = {
 };
 /** Runs a queued job through consume with a fake CAD container; returns the posted payload. */
 async function runJob(jobId: string, facts: unknown, ok = true) {
-  const artifacts = ["model.step", "model.stl", "model.glb", "facts.json"].map(
-    (name) => ({
-      name,
-      mediaType: "ignored",
-      base64: btoa(name === "facts.json" ? JSON.stringify(facts) : "bytes"),
-    }),
-  );
+  const artifacts = [
+    "model.step",
+    "model.stl",
+    "model.glb",
+    "facts.json",
+    "inspect.json",
+  ].map((name) => ({
+    name,
+    mediaType: "ignored",
+    base64: btoa(
+      name === "facts.json"
+        ? JSON.stringify(facts)
+        : name === "inspect.json"
+          ? '{"version":1,"units":"mm","warnings":[],"parts":[],"faces":[],"holes":[],"faces_truncated":false}'
+          : "bytes",
+    ),
+  }));
   const container = {
     fetch: vi.fn(async (_request: Request) =>
       ok

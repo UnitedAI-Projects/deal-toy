@@ -28,8 +28,10 @@ with HTTPServer(("0.0.0.0", 0), Handler) as server:
         with urllib.request.urlopen(request, timeout=90) as response:
             result = json.load(response)
         assert {a["name"] for a in result["artifacts"]} == {
-            "model.step", "model.stl", "model.glb", "facts.json"}
-        print("CAD HTTP startup and STEP/STL/GLB/facts exports verified")
+            "model.step", "model.stl", "model.glb", "facts.json", "inspect.json"}
+        record = json.loads(base64.b64decode(next(a for a in result["artifacts"] if a["name"] == "inspect.json")["base64"]))
+        assert record["version"] == 1 and record["parts"] and record["faces"], "inspection record is empty"
+        print("CAD HTTP startup and STEP/STL/GLB/facts/inspection exports verified")
         # Text in the default font (Arial) must come out in an outline font with Arial's
         # metrics, not OCCT's single-line fallback or a monospace face. The listener takes one
         # job per container, so this runs the same sandboxed runner directly.
