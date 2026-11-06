@@ -14,7 +14,8 @@ from socketserver import TCPServer
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 FILES = {"model.step": "application/step", "model.stl": "model/stl",
-         "model.glb": "model/gltf-binary", "facts.json": "application/json"}
+         "model.glb": "model/gltf-binary", "facts.json": "application/json",
+         "inspect.json": "application/json"}
 
 
 class HTTPServer(BaseHTTPServer):

@@ -87,7 +87,7 @@ def test_source_limit():
 
 def test_service_exports_all_formats():
     result = execute("import build123d as bd\ndef build():\n    return bd.Box(10, 20, 30)\n")
-    assert {a["name"] for a in result["artifacts"]} == {"model.step", "model.stl", "model.glb", "facts.json"}
+    assert {a["name"] for a in result["artifacts"]} == {"model.step", "model.stl", "model.glb", "facts.json", "inspect.json"}
 
 
 def test_http_startup_does_not_resolve_container_hostname(monkeypatch):
