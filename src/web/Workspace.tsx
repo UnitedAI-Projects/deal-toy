@@ -815,6 +815,15 @@ export function Workspace(props: Props) {
             await props.reload();
           }}
           onViewAsOf={viewAsOf}
+          onEdit={async (name) => {
+            if (!model) return;
+            const { steps } = await call<{
+              steps: { action: string; name: string; inputs: FormValues }[];
+            }>("steps_list", { modelId: model.id });
+            const step = steps.find((s) => s.name === name);
+            if (step)
+              await openAction(step.action, { name, inputs: step.inputs });
+          }}
         />
       )}
 

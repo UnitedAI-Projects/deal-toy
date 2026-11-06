@@ -1184,6 +1184,16 @@ button.wide {
   display: grid;
   gap: 6px;
 }
+.step-chip.dragging {
+  opacity: 0.5;
+}
+.step-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+button.danger {
+  color: var(--bad);
+}
 .agent-point {
   position: absolute;
   left: 368px;
