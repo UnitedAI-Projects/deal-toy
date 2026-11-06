@@ -27,6 +27,12 @@ import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
 import { STEP_WRITES, stepTools } from "./step-tools";
 import { savedTools } from "./saved-tools";
 import { catalogIndex } from "./actions/catalog";
+import {
+  catalogNews,
+  savedIndex,
+  visiblePresets,
+  visibleSaved,
+} from "./actions/saved";
 import { modelContext } from "./actions/summary";
 export type { Tool } from "./tool-kit";
 /**
@@ -303,7 +309,15 @@ export const tools: Tool[] = [
       return {
         sessionId: session.id,
         startedAt: session.started_at,
-        actions: catalogIndex(),
+        actions: [
+          catalogIndex(),
+          savedIndex(
+            await visibleSaved(c, i.projectId),
+            await visiblePresets(c, i.projectId),
+          ),
+        ]
+          .filter(Boolean)
+          .join("\n"),
       };
     },
   ),
@@ -715,6 +729,27 @@ export async function dispatch(
       context = await modelContext(c, fields.modelId);
     } catch (error) {
       if (!(error instanceof AppError)) throw error;
+    }
+  }
+  // A running session hears once about saved actions and presets that appeared since it last looked.
+  if (channel === "mcp" && sessionId && name !== "session_start") {
+    const session = await c.env.DB.prepare(
+      "SELECT project_id,catalog_seen FROM sessions WHERE id=? AND member=?",
+    )
+      .bind(sessionId, c.identity.email)
+      .first<{ project_id: string; catalog_seen: string | null }>();
+    if (session) {
+      const news = await catalogNews(
+        c,
+        session.project_id,
+        session.catalog_seen ?? "",
+      );
+      if (news.lines.length) {
+        context = [context, ...news.lines].filter(Boolean).join("\n");
+        await c.env.DB.prepare("UPDATE sessions SET catalog_seen=? WHERE id=?")
+          .bind(news.seen, sessionId)
+          .run();
+      }
     }
   }
   return { value, notes, context };

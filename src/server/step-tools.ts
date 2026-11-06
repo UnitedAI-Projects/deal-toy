@@ -18,9 +18,16 @@ import {
   writeSteps,
   type StepValue,
 } from "./actions/script";
-import { presetFor, savedAction, SAVED_KEY } from "./actions/saved";
+import {
+  presetFor,
+  savedAction,
+  savedIndex,
+  SAVED_KEY,
+  visiblePresets,
+  visibleSaved,
+} from "./actions/saved";
 import { validateInputs } from "./actions/validate";
-import { AppError, id, modelAccess, type Context } from "./core";
+import { AppError, id, modelAccess, projectAccess, type Context } from "./core";
 import { define, queueBuild, saveRevision, type Tool } from "./tool-kit";
 
 /** The modeling-action tools: the self-describing catalog, and edits to a model's steps section. */
@@ -151,17 +158,24 @@ function existing(steps: ReturnType<typeof readSteps>["steps"], name: string) {
 export const stepTools: Tool[] = [
   define(
     "actions_list",
-    "List the modeling actions you can add as steps, each with a one-line summary, plus the states a step can be in. Filter by category (Create, Modify, Construct, Combine, Arrange, Custom) or search text. Call actions_describe for an action's inputs before using it.",
+    "List the modeling actions you can add as steps, each with a one-line summary, plus the states a step can be in. Built-in actions come first; with projectId, the saved custom actions (id@version) and presets that project may use follow. Filter by category (Create, Modify, Construct, Combine, Arrange, Custom) or search text. Call actions_describe for an action's inputs before using it.",
     {
+      projectId: id.optional(),
       category: z.string().max(40).optional(),
       query: z.string().max(120).optional(),
     },
     true,
-    async (_c, i) => {
+    async (c, i) => {
+      if (i.projectId) await projectAccess(c, i.projectId, "read");
+      const saved = await visibleSaved(c, i.projectId ?? null);
+      const presets = await visiblePresets(c, i.projectId ?? null);
       const query = i.query?.toLowerCase();
+      const all = [...actions, ...saved.map((s) => s.record)];
       return {
-        index: catalogIndex(),
-        actions: actions
+        index: [catalogIndex(), savedIndex(saved, presets)]
+          .filter(Boolean)
+          .join("\n"),
+        actions: all
           .filter((a) => !i.category || a.category === i.category)
           .filter(
             (a) =>
@@ -177,16 +191,33 @@ export const stepTools: Tool[] = [
             category,
             summary,
           })),
+        presets,
         states: stepStates,
       };
     },
   ),
   define(
     "actions_describe",
-    "Read one modeling action in full: when to use it, its inputs as a described JSON Schema, which selections it takes, the names it creates, how it can fail and how to fix each failure, and an example call.",
-    { id: z.string().max(40) },
+    "Read one modeling action in full: when to use it, its inputs as a described JSON Schema, which selections it takes, the names it creates, how it can fail and how to fix each failure, an example call, and the presets for it. For a saved action (id@version), pass the projectId it is used in.",
+    { id: z.string().max(48), projectId: id.optional() },
     true,
-    async (_c, i) => getAction(i.id),
+    async (c, i) => {
+      if (i.projectId) await projectAccess(c, i.projectId, "read");
+      let record;
+      if (!SAVED_KEY.test(i.id)) record = getAction(i.id);
+      else if (i.projectId)
+        record = (await savedAction(c, i.projectId, i.id)).record;
+      else {
+        record = (await visibleSaved(c, null)).find(
+          (s) => s.key === i.id,
+        )?.record;
+        if (!record) throw new AppError(404, `No saved action ${i.id}`);
+      }
+      const presets = (await visiblePresets(c, i.projectId ?? null)).filter(
+        (p) => p.action === i.id,
+      );
+      return { ...record, presets };
+    },
   ),
   define(
     "steps_list",

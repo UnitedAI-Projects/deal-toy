@@ -242,3 +242,65 @@ export async function presetFor(
   if (!row) throw new AppError(404, `No preset ${id}`);
   return toPreset(row);
 }
+
+/** One index line per saved action and one line for presets, for the agent's catalog. */
+export function savedIndex(saved: SavedAction[], presets: Preset[]): string {
+  const lines = saved.map((s) => `${s.key}: ${s.record.summary}`);
+  if (presets.length)
+    lines.push(
+      `Presets: ${presets.map((p) => `${p.name} (${p.id}, ${p.action})`).join("; ")}`,
+    );
+  return lines.join("\n");
+}
+
+/**
+ * Saved actions that became ready, and presets saved, after `since` for a project: the lines a running
+ * agent session has not been told yet, and the time to remember as seen.
+ */
+export async function catalogNews(
+  c: Context,
+  projectId: string,
+  since: string,
+): Promise<{ lines: string[]; seen: string }> {
+  const [actions, presets] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `SELECT id,version,record,ready_at AS at FROM saved_actions WHERE ${VISIBLE} AND ready_at>? ORDER BY ready_at`,
+    ).bind(projectId, since),
+    c.env.DB.prepare(
+      `SELECT id,action,description,created_at AS at FROM presets WHERE ${PRESET_VISIBLE} AND created_at>? ORDER BY created_at`,
+    ).bind(projectId, since),
+  ]);
+  const found = [
+    ...(
+      actions.results as {
+        id: string;
+        version: number;
+        record: string;
+        at: string;
+      }[]
+    ).map((a) => ({
+      at: a.at,
+      line: `New action ${a.id}@${a.version}: ${(JSON.parse(a.record) as ActionRecord).summary}`,
+    })),
+    ...(
+      presets.results as {
+        id: string;
+        action: string;
+        description: string;
+        at: string;
+      }[]
+    ).map((p) => ({
+      at: p.at,
+      line: `New preset ${p.id} (${p.action}): ${p.description}`,
+    })),
+  ].sort((x, y) => x.at.localeCompare(y.at));
+  const now = new Date().toISOString();
+  const seen = found.reduce(
+    (latest, f) => (f.at > latest ? f.at : latest),
+    now,
+  );
+  const lines = found.slice(0, 10).map((f) => f.line);
+  if (found.length > 10)
+    lines.push(`(+${found.length - 10} more; call actions_list)`);
+  return { lines, seen };
+}

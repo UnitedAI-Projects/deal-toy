@@ -156,12 +156,13 @@ export async function consume(message: Message<unknown>, env: Env) {
     error: string | null,
   ) =>
     env.DB.prepare(
-      "UPDATE saved_actions SET status=?,record=COALESCE(?,record),error=?,job_id=? WHERE id=? AND version=? AND status='checking'",
+      "UPDATE saved_actions SET status=?,record=COALESCE(?,record),error=?,job_id=?,ready_at=? WHERE id=? AND version=? AND status='checking'",
     ).bind(
       status,
       value,
       error,
       jobId,
+      status === "ready" ? new Date().toISOString() : null,
       checking?.[1] ?? "",
       Number(checking?.[2] ?? 0),
     );
