@@ -25,6 +25,8 @@ import {
 import { setParameter } from "./params";
 import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
 import { STEP_WRITES, stepTools } from "./step-tools";
+import { catalogIndex } from "./actions/catalog";
+import { modelContext } from "./actions/summary";
 export type { Tool } from "./tool-kit";
 /**
  * Source rebuilds the exact geometry, so on a project someone else owns it is shown only to
@@ -294,7 +296,12 @@ export const tools: Tool[] = [
           client: i.client ?? null,
         },
       });
-      return { sessionId: session.id, startedAt: session.started_at };
+      // The catalog index rides on every session start, so the agent always knows the actions.
+      return {
+        sessionId: session.id,
+        startedAt: session.started_at,
+        actions: catalogIndex(),
+      };
     },
   ),
   define(
@@ -614,7 +621,7 @@ export async function dispatch(
   name: string,
   input: unknown,
   channel: Channel,
-): Promise<{ value: unknown; notes: Note[] }> {
+): Promise<{ value: unknown; notes: Note[]; context?: string }> {
   const tool = tools.find((t) => t.name === name);
   if (!tool) throw new AppError(404, "Tool not found");
   for (const permission of tool.permission ?? [])
@@ -695,7 +702,16 @@ export async function dispatch(
     if (target || name === "projects_get")
       notes = await takeNotes(c, projectId, target ?? null);
   }
-  return { value, notes };
+  // Agent results that name a model end with a compact summary of it (steps, health, parts).
+  let context: string | undefined;
+  if (channel === "mcp" && typeof fields.modelId === "string") {
+    try {
+      context = await modelContext(c, fields.modelId);
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error;
+    }
+  }
+  return { value, notes, context };
 }
 export async function execute(c: Context, name: string, input: unknown) {
   return (await dispatch(c, name, input, "internal")).value;

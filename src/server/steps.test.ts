@@ -286,3 +286,51 @@ describe("action and step tools", () => {
     ).toThrow();
   });
 });
+
+describe("agent context", () => {
+  it("MCP results carry the model context", async () => {
+    const { m } = await seeded();
+    const viaMcp = await dispatch(
+      carol,
+      "steps_list",
+      { modelId: m.id },
+      "mcp",
+    );
+    expect(viaMcp.context).toMatch(
+      /^Model "Tombstone" r1, build ok\.\nSteps: 1 body "Block" ok/,
+    );
+    const viaHttp = await dispatch(
+      carol,
+      "steps_list",
+      { modelId: m.id },
+      "http",
+    );
+    expect(viaHttp.context).toBeUndefined();
+    const added = await dispatch(
+      carol,
+      "steps_add",
+      {
+        modelId: m.id,
+        expectedRevision: 1,
+        action: "hole",
+        name: "Hole 3",
+        inputs: hole,
+      },
+      "mcp",
+    );
+    expect(added.context).toContain('Model "Tombstone" r2, build building.');
+    expect(added.context).toContain('8 hole "Hole 3" pending');
+  });
+  it("session_start lists the actions", async () => {
+    const { p } = await seeded();
+    const { value } = await dispatch(
+      carol,
+      "session_start",
+      { projectId: p.id, prompt: "Add a hole" },
+      "mcp",
+    );
+    expect((value as { actions: string }).actions.split("\n")[3]).toMatch(
+      /^hole@1: /,
+    );
+  });
+});
