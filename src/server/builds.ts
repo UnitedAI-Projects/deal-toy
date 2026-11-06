@@ -3,6 +3,12 @@ import { z } from "zod";
 import { boundedText, hash } from "./core";
 import { fetchCad } from "./cad-runtime";
 import { notify } from "./activity";
+import {
+  checkSchema,
+  checkVerdict,
+  SAVED_KEY,
+  sourcesFor,
+} from "./actions/saved";
 export class CadContainer extends DurableObject<Env> {
   async fetch(request: Request) {
     const container = this.ctx.container;
@@ -85,6 +91,8 @@ export const factsSchema = z.object({
   incomplete: z.boolean().optional(),
   /** Set on view-as-of builds: only the first N steps ran. */
   stoppedAfter: z.number().int().positive().optional(),
+  /** Set on saved-action check builds: the candidate's record and its example step. */
+  check: checkSchema.optional(),
 });
 const media: Record<string, string> = {
   "model.step": "application/step",
@@ -140,7 +148,38 @@ export async function consume(message: Message<unknown>, env: Env) {
   const expected: string[] = preview ? PREVIEW : Object.keys(media);
   const container = env.CAD.getByName(jobId);
   const keys: string[] = [];
+  const checking =
+    job.purpose === "check" ? SAVED_KEY.exec(options.check ?? "") : null;
+  const settle = (
+    status: "ready" | "rejected",
+    value: string | null,
+    error: string | null,
+  ) =>
+    env.DB.prepare(
+      "UPDATE saved_actions SET status=?,record=COALESCE(?,record),error=?,job_id=? WHERE id=? AND version=? AND status='checking'",
+    ).bind(
+      status,
+      value,
+      error,
+      jobId,
+      checking?.[1] ?? "",
+      Number(checking?.[2] ?? 0),
+    );
   try {
+    // Saved actions the script pins travel with it; a check build also carries its candidate.
+    const modules = await sourcesFor(env, job.project_id, job.source);
+    if (checking) {
+      const candidate = await env.DB.prepare(
+        "SELECT source FROM saved_actions WHERE id=? AND version=?",
+      )
+        .bind(checking[1], Number(checking[2]))
+        .first<{ source: string }>();
+      if (!candidate)
+        throw new Error("The saved action being checked no longer exists");
+      modules[checking[0]] = candidate.source;
+      payload.check = checking[0];
+    }
+    if (Object.keys(modules).length) payload.modules = modules;
     const response = await container.fetch(
       new Request("http://cad/build", {
         method: "POST",
@@ -213,6 +252,14 @@ export async function consume(message: Message<unknown>, env: Env) {
         "UPDATE jobs SET status='succeeded',facts=?,updated_at=? WHERE id=? AND status='running'",
       ).bind(facts, new Date().toISOString(), jobId),
     );
+    if (checking) {
+      const verdict = checkVerdict(checking[0], JSON.parse(facts).check);
+      statements.push(
+        verdict.status === "ready"
+          ? settle("ready", JSON.stringify(verdict.record), null)
+          : settle("rejected", null, verdict.error),
+      );
+    }
     await env.DB.batch(statements);
     message.ack();
     await notify(env, job.project_id, { type: "workspace" });
@@ -224,6 +271,12 @@ export async function consume(message: Message<unknown>, env: Env) {
     )
       .bind(detail.slice(0, 4000), new Date().toISOString(), jobId)
       .run();
+    if (checking)
+      await settle(
+        "rejected",
+        null,
+        `The check build failed: ${detail}`.slice(0, 600),
+      ).run();
     message.ack();
     await notify(env, job.project_id, { type: "workspace" });
   } finally {

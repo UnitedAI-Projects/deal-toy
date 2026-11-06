@@ -1,8 +1,23 @@
 import { z } from "zod";
 import { requirePermission } from "./access";
+import { actions } from "./actions/catalog";
+import { SAVED_KEY } from "./actions/saved";
 import { readSteps } from "./actions/script";
-import { AppError, id, revisionAccess } from "./core";
-import { define, queueBuild, type Tool } from "./tool-kit";
+import {
+  AppError,
+  id,
+  modelAccess,
+  projectAccess,
+  revisionAccess,
+} from "./core";
+import { define, now, queueBuild, type Tool } from "./tool-kit";
+
+const actionId = z
+  .string()
+  .regex(
+    /^[a-z][a-z0-9-]{1,39}$/,
+    "Use lowercase words joined by hyphens, for example finger-notch",
+  );
 
 /** Tools for saved actions, presets and view-as-of previews. */
 export const savedTools: Tool[] = [
@@ -26,6 +41,112 @@ export const savedTools: Tool[] = [
       // Only someone who may build this project starts a new preview; viewers reuse existing ones.
       requirePermission(c, "builds.run");
       return queueBuild(c, i.revisionId, "view", { stopAfter });
+    },
+  ),
+  define(
+    "actions_save",
+    'Save a custom action for reuse: source is a Python module defining one function decorated with @mt.action(id=..., summary=..., inputs={...described helpers such as mt.Face, mt.Length...}, creates={...}, example=\'m.custom("Name", action="<id>@1", ...)\'), whose docstring says when to use it. Mantel builds the model\'s latest revision with the example appended; the action becomes ready only if that step is ok and creates every declared name. Poll actions_status. Project scope by default; team scope needs the settings permission. Afterwards replace fn= calls with action="<id>@<version>" using steps_edit.',
+    {
+      modelId: id,
+      id: actionId,
+      expectedVersion: z.number().int().nonnegative(),
+      source: z.string().min(1).max(100_000),
+      scope: z.enum(["project", "team"]).default("project"),
+    },
+    false,
+    async (c, i) => {
+      if (actions.some((a) => a.id === i.id))
+        throw new AppError(
+          400,
+          `${i.id} is a built-in action; choose another id`,
+        );
+      if (i.scope === "team") requirePermission(c, "settings.manage");
+      const model = await modelAccess(c, i.modelId);
+      const revision = await c.env.DB.prepare(
+        "SELECT id FROM revisions WHERE model_id=? AND number=?",
+      )
+        .bind(i.modelId, model.revision)
+        .first<{ id: string }>();
+      if (!revision)
+        throw new AppError(
+          400,
+          "Save a revision of the model first; the check builds it",
+        );
+      const version = i.expectedVersion + 1;
+      const inserted = await c.env.DB.prepare(
+        "INSERT INTO saved_actions (id,version,scope,project_id,status,record,source,error,revision_id,job_id,created_by,created_at) SELECT ?,?,?,?,'checking',NULL,?,NULL,?,NULL,?,? WHERE COALESCE((SELECT MAX(version) FROM saved_actions WHERE id=?),0)=?",
+      )
+        .bind(
+          i.id,
+          version,
+          i.scope,
+          i.scope === "project" ? model.project_id : null,
+          i.source,
+          revision.id,
+          c.identity.email,
+          now(),
+          i.id,
+          i.expectedVersion,
+        )
+        .run();
+      if (inserted.meta.changes !== 1)
+        throw new AppError(409, "Action changed. Reload first");
+      const key = `${i.id}@${version}`;
+      let job: { id: string; status: string };
+      try {
+        job = await queueBuild(c, revision.id, "check", { check: key });
+      } catch (error) {
+        await c.env.DB.prepare(
+          "UPDATE saved_actions SET status='rejected',error=? WHERE id=? AND version=?",
+        )
+          .bind(
+            error instanceof Error
+              ? error.message
+              : "Could not queue the check",
+            i.id,
+            version,
+          )
+          .run();
+        throw error;
+      }
+      await c.env.DB.prepare(
+        "UPDATE saved_actions SET job_id=? WHERE id=? AND version=?",
+      )
+        .bind(job.id, i.id, version)
+        .run();
+      return { key, status: "checking", job };
+    },
+    ["models.edit", "builds.run"],
+  ),
+  define(
+    "actions_status",
+    "Read whether a saved action version is checking, ready or rejected, with the reason it was rejected and its record once ready.",
+    { key: z.string().regex(SAVED_KEY) },
+    true,
+    async (c, i) => {
+      const [, actionName, version] = SAVED_KEY.exec(i.key)!;
+      const row = await c.env.DB.prepare(
+        "SELECT * FROM saved_actions WHERE id=? AND version=?",
+      )
+        .bind(actionName, Number(version))
+        .first<{
+          scope: string;
+          project_id: string | null;
+          status: string;
+          error: string | null;
+          record: string | null;
+          job_id: string | null;
+        }>();
+      if (!row) throw new AppError(404, `No saved action ${i.key}`);
+      if (row.scope === "project")
+        await projectAccess(c, row.project_id!, "read");
+      return {
+        key: i.key,
+        status: row.status,
+        ...(row.error ? { error: row.error } : {}),
+        ...(row.record ? { record: JSON.parse(row.record) } : {}),
+        job: row.job_id,
+      };
     },
   ),
 ];

@@ -1,9 +1,10 @@
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import fixture from "../../engine/tests/fixtures/deal_toy.py";
 import { notchRecord } from "./actions/testdata/notch";
 import { sourcesFor, visibleSaved } from "./actions/saved";
+import { consume } from "./builds";
 import type { Context } from "./core";
 import { execute } from "./tools";
 import { member } from "./test-helpers";
@@ -151,5 +152,221 @@ describe("saved action visibility", () => {
     expect(
       await sourcesFor(env, mine.p.id, "def build():\n    return 1\n"),
     ).toEqual({});
+  });
+});
+
+const SOURCE = `import mantel as mt\n\n@mt.action(id="lid-notch", summary="Notch", inputs={}, example='m.custom("N", action="lid-notch@1")')\ndef lid_notch(m):\n    """Notch."""\n`;
+const baseFacts = {
+  units: "mm",
+  bounds: [1, 2, 3],
+  volume_mm3: 6,
+  solids: 1,
+  valid: true,
+  manufacturing_approval: "not_reviewed",
+};
+/** Runs a queued job through consume with a fake CAD container; returns the posted payload. */
+async function runJob(jobId: string, facts: unknown, ok = true) {
+  const artifacts = ["model.step", "model.stl", "model.glb", "facts.json"].map(
+    (name) => ({
+      name,
+      mediaType: "ignored",
+      base64: btoa(name === "facts.json" ? JSON.stringify(facts) : "bytes"),
+    }),
+  );
+  const container = {
+    fetch: vi.fn(async (_request: Request) =>
+      ok
+        ? Response.json({ artifacts })
+        : Response.json({ error: "Build failed: boom" }, { status: 400 }),
+    ),
+    destroy: vi.fn(async () => {}),
+  };
+  await consume(
+    {
+      body: { jobId },
+      ack: vi.fn(),
+      retry: vi.fn(),
+    } as unknown as Message<unknown>,
+    {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env,
+  );
+  return JSON.parse(await container.fetch.mock.calls[0][0].text()) as Record<
+    string,
+    unknown
+  >;
+}
+const save = (
+  modelId: string,
+  id: string,
+  expectedVersion = 0,
+  scope?: "project" | "team",
+  c = carol,
+) =>
+  execute(c, "actions_save", {
+    modelId,
+    id,
+    expectedVersion,
+    source: SOURCE,
+    ...(scope ? { scope } : {}),
+  }) as Promise<{
+    key: string;
+    status: string;
+    job: { id: string };
+  }>;
+const status = (key: string) =>
+  execute(carol, "actions_status", { key }) as Promise<{
+    status: string;
+    error?: string;
+    record?: { id: string };
+  }>;
+const passing = (key: string) => ({
+  ...baseFacts,
+  check: {
+    key,
+    record: notchRecord(key),
+    step: {
+      name: "Lid notch",
+      action: "custom",
+      version: 1,
+      state: "ok",
+      created: ["notch"],
+      ms: 1,
+    },
+  },
+});
+
+describe("actions_save", () => {
+  it("save queues a check build with the candidate", async () => {
+    const { m } = await seeded();
+    const saved = await save(m.id, "queued-notch");
+    expect(saved).toMatchObject({ key: "queued-notch@1", status: "checking" });
+    const body = await runJob(saved.job.id, passing("queued-notch@1"));
+    expect(body.check).toBe("queued-notch@1");
+    expect((body.modules as Record<string, string>)["queued-notch@1"]).toBe(
+      SOURCE,
+    );
+    expect(body.source).toBe(fixture);
+  });
+  it("a passing check makes the action ready", async () => {
+    const { m } = await seeded();
+    const saved = await save(m.id, "ready-notch");
+    await runJob(saved.job.id, passing("ready-notch@1"));
+    const result = await status("ready-notch@1");
+    expect(result.status).toBe("ready");
+    expect(result.record?.id).toBe("ready-notch@1");
+  });
+  it("a failing or erroring check rejects it", async () => {
+    const { m } = await seeded();
+    const failed = await save(m.id, "bad-notch");
+    const facts = passing("bad-notch@1");
+    await runJob(failed.job.id, {
+      ...facts,
+      check: {
+        ...facts.check,
+        step: {
+          ...facts.check.step,
+          state: "failed",
+          code: "face_not_found",
+          message: "gone",
+          created: [],
+        },
+      },
+    });
+    expect(await status("bad-notch@1")).toMatchObject({
+      status: "rejected",
+      error: expect.stringContaining("failed"),
+    });
+    const errored = await save(m.id, "bad-notch", 1);
+    await runJob(errored.job.id, {
+      ...baseFacts,
+      check: {
+        key: "bad-notch@2",
+        error: "The summary must be 1 to 120 characters",
+      },
+    });
+    expect(await status("bad-notch@2")).toMatchObject({
+      status: "rejected",
+      error: "The summary must be 1 to 120 characters",
+    });
+    const missing = await save(m.id, "bad-notch", 2);
+    await runJob(missing.job.id, {
+      ...facts,
+      check: {
+        ...facts.check,
+        key: "bad-notch@3",
+        record: notchRecord("bad-notch@3"),
+        step: { ...facts.check.step, created: [] },
+      },
+    });
+    expect(await status("bad-notch@3")).toMatchObject({
+      status: "rejected",
+      error: expect.stringContaining("notch"),
+    });
+  });
+  it("a failed check build rejects it and leaves revision builds alone", async () => {
+    const { p, m } = await seeded();
+    const saved = await save(m.id, "boom-notch");
+    await runJob(saved.job.id, null, false);
+    expect(await status("boom-notch@1")).toMatchObject({
+      status: "rejected",
+      error: expect.stringContaining("boom"),
+    });
+    const workspace = (await execute(carol, "projects_get", {
+      projectId: p.id,
+    })) as { jobs: unknown[] };
+    expect(workspace.jobs).toHaveLength(0);
+  });
+  it("concurrent saves conflict, and ids are shared across projects", async () => {
+    const { m } = await seeded();
+    await save(m.id, "race-notch");
+    await expect(save(m.id, "race-notch")).rejects.toThrow(
+      "Action changed. Reload first",
+    );
+    const other = await seeded();
+    await expect(save(other.m.id, "race-notch")).rejects.toThrow(
+      "Action changed. Reload first",
+    );
+    await expect(save(other.m.id, "race-notch", 1)).resolves.toMatchObject({
+      key: "race-notch@2",
+    });
+  });
+  it("team scope needs settings.manage", async () => {
+    const { m } = await seeded();
+    await expect(save(m.id, "team-only", 0, "team")).rejects.toThrow(
+      "Configure skills and tools",
+    );
+  });
+  it("refuses built-in ids and bad ids", async () => {
+    const { m } = await seeded();
+    await expect(save(m.id, "hole")).rejects.toThrow("built-in");
+    await expect(save(m.id, "Bad Id")).rejects.toThrow();
+  });
+  it("builds send pinned sources only for visible actions", async () => {
+    const { p, m, r } = await seeded();
+    await saveRow("pinned-notch@1", {
+      scope: "project",
+      projectId: p.id,
+      revisionId: r.id,
+    });
+    const source = fixture.replace(
+      "    # mantel:steps end",
+      '    m.custom("A", action="pinned-notch@1")\n    # mantel:steps end',
+    );
+    const next = (await execute(carol, "models_save", {
+      modelId: m.id,
+      expectedRevision: 1,
+      source,
+    })) as { id: string };
+    const job = (await execute(carol, "models_build", {
+      revisionId: next.id,
+    })) as { id: string };
+    const body = await runJob(job.id, baseFacts);
+    expect(body.modules).toEqual({
+      "pinned-notch@1": "# source of pinned-notch@1",
+    });
+    expect(body.check).toBeUndefined();
   });
 });

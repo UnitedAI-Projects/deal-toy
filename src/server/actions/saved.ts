@@ -1,6 +1,8 @@
+import { z } from "zod";
 import { AppError, type Context } from "../core";
 import type { ActionRecord } from "./catalog";
 import { readSteps } from "./script";
+import { unsupportedKeywords } from "./validate";
 
 /** Saved custom actions: versioned, checked by a build, and visible to their project or the team. */
 export const SAVED_KEY = /^([a-z][a-z0-9-]{1,39})@([0-9]{1,6})$/;
@@ -95,4 +97,99 @@ export async function sourcesFor(
     if (row) out[key] = row.source;
   }
   return out;
+}
+
+const stepLog = z
+  .object({
+    name: z.string(),
+    action: z.string(),
+    version: z.number(),
+    state: z.enum(["ok", "warning", "failed", "blocked", "suppressed"]),
+    code: z.string().optional(),
+    message: z.string().optional(),
+    created: z.array(z.string()),
+    ms: z.number(),
+  })
+  .passthrough();
+/** A saved action's record as the engine reads it from the decorator: the built-in record shape. */
+export const actionRecordSchema = z.object({
+  id: z.string().regex(SAVED_KEY),
+  version: z.number().int().positive(),
+  title: z.string().min(1).max(120),
+  category: z.literal("Custom"),
+  summary: z.string().min(1).max(120),
+  description: z.string().max(4000),
+  inputs: z.object({
+    type: z.literal("object"),
+    properties: z.record(
+      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/),
+      z.record(z.string(), z.unknown()),
+    ),
+    required: z.array(z.string()),
+    additionalProperties: z.literal(false),
+  }),
+  selections: z.array(
+    z.object({
+      input: z.string(),
+      kind: z.enum(["face", "edge", "plane", "point", "part"]),
+      min: z.number(),
+      max: z.number(),
+    }),
+  ),
+  creates: z.record(z.string().max(40), z.string().max(300)),
+  failures: z.array(
+    z.object({ code: z.string(), explanation: z.string(), fix: z.string() }),
+  ),
+  preview: z.literal("none"),
+  example: z.string().min(1).max(2000),
+});
+export const checkSchema = z
+  .object({
+    key: z.string(),
+    record: z.unknown().optional(),
+    step: stepLog.optional(),
+    error: z.string().max(600).optional(),
+  })
+  .strict();
+
+/** Whether a check build's result admits the candidate into the store. */
+export function checkVerdict(
+  key: string,
+  check: unknown,
+):
+  | { status: "ready"; record: ActionRecord }
+  | { status: "rejected"; error: string } {
+  const parsed = checkSchema.safeParse(check);
+  if (!parsed.success)
+    return { status: "rejected", error: "The check build reported no result" };
+  if (parsed.data.error)
+    return { status: "rejected", error: parsed.data.error };
+  const record = actionRecordSchema.safeParse(parsed.data.record);
+  if (!record.success || record.data.id !== key)
+    return {
+      status: "rejected",
+      error: "The action's description is incomplete or names another action",
+    };
+  if (unsupportedKeywords(record.data.inputs).length)
+    return {
+      status: "rejected",
+      error: "The action's inputs use unsupported schema keywords",
+    };
+  const step = parsed.data.step;
+  if (!step || step.state !== "ok")
+    return {
+      status: "rejected",
+      error: step
+        ? `The example step ${step.state}${step.code ? ` (${step.code})` : ""}: ${step.message ?? ""}`.trim()
+        : "The example did not run",
+    };
+  const missing = Object.keys(record.data.creates).filter(
+    (name) => !step.created.includes(name),
+  );
+  if (missing.length)
+    return {
+      status: "rejected",
+      error: `The example did not create: ${missing.join(", ")}`,
+    };
+  return { status: "ready", record: record.data as ActionRecord };
 }
