@@ -282,3 +282,65 @@ describe("view_highlight summary", () => {
     );
   });
 });
+
+describe("selection_set", () => {
+  const base = { ref: "face", of: "Base", name: "bottom" };
+  const coin = { ref: "part", label: "Coin" };
+  it("puts the owner's selection in the agent's context, and clears it", async () => {
+    const { m } = await built();
+    const { dispatch } = await import("./tools");
+    const { modelContext } = await import("./actions/summary");
+    await dispatch(
+      carol,
+      "selection_set",
+      { modelId: m.id, refs: [base, coin] },
+      "http",
+    );
+    expect(await modelContext(carol, m.id)).toContain(
+      'Selected: m.face("Base", "bottom") · m.part("Coin")',
+    );
+    await dispatch(carol, "selection_set", { modelId: m.id, refs: [] }, "http");
+    expect(await modelContext(carol, m.id)).not.toContain("Selected:");
+  });
+  it("leaves out old selections and viewers' selections, and refuses bad input", async () => {
+    const { p, m } = await built();
+    const { dispatch } = await import("./tools");
+    const { modelContext } = await import("./actions/summary");
+    await dispatch(
+      carol,
+      "selection_set",
+      { modelId: m.id, refs: [base] },
+      "http",
+    );
+    await env.DB.prepare("UPDATE selections SET updated_at=? WHERE model_id=?")
+      .bind(new Date(Date.now() - 31 * 60_000).toISOString(), m.id)
+      .run();
+    expect(await modelContext(carol, m.id)).not.toContain("Selected:");
+    await env.DB.prepare("UPDATE projects SET demo=1 WHERE id=?")
+      .bind(p.id)
+      .run();
+    await dispatch(
+      viewer,
+      "selection_set",
+      { modelId: m.id, refs: [coin] },
+      "http",
+    );
+    expect(await modelContext(carol, m.id)).not.toContain("Selected:");
+    await expect(
+      dispatch(
+        carol,
+        "selection_set",
+        { modelId: m.id, refs: [base, base, base, base, base] },
+        "http",
+      ),
+    ).rejects.toThrow();
+    await expect(
+      dispatch(
+        carol,
+        "selection_set",
+        { modelId: m.id, refs: [{ ref: "face", of: "Base" }] },
+        "http",
+      ),
+    ).rejects.toThrow("not a reference");
+  });
+});

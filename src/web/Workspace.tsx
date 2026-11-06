@@ -267,6 +267,28 @@ export function Workspace(props: Props) {
       ]),
     ) as Record<"x" | "y" | "z", [number, number]>;
   }, [record]);
+  // Tell the agent what the owner has selected, as references that survive rebuilds.
+  useEffect(() => {
+    if (!owns || !model) return;
+    const refs = [selection, second]
+      .filter((p): p is Picked => !!p)
+      .map((p) =>
+        p.face !== undefined && record?.faces[p.face]
+          ? refFromPick(record, p.face)
+          : { ref: "part", label: p.label },
+      );
+    const timer = setTimeout(() => {
+      void call("selection_set", { modelId: model.id, refs }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [
+    selection?.label,
+    selection?.face,
+    second?.label,
+    second?.face,
+    model?.id,
+    record,
+  ]);
   const paramValues = useMemo(
     () =>
       Object.fromEntries(
