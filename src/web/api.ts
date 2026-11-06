@@ -140,12 +140,25 @@ export type ParamSpec = {
   min?: number;
   max?: number;
 };
+/** One step's result in a build, as the engine reports it. */
+export type StepLog = {
+  name: string;
+  action: string;
+  version: number;
+  state: "ok" | "warning" | "failed" | "blocked" | "suppressed";
+  code?: string;
+  message?: string;
+  created: string[];
+  ms: number;
+};
 export type Facts = {
   bounds: number[];
   volume_mm3: number;
   solids: number;
   params?: Record<string, ParamSpec>;
   parts?: { label: string; volume_mm3: number }[];
+  steps?: StepLog[];
+  incomplete?: boolean;
 };
 export type Session = {
   id: string;

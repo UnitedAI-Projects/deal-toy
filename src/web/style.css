@@ -23,6 +23,7 @@
   --busy: #6366f1;
   --bad: #d93a32;
   --bad-soft: #fdecea;
+  --warn: #b7791f;
   --shadow: 0 8px 28px rgba(20, 22, 28, 0.08), 0 1px 3px rgba(20, 22, 28, 0.06);
 }
 :root[data-theme="dark"] {
@@ -47,6 +48,7 @@
   --busy: #818cf8;
   --bad: #f87171;
   --bad-soft: rgba(248, 113, 113, 0.12);
+  --warn: #fbbf24;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 :root {
@@ -1005,6 +1007,85 @@ button.wide {
 .state.running {
   background: var(--busy);
 }
+/* Step timeline: one chip per modeling step, coloured by its state in the shown build. */
+.timeline {
+  position: absolute;
+  top: 64px;
+  left: 368px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 6;
+  pointer-events: none;
+}
+.timeline ol {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  pointer-events: auto;
+}
+.timeline-badge {
+  flex: none;
+  pointer-events: auto;
+  background: var(--bad-soft);
+  color: var(--bad);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  background: var(--surface-glass);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  font-size: 12px;
+}
+.step-chip.on {
+  border-color: var(--line-strong);
+}
+.step-chip.muted {
+  color: var(--muted);
+}
+.step-index {
+  color: var(--faint);
+  font-family: var(--mono);
+}
+.step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.step-chip.ok .step-dot {
+  background: var(--ok);
+}
+.step-chip.warn .step-dot {
+  background: var(--warn);
+}
+.step-chip.bad .step-dot {
+  background: var(--bad);
+}
+.step-chip.bad {
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+}
+.step-popover {
+  top: 44px;
+  right: 0;
+  pointer-events: auto;
+}
+.step-detail {
+  color: var(--muted);
+}
 .build-banner {
   position: absolute;
   left: 368px;
@@ -1215,6 +1296,16 @@ textarea.code.editor.short {
     bottom: auto;
     top: 96px;
     max-width: none;
+  }
+  .timeline {
+    left: 10px;
+    right: 10px;
+    top: 132px;
+  }
+  .step-popover {
+    left: 0;
+    right: 0;
+    width: auto;
   }
   .canvas-empty {
     left: 50%;
