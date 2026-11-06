@@ -312,3 +312,14 @@ def test_text_engrave_depth(tmp_path):
     floors = [f for f in faces_in_step(tmp_path / "model-out")
               if f.geom_type == bd.GeomType.PLANE and abs(f.center().Y + 19.5) < 1e-6]
     assert floors
+
+
+@needs_font
+def test_example_layout_builds(tmp_path):
+    facts = build(ROOT / "examples/deal_toy_steps.py", tmp_path)
+    assert facts["steps"] and {s["state"] for s in facts["steps"]} == {"ok"}
+
+
+def test_example_layout_matches_the_fixture():
+    example = (ROOT / "examples/deal_toy_steps.py").read_text()
+    assert example.split("import build123d", 1)[1] == FIXTURE.read_text().split("import build123d", 1)[1]
