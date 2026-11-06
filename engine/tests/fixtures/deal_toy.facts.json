@@ -1,0 +1,95 @@
+{
+  "units": "mm",
+  "bounds": [100.0000002, 40.0000001, 70.0000001],
+  "volume_mm3": 231374.8730757635,
+  "solids": 3,
+  "valid": true,
+  "manufacturing_approval": "not_reviewed",
+  "parts": [
+    { "label": "Base", "volume_mm3": 39577.8229884769 },
+    { "label": "Coin", "volume_mm3": 2120.5750411731105 },
+    { "label": "Block", "volume_mm3": 189676.47504611348 }
+  ],
+  "params": {
+    "BLOCK_W": {
+      "value": 80.0,
+      "unit": "mm",
+      "part": "Block",
+      "min": 40.0,
+      "max": 150.0
+    },
+    "HOLE_D": {
+      "value": 5.0,
+      "unit": "mm",
+      "part": "Base",
+      "min": 2.0,
+      "max": 10.0
+    },
+    "HOLE_X": {
+      "value": 20.0,
+      "unit": "mm",
+      "part": "Base",
+      "min": 10.0,
+      "max": 40.0
+    }
+  },
+  "steps": [
+    {
+      "name": "Block",
+      "action": "body",
+      "version": 1,
+      "state": "ok",
+      "created": [],
+      "ms": 2
+    },
+    {
+      "name": "Mid plane",
+      "action": "plane",
+      "version": 1,
+      "state": "ok",
+      "created": [],
+      "ms": 0
+    },
+    {
+      "name": "Mount hole",
+      "action": "hole",
+      "version": 1,
+      "state": "ok",
+      "created": ["wall"],
+      "ms": 6
+    },
+    {
+      "name": "Mount hole 2",
+      "action": "hole",
+      "version": 1,
+      "state": "ok",
+      "created": ["wall"],
+      "ms": 4
+    },
+    {
+      "name": "Deal text",
+      "action": "text",
+      "version": 1,
+      "state": "ok",
+      "created": ["text_faces"],
+      "ms": 345
+    },
+    {
+      "name": "Coin cavity",
+      "action": "combine",
+      "version": 1,
+      "state": "ok",
+      "created": [],
+      "ms": 1
+    },
+    {
+      "name": "Block edges",
+      "action": "fillet",
+      "version": 1,
+      "state": "ok",
+      "created": ["rounds"],
+      "ms": 8
+    }
+  ],
+  "incomplete": false
+}

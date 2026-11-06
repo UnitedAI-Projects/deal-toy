@@ -53,6 +53,28 @@ export const factsSchema = z.object({
     )
     .max(500)
     .optional(),
+  /** Present when the script uses mantel steps: each step's state, in order. */
+  steps: z
+    .array(
+      z
+        .object({
+          name: z.string().max(80),
+          action: z.string().regex(/^[a-z_]{1,40}$/),
+          version: z.number().int().positive(),
+          state: z.enum(["ok", "warning", "failed", "blocked", "suppressed"]),
+          code: z
+            .string()
+            .regex(/^[a-z_]{1,40}$/)
+            .optional(),
+          message: z.string().max(300).optional(),
+          created: z.array(z.string().max(80)).max(50),
+          ms: z.number().int().nonnegative(),
+        })
+        .strict(),
+    )
+    .max(300)
+    .optional(),
+  incomplete: z.boolean().optional(),
 });
 const media: Record<string, string> = {
   "model.step": "application/step",
