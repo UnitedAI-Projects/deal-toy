@@ -221,9 +221,9 @@ export async function visiblePresets(
   projectId: string | null,
 ): Promise<Preset[]> {
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM presets p WHERE ${PRESET_VISIBLE} AND version=(SELECT MAX(version) FROM presets WHERE id=p.id) ORDER BY action, name`,
+    `SELECT * FROM presets p WHERE ${PRESET_VISIBLE} AND version=(SELECT MAX(version) FROM presets WHERE id=p.id AND ${PRESET_VISIBLE}) ORDER BY action, name`,
   )
-    .bind(projectId ?? "")
+    .bind(projectId ?? "", projectId ?? "")
     .all<PresetRow>();
   return results.map(toPreset);
 }
@@ -303,4 +303,36 @@ export async function catalogNews(
   if (found.length > 10)
     lines.push(`(+${found.length - 10} more; call actions_list)`);
   return { lines, seen };
+}
+
+/**
+ * An id belongs to the project (or the team) that saved its first version; only that owner saves
+ * later versions, so another project can neither take over nor shadow it.
+ */
+export async function assertIdOwner(
+  c: Context,
+  table: "saved_actions" | "presets",
+  id: string,
+  scope: "project" | "team",
+  projectId: string,
+) {
+  const first = await c.env.DB.prepare(
+    `SELECT scope,project_id FROM ${table} WHERE id=? ORDER BY version LIMIT 1`,
+  )
+    .bind(id)
+    .first<{ scope: string; project_id: string | null }>();
+  if (!first) return;
+  if (first.scope === "team" && scope !== "team")
+    throw new AppError(
+      403,
+      `The id ${id} is a team id; save it with scope team`,
+    );
+  if (
+    first.scope === "project" &&
+    (scope !== "project" || first.project_id !== projectId)
+  )
+    throw new AppError(
+      403,
+      `The id ${id} belongs to another project; choose another id`,
+    );
 }

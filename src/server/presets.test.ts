@@ -160,6 +160,37 @@ describe("presets", () => {
       }),
     ).rejects.toThrow("Preset m3-partial is for hole, not fillet");
   });
+  it("binds a preset id to the project that first saved it", async () => {
+    const mine = await seeded();
+    const theirs = await seeded();
+    await execute(carol, "presets_save", m3(theirs.p.id, { id: "squat-id" }));
+    await expect(
+      execute(
+        carol,
+        "presets_save",
+        m3(mine.p.id, { id: "squat-id", expectedVersion: 1 }),
+      ),
+    ).rejects.toThrow("The id squat-id belongs to another project");
+  });
+  it("lists the newest version the project can see", async () => {
+    const mine = await seeded();
+    const theirs = await seeded();
+    const insert = (version: number, scope: string, projectId: string | null) =>
+      env.DB.prepare(
+        "INSERT INTO presets (id,version,action,name,description,inputs,scope,project_id,created_by,created_at) VALUES ('mixed-id',?,'hole','Mixed','Mixed versions','{}',?,?,'x',?)",
+      )
+        .bind(version, scope, projectId, new Date().toISOString())
+        .run();
+    await insert(1, "team", null);
+    await insert(2, "project", theirs.p.id);
+    const listed = (await execute(carol, "presets_list", {
+      projectId: mine.p.id,
+    })) as {
+      id: string;
+      version: number;
+    }[];
+    expect(listed.find((x) => x.id === "mixed-id")?.version).toBe(1);
+  });
   it("follows scope", async () => {
     const mine = await seeded();
     const theirs = await seeded();

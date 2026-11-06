@@ -15,15 +15,15 @@ beforeAll(async () => {
   carol = await member("carol-saved@example.test", { level: "Maker" });
 });
 
-async function seeded() {
-  const p = (await execute(carol, "projects_create", { name: "Saved" })) as {
+async function seeded(c = carol) {
+  const p = (await execute(c, "projects_create", { name: "Saved" })) as {
     id: string;
   };
-  const m = (await execute(carol, "models_create", {
+  const m = (await execute(c, "models_create", {
     projectId: p.id,
     name: "Lid",
   })) as { id: string };
-  const r = (await execute(carol, "models_save", {
+  const r = (await execute(c, "models_save", {
     modelId: m.id,
     expectedRevision: 0,
     source: fixture,
@@ -319,7 +319,7 @@ describe("actions_save", () => {
     })) as { jobs: unknown[] };
     expect(workspace.jobs).toHaveLength(0);
   });
-  it("concurrent saves conflict, and ids are shared across projects", async () => {
+  it("concurrent saves conflict, and an id belongs to its first project", async () => {
     const { m } = await seeded();
     await save(m.id, "race-notch");
     await expect(save(m.id, "race-notch")).rejects.toThrow(
@@ -327,11 +327,25 @@ describe("actions_save", () => {
     );
     const other = await seeded();
     await expect(save(other.m.id, "race-notch")).rejects.toThrow(
-      "Action changed. Reload first",
+      "The id race-notch belongs to another project",
     );
-    await expect(save(other.m.id, "race-notch", 1)).resolves.toMatchObject({
+    await expect(save(other.m.id, "race-notch", 1)).rejects.toThrow(
+      "The id race-notch belongs to another project",
+    );
+    await expect(save(m.id, "race-notch", 1)).resolves.toMatchObject({
       key: "race-notch@2",
     });
+  });
+  it("keeps a version that is not ready private to its maker", async () => {
+    const admin = await member("admin-saved@example.test", { level: "Admin" });
+    const { m } = await seeded(admin);
+    const shared = await save(m.id, "secret-notch", 0, "team", admin);
+    await expect(status(shared.key)).rejects.toThrow(
+      "No saved action secret-notch@1",
+    );
+    await expect(
+      execute(admin, "actions_status", { key: shared.key }),
+    ).resolves.toMatchObject({ status: "checking" });
   });
   it("team scope needs settings.manage", async () => {
     const { m } = await seeded();

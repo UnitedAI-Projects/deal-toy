@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { requirePermission } from "./access";
 import { actions } from "./actions/catalog";
-import { savedAction, SAVED_KEY, visiblePresets } from "./actions/saved";
+import {
+  assertIdOwner,
+  savedAction,
+  SAVED_KEY,
+  visiblePresets,
+} from "./actions/saved";
 import { getAction } from "./actions/catalog";
 import { validatePartial } from "./actions/validate";
 import { readSteps } from "./actions/script";
@@ -74,6 +79,7 @@ export const savedTools: Tool[] = [
           400,
           "Save a revision of the model first; the check builds it",
         );
+      await assertIdOwner(c, "saved_actions", i.id, i.scope, model.project_id);
       const version = i.expectedVersion + 1;
       const inserted = await c.env.DB.prepare(
         "INSERT INTO saved_actions (id,version,scope,project_id,status,record,source,error,revision_id,job_id,created_by,created_at) SELECT ?,?,?,?,'checking',NULL,?,NULL,?,NULL,?,? WHERE COALESCE((SELECT MAX(version) FROM saved_actions WHERE id=?),0)=?",
@@ -141,6 +147,7 @@ export const savedTools: Tool[] = [
         ? (await savedAction(c, i.projectId, i.action)).record
         : getAction(i.action);
       validatePartial(record, i.inputs);
+      await assertIdOwner(c, "presets", i.id, i.scope, i.projectId);
       const version = i.expectedVersion + 1;
       const inserted = await c.env.DB.prepare(
         "INSERT INTO presets (id,version,action,name,description,inputs,scope,project_id,created_by,created_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE COALESCE((SELECT MAX(version) FROM presets WHERE id=?),0)=?",
@@ -189,6 +196,7 @@ export const savedTools: Tool[] = [
       )
         .bind(actionName, Number(version))
         .first<{
+          created_by: string;
           scope: string;
           project_id: string | null;
           status: string;
@@ -196,9 +204,25 @@ export const savedTools: Tool[] = [
           record: string | null;
           job_id: string | null;
         }>();
-      if (!row) throw new AppError(404, `No saved action ${i.key}`);
-      if (row.scope === "project")
-        await projectAccess(c, row.project_id!, "read");
+      const missing = new AppError(404, `No saved action ${i.key}`);
+      if (!row) throw missing;
+      // A ready version is visible like the catalog; one still checking or rejected only to its maker
+      // and to those who may change it.
+      if (row.status === "ready" || row.created_by !== c.identity.email) {
+        if (row.scope === "project")
+          await projectAccess(
+            c,
+            row.project_id!,
+            row.status === "ready" ? "read" : "write",
+          ).catch(() => {
+            throw missing;
+          });
+        else if (
+          row.status !== "ready" &&
+          !c.identity.permissions.has("settings.manage")
+        )
+          throw missing;
+      }
       return {
         key: i.key,
         status: row.status,
