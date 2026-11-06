@@ -271,11 +271,16 @@ describe("Build lifecycle", () => {
       "model.stl",
       "model.glb",
       "facts.json",
+      "inspect.json",
     ].map((name) => ({
       name,
       mediaType: "ignored",
       base64: btoa(
-        name === "facts.json" ? JSON.stringify(facts) : "synthetic-test-bytes",
+        name === "facts.json"
+          ? JSON.stringify(facts)
+          : name === "inspect.json"
+            ? '{"version":1,"units":"mm","warnings":[],"parts":[],"faces":[],"holes":[],"faces_truncated":false}'
+            : "synthetic-test-bytes",
       ),
     }));
     const container = {
@@ -297,7 +302,7 @@ describe("Build lifecycle", () => {
       artifacts: { id: string }[];
     };
     expect(result.status).toBe("succeeded");
-    expect(result.artifacts).toHaveLength(4);
+    expect(result.artifacts).toHaveLength(5);
     expect(
       (
         await exports.default.fetch(
