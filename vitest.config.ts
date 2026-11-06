@@ -5,7 +5,8 @@ export default defineConfig({
     {
       name: "markdown-text",
       transform(code, id) {
-        if (id.endsWith(".md"))
+        // Python fixtures shared with the engine tests are imported as text.
+        if (id.endsWith(".md") || id.endsWith(".py"))
           return { code: `export default ${JSON.stringify(code)}`, map: null };
       },
     },
