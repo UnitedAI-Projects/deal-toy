@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { requirePermission } from "./access";
 import { actions } from "./actions/catalog";
-import { SAVED_KEY } from "./actions/saved";
+import { savedAction, SAVED_KEY, visiblePresets } from "./actions/saved";
+import { getAction } from "./actions/catalog";
+import { validatePartial } from "./actions/validate";
 import { readSteps } from "./actions/script";
 import {
   AppError,
@@ -117,6 +119,63 @@ export const savedTools: Tool[] = [
       return { key, status: "checking", job };
     },
     ["models.edit", "builds.run"],
+  ),
+  define(
+    "presets_save",
+    "Save a preset: a named, described set of input values for one action (a built-in id or a saved action id@version), such as an M3 counterbore. Presets may leave inputs out; steps_add with preset fills them in, and explicit inputs win. Project scope by default; team scope needs the settings permission.",
+    {
+      projectId: id,
+      id: actionId,
+      expectedVersion: z.number().int().nonnegative(),
+      action: z.string().max(48),
+      name: z.string().trim().min(1).max(80),
+      description: z.string().trim().min(1).max(500),
+      inputs: z.record(z.string(), z.unknown()),
+      scope: z.enum(["project", "team"]).default("project"),
+    },
+    false,
+    async (c, i) => {
+      await projectAccess(c, i.projectId);
+      if (i.scope === "team") requirePermission(c, "settings.manage");
+      const record = SAVED_KEY.test(i.action)
+        ? (await savedAction(c, i.projectId, i.action)).record
+        : getAction(i.action);
+      validatePartial(record, i.inputs);
+      const version = i.expectedVersion + 1;
+      const inserted = await c.env.DB.prepare(
+        "INSERT INTO presets (id,version,action,name,description,inputs,scope,project_id,created_by,created_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE COALESCE((SELECT MAX(version) FROM presets WHERE id=?),0)=?",
+      )
+        .bind(
+          i.id,
+          version,
+          i.action,
+          i.name,
+          i.description,
+          JSON.stringify(i.inputs),
+          i.scope,
+          i.scope === "project" ? i.projectId : null,
+          c.identity.email,
+          now(),
+          i.id,
+          i.expectedVersion,
+        )
+        .run();
+      if (inserted.meta.changes !== 1)
+        throw new AppError(409, "Preset changed. Reload first");
+      return { id: i.id, version };
+    },
+    "models.edit",
+  ),
+  define(
+    "presets_list",
+    "List the presets you may use in a project (team presets everywhere), latest version of each, optionally for one action.",
+    { projectId: id.optional(), action: z.string().max(48).optional() },
+    true,
+    async (c, i) => {
+      if (i.projectId) await projectAccess(c, i.projectId, "read");
+      const presets = await visiblePresets(c, i.projectId ?? null);
+      return presets.filter((p) => !i.action || p.action === i.action);
+    },
   ),
   define(
     "actions_status",

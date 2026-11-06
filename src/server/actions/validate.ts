@@ -246,3 +246,23 @@ export function validateInputs(
   }
   return inputs as Record<string, StepValue>;
 }
+
+/** Checks the inputs a preset fixes: each must be an input of the action with a valid value. */
+export function validatePartial(
+  action: ActionRecord,
+  inputs: unknown,
+): Record<string, StepValue> {
+  if (!plain(inputs)) throw new AppError(400, "inputs must be an object");
+  const props = (action.inputs.properties ?? {}) as Record<string, JsonSchema>;
+  try {
+    for (const [key, value] of Object.entries(inputs)) {
+      if (!(key in props))
+        throw new Invalid(`${key} is not an input of ${action.id}`);
+      check(props[key], value, key);
+    }
+  } catch (error) {
+    if (error instanceof Invalid) throw new AppError(400, error.message);
+    throw error;
+  }
+  return inputs as Record<string, StepValue>;
+}

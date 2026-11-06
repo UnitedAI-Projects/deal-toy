@@ -193,3 +193,52 @@ export function checkVerdict(
     };
   return { status: "ready", record: record.data as ActionRecord };
 }
+
+export type Preset = {
+  id: string;
+  version: number;
+  action: string;
+  name: string;
+  description: string;
+  inputs: Record<string, unknown>;
+  scope: "project" | "team";
+  createdAt: string;
+};
+type PresetRow = Omit<Preset, "inputs" | "createdAt"> & {
+  inputs: string;
+  created_at: string;
+};
+const PRESET_VISIBLE = "(scope='team' OR project_id=?)";
+const toPreset = ({ inputs, created_at, ...row }: PresetRow): Preset => ({
+  ...row,
+  inputs: JSON.parse(inputs) as Record<string, unknown>,
+  createdAt: created_at,
+});
+
+/** The latest version of every preset the project may use. */
+export async function visiblePresets(
+  c: Context,
+  projectId: string | null,
+): Promise<Preset[]> {
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM presets p WHERE ${PRESET_VISIBLE} AND version=(SELECT MAX(version) FROM presets WHERE id=p.id) ORDER BY action, name`,
+  )
+    .bind(projectId ?? "")
+    .all<PresetRow>();
+  return results.map(toPreset);
+}
+
+/** One preset by id, latest version, if the project may use it. */
+export async function presetFor(
+  c: Context,
+  projectId: string,
+  id: string,
+): Promise<Preset> {
+  const row = await c.env.DB.prepare(
+    `SELECT * FROM presets WHERE id=? AND ${PRESET_VISIBLE} ORDER BY version DESC LIMIT 1`,
+  )
+    .bind(id, projectId)
+    .first<PresetRow>();
+  if (!row) throw new AppError(404, `No preset ${id}`);
+  return toPreset(row);
+}

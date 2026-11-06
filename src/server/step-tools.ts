@@ -18,7 +18,7 @@ import {
   writeSteps,
   type StepValue,
 } from "./actions/script";
-import { savedAction } from "./actions/saved";
+import { presetFor, savedAction, SAVED_KEY } from "./actions/saved";
 import { validateInputs } from "./actions/validate";
 import { AppError, id, modelAccess, type Context } from "./core";
 import { define, queueBuild, saveRevision, type Tool } from "./tool-kit";
@@ -112,6 +112,36 @@ async function checked(
   return validateInputs(getAction(action), inputs, saved);
 }
 
+/** Inputs for a new step: a preset's values, overridden by explicit ones, then fully validated. */
+async function withPreset(
+  c: Context,
+  projectId: string,
+  action: string,
+  inputs: Record<string, unknown>,
+  presetId?: string,
+) {
+  if (!presetId) return checked(c, projectId, action, inputs);
+  const preset = await presetFor(c, projectId, presetId);
+  const saved = SAVED_KEY.test(preset.action);
+  if ((saved ? "custom" : preset.action) !== action)
+    throw new AppError(
+      400,
+      `Preset ${presetId} is for ${preset.action}, not ${action}`,
+    );
+  const merged = {
+    ...preset.inputs,
+    ...(saved ? { action: preset.action } : {}),
+    ...inputs,
+  };
+  try {
+    return await checked(c, projectId, action, merged);
+  } catch (error) {
+    if (error instanceof AppError && error.status === 400)
+      throw new AppError(400, `Preset ${presetId}: ${error.message}`);
+    throw error;
+  }
+}
+
 function existing(steps: ReturnType<typeof readSteps>["steps"], name: string) {
   const step = steps.find((s) => s.name === name);
   if (!step) throw new AppError(404, `No step named "${name}"`);
@@ -188,13 +218,14 @@ export const stepTools: Tool[] = [
   ),
   define(
     "steps_add",
-    "Add one modeling action as a named step, saved as a new revision and built. Call actions_list for the catalog and actions_describe for the action's inputs. References: {ref:'face',of:'Base',name:'top'}, {ref:'face',of:'Base',normal:[0,0,1],near:[x,y,z]}, {ref:'edges',of:'Base',around:'top'} or between:['top','front'], {ref:'datum',name}, {ref:'part',label}; a number may be {param:'NAME'} from PARAMS. Inserted after `after` when given, else last.",
+    "Add one modeling action as a named step, saved as a new revision and built. Call actions_list for the catalog and actions_describe for the action's inputs. References: {ref:'face',of:'Base',name:'top'}, {ref:'face',of:'Base',normal:[0,0,1],near:[x,y,z]}, {ref:'edges',of:'Base',around:'top'} or between:['top','front'], {ref:'datum',name}, {ref:'part',label}; a number may be {param:'NAME'} from PARAMS. Inserted after `after` when given, else last. With preset, a saved preset's inputs are filled in first and explicit inputs win.",
     {
       ...target,
       action: z.string().max(40),
       name: stepName,
       inputs,
       after: stepName.optional(),
+      preset: z.string().max(40).optional(),
     },
     false,
     async (c, i) =>
@@ -203,7 +234,7 @@ export const stepTools: Tool[] = [
         step: {
           action: i.action,
           name: i.name,
-          inputs: await checked(c, projectId, i.action, i.inputs),
+          inputs: await withPreset(c, projectId, i.action, i.inputs, i.preset),
         },
         after: i.after,
       })),
