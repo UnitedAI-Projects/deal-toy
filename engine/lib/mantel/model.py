@@ -107,6 +107,10 @@ class Model:
         return step
 
     def result(self):
+        from . import saved
+
+        if saved._CHECK:
+            saved.run_check(self)
         if not self.parts:
             raise ValueError("The model has no parts; add a body step or return parts from base()")
         children = []

@@ -1516,22 +1516,38 @@
       "version": 1,
       "title": "Custom step",
       "category": "Custom",
-      "summary": "Run a Python function from this script as a step, for anything the other actions do not cover.",
-      "description": "Use only when no action fits. The function is defined at top level in the script, outside the steps section, as def name(m, **inputs), and may return a dict of created names to faces. Every other keyword argument is passed to it. If you write the same function twice, offer to save it for reuse.",
+      "summary": "Run a saved custom action, or a Python function from this script, for anything the other actions do not cover.",
+      "description": "Give exactly one of action= (a saved action as id@version, listed by actions_list; its own inputs follow) or fn= (a top-level function in this script, defined outside the steps section as def name(m, **inputs), returning a dict of created names to faces). Every other keyword argument is passed on. Prefer a saved action; save a function you need twice with actions_save.",
       "inputs": {
         "type": "object",
         "properties": {
           "fn": {
             "x-ref": "fn",
-            "description": "The top-level function to run, by name"
+            "description": "A top-level function in this script to run, by name"
+          },
+          "action": {
+            "type": "string",
+            "description": "A saved action as id@version, for example finger-notch@2",
+            "minLength": 3,
+            "maxLength": 48
           }
         },
-        "required": ["fn"],
+        "required": [],
         "additionalProperties": true
       },
       "selections": [],
       "creates": {},
       "failures": [
+        {
+          "code": "action_not_found",
+          "explanation": "The saved action this step uses is not available to this model: it does not exist, is not ready, or belongs to another project.",
+          "fix": "Check the id and version with actions_list, or save the action for this project."
+        },
+        {
+          "code": "action_rejected",
+          "explanation": "The saved action's source could not be loaded.",
+          "fix": "Fix the action and save a new version."
+        },
         {
           "code": "invalid_input",
           "explanation": "An input is missing, has the wrong type or is out of range.",

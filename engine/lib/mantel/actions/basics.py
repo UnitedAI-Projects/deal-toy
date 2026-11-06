@@ -4,7 +4,9 @@ import math
 import build123d as bd
 
 from .. import geometry as g
+from .. import saved
 from ..model import StepError, builtin
+from ..schema import InvalidInput, check_object
 
 BOTTOM = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
 
@@ -66,7 +68,16 @@ def plane(m, name, method, reference=None, distance=0, about=None, angle=None, b
 
 
 @builtin("custom")
-def custom(m, name, fn, **inputs):
+def custom(m, name, fn=None, action=None, **inputs):
+    if (fn is None) == (action is None):
+        raise StepError("invalid_input", "A custom step needs exactly one of fn= (a function in this script) "
+                        "or action= (a saved action as id@version)")
+    if action is not None:
+        record, fn = saved.resolve(action)
+        try:
+            inputs = check_object(record["inputs"], inputs)
+        except InvalidInput as error:
+            raise StepError("invalid_input", str(error)) from None
     created = fn(m, **inputs)
     if created is None:
         return {}
