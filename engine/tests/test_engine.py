@@ -110,7 +110,7 @@ def test_export_under_same_user_thread_pressure():
             thread.start()
         result = execute("import build123d as bd\ndef build():\n    return bd.Box(10, 20, 30)\n")
         assert {a["name"] for a in result["artifacts"]} == {
-            "model.step", "model.stl", "model.glb", "facts.json"}
+            "model.step", "model.stl", "model.glb", "facts.json", "inspect.json"}
     finally:
         stop.set()
         for thread in threads:
