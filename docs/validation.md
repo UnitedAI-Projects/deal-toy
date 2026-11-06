@@ -177,3 +177,11 @@ Branch `feat/modeling-actions-core`, implementing `docs/superpowers/plans/2026-1
 - The reference model `examples/deal_toy_steps.py` built in the CAD container with all seven steps `ok`. Its holes stayed on the intended face across `BLOCK_W` 40–150 mm and `HOLE_D` 2–10 mm, checked on the exported STEP. A face query left with two equally near candidates by a parameter change failed with `ambiguous_reference` instead of choosing one.
 - In the app (local `wrangler dev` with the local CAD container), the timeline showed the seven steps; turning off `Mount hole 2` saved revision 2, rebuilt it, greyed the step and logged "Turned off step". Light, dark and 390 px layouts were checked; the step strip scrolls inside its row without page overflow. Screenshot: `docs/images/workspace-steps.png`.
 - Not yet covered: saved custom actions and presets, view as of a step, and the toolbar, forms and pick-to-fill references, which follow in two later plans.
+
+## Saved actions, presets and view-as-of — 2026-11-05
+
+Branch `feat/saved-actions`, implementing `docs/superpowers/plans/2026-11-05-saved-actions.md`. Local evidence; not yet deployed.
+
+- `npm run check` passed (formatting, types, Worker tests, build, audit, ruff, engine tests, Wrangler dry run). Engine tests that need the Liberation fonts or Linux skip on macOS and passed inside the CAD image built from this branch.
+- In the local app (`wrangler dev` with the local CAD container): `examples/saved_actions/finger_notch.py` was saved with `actions_save`; its check build ran the example against the model and the version became `ready`. Added as a step with `steps_add` (`action: "finger-notch@1"`), it built `ok` and created `notch`, and the timeline showed it as step 8. `builds_view_as_of` at step 2 returned a preview build of only the first two steps, and the timeline's "View as of this step" showed the model at step 3 with later features hidden (`docs/images/workspace-as-of.png`).
+- An automated security review of the branch found that versions still being checked were readable by anyone, and that another project could save the next version of an action or preset id. Both are fixed: unready versions are visible only to their maker and those who may change them, and an id belongs to the project (or team) that saved its first version.

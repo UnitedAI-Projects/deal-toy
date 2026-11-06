@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 ENGINE = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ENGINE), str(ENGINE / "lib")]
+sys.path[:0] = [str(ENGINE), str(ENGINE / "lib"), str(ENGINE / "tests")]
 import mantel
 from mantel.schema import check_object
 from runner import build
@@ -163,3 +163,16 @@ def test_service_rejects_bad_modules():
         execute("def build():\n    return 1\n", modules={"Bad Key": "x"})
     with pytest.raises(ValueError, match="check"):
         execute("def build():\n    return 1\n", modules={}, check="finger-notch@1")
+
+
+ROOT = ENGINE.parent
+
+
+@pytest.mark.skipif(not __import__("test_mantel").has_font(), reason="Liberation Sans is installed in the build image and CI only")
+def test_example_action_checks(tmp_path):
+    example = (ROOT / "examples/saved_actions/finger_notch.py").read_text()
+    facts = build(ROOT / "examples/deal_toy_steps.py", tmp_path / "out",
+                  modules=saved_dir(tmp_path, {"finger-notch@1": example}), check="finger-notch@1")
+    check = facts["check"]
+    assert "error" not in check, check
+    assert (check["step"]["state"], check["step"]["created"]) == ("ok", ["notch"])

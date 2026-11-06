@@ -26,6 +26,10 @@ The STEP round-trip test reopens the export and checks its validity, bounds and 
 uv run --project engine python engine/runner.py examples/deal_toy_steps.py work/deal-toy
 ```
 
+## Saved action
+
+[saved_actions/finger_notch.py](saved_actions/finger_notch.py) is a reference custom action. Its `@mt.action` decorator describes it the same way the built-in catalog describes its actions: summary, described inputs, created names and an example. Save it through the `actions_save` tool; Mantel builds the model with the example appended and lists the action once the example step is `ok`.
+
 ## Brand model
 
 [brand/](brand/README.md) holds the Mantel name shown on the sign-in screen: its build123d source, exports and the bundled Inter font with its license.

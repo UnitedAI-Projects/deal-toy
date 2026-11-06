@@ -623,6 +623,14 @@ function summarize(name: string, input: unknown, value: unknown) {
       return `Read the ${i.id} action`;
     case "steps_list":
       return "Read the model's steps";
+    case "actions_save":
+      return `Saved action ${v.key} for checking`;
+    case "actions_status":
+      return `Read the status of ${i.key}`;
+    case "presets_save":
+      return `Saved preset ${v.id} v${v.version}`;
+    case "presets_list":
+      return "Read the presets";
     case "builds_view_as_of":
       return `Viewed the model as of "${i.step}"`;
     case "documents_add":

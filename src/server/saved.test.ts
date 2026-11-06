@@ -384,3 +384,45 @@ describe("actions_save", () => {
     expect(body.check).toBeUndefined();
   });
 });
+
+describe("activity summaries", () => {
+  it("records saves in plain words", async () => {
+    const { p, m } = await seeded();
+    const { dispatch } = await import("./tools");
+    await dispatch(
+      carol,
+      "actions_save",
+      {
+        modelId: m.id,
+        id: "summary-notch",
+        expectedVersion: 0,
+        source: SOURCE,
+      },
+      "http",
+    );
+    await dispatch(
+      carol,
+      "presets_save",
+      {
+        projectId: p.id,
+        id: "summary-preset",
+        expectedVersion: 0,
+        action: "hole",
+        name: "M3",
+        description: "M3 clearance.",
+        inputs: { diameter: 3.4 },
+      },
+      "http",
+    );
+    const { events } = (await execute(carol, "projects_activity", {
+      projectId: p.id,
+    })) as {
+      events: { payload: { summary?: string } }[];
+    };
+    const summaries = events.map((e) => e.payload.summary).filter(Boolean);
+    expect(summaries).toEqual([
+      "Saved action summary-notch@1 for checking",
+      "Saved preset summary-preset v1",
+    ]);
+  });
+});

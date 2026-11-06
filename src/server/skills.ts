@@ -3,7 +3,7 @@ import manufacturing from "../../skills/manufacturing/SKILL.md";
 export const builtinSkills = [
   {
     id: "modeling",
-    version: 1,
+    version: 2,
     title: "Model and verify",
     description:
       "Build123d modeling, revision handling and geometry validation.",
