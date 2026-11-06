@@ -168,3 +168,12 @@ Two more timing probes showed the effect of compiled bytecode:
 | Slow host    | 30.7 s                  | 21.9 s      |
 
 On a typical host the demo model has ample margin. The slow host ran about 2.5× slower, and a model this large could still exceed 60 s there. Probe exports used build123d's defaults, so they are not the runner's export times.
+
+## Modeling actions core — 2026-11-05
+
+Branch `feat/modeling-actions-core`, implementing `docs/superpowers/plans/2026-11-05-modeling-actions-core.md`. Local evidence only; not deployed.
+
+- `npm run check` passed: formatting, type checks, 182 Worker tests, browser build, dependency audit, ruff, 34 engine tests with 10 skips, and the Wrangler dry run. The skipped engine tests need the Liberation fonts or Linux; all 44 engine tests passed inside the CAD image built from this branch, and CI now installs `fonts-liberation`.
+- The reference model `examples/deal_toy_steps.py` built in the CAD container with all seven steps `ok`. Its holes stayed on the intended face across `BLOCK_W` 40–150 mm and `HOLE_D` 2–10 mm, checked on the exported STEP. A face query left with two equally near candidates by a parameter change failed with `ambiguous_reference` instead of choosing one.
+- In the app (local `wrangler dev` with the local CAD container), the timeline showed the seven steps; turning off `Mount hole 2` saved revision 2, rebuilt it, greyed the step and logged "Turned off step". Light, dark and 390 px layouts were checked; the step strip scrolls inside its row without page overflow. Screenshot: `docs/images/workspace-steps.png`.
+- Not yet covered: saved custom actions and presets, view as of a step, and the toolbar, forms and pick-to-fill references, which follow in two later plans.
