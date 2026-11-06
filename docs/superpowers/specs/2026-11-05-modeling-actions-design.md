@@ -67,19 +67,19 @@ These would make it a failure even if it technically works:
 
 Every action, built-in or custom, is one record:
 
-| Field | Purpose |
-|---|---|
-| `id`, `version` | Stable id such as `hole`, and an integer version. A script call pins the version it was written against. |
-| `title`, `category` | Toolbar label and group: Create, Modify, Construct, Combine, Arrange, Custom. |
-| `summary` | One line, shown in the toolbar tooltip and in the agent's always-on index. At most 120 characters. |
-| `description` | When to use it, when not to, and how it differs from similar actions. Shown in the form and in `actions_describe`. |
-| `inputs` | A JSON Schema object. Every property has a `description`, and numeric ones a `unit` and range. Variants are a `oneOf` with a described discriminator, for example hole `kind`: simple, counterbore, countersink. |
-| `selections` | Which inputs take a pick, and of what kind: `face`, `edge`, `plane`, `point`, `part`, and how many. |
-| `creates` | The names the step gives to what it makes, each described, for example hole creates `wall`, `floor`, and for counterbores `counterbore_wall`. |
-| `failures` | Each way the action can fail, with a code, a plain explanation and the usual fix. For example `face_not_found`: "the face this step was placed on no longer exists; pick it again". |
-| `preview` | The ghost-preview primitive: `plane`, `cylinder`, `prism`, `text`, `bodies`, or `none`. |
-| `example` | One complete example call, used in the description and as the build test for custom actions. |
-| `scope`, `created_by`, `created_at` | Built-in, project or team; who saved it and when. |
+| Field                               | Purpose                                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `version`                     | Stable id such as `hole`, and an integer version. A script call pins the version it was written against.                                                                                                         |
+| `title`, `category`                 | Toolbar label and group: Create, Modify, Construct, Combine, Arrange, Custom.                                                                                                                                    |
+| `summary`                           | One line, shown in the toolbar tooltip and in the agent's always-on index. At most 120 characters.                                                                                                               |
+| `description`                       | When to use it, when not to, and how it differs from similar actions. Shown in the form and in `actions_describe`.                                                                                               |
+| `inputs`                            | A JSON Schema object. Every property has a `description`, and numeric ones a `unit` and range. Variants are a `oneOf` with a described discriminator, for example hole `kind`: simple, counterbore, countersink. |
+| `selections`                        | Which inputs take a pick, and of what kind: `face`, `edge`, `plane`, `point`, `part`, and how many.                                                                                                              |
+| `creates`                           | The names the step gives to what it makes, each described, for example hole creates `wall`, `floor`, and for counterbores `counterbore_wall`.                                                                    |
+| `failures`                          | Each way the action can fail, with a code, a plain explanation and the usual fix. For example `face_not_found`: "the face this step was placed on no longer exists; pick it again".                              |
+| `preview`                           | The ghost-preview primitive: `plane`, `cylinder`, `prism`, `text`, `bodies`, or `none`.                                                                                                                          |
+| `example`                           | One complete example call, used in the description and as the build test for custom actions.                                                                                                                     |
+| `scope`, `created_by`, `created_at` | Built-in, project or team; who saved it and when.                                                                                                                                                                |
 
 **Built-in actions** are defined once in a repository catalog file. The Worker bundles it to serve descriptions, and the engine image bundles it to validate calls. A test fails if a catalog entry has no engine implementation or an implementation has no catalog entry. **Custom actions** live in D1 with the same fields plus their Python source, versioned like skills (`skills_save`'s expected-version insert). _(my call: the builder may choose the file format, JSON or TypeScript emitted to JSON.)_
 
@@ -135,14 +135,14 @@ This requires the inspect record (PR #28) to add, per face, the names that resol
 
 The engine runs steps in order and records each one in the build facts as `steps: [{name, action, version, state, code?, message?, created: [...], ms}]`:
 
-| State | Meaning |
-|---|---|
-| `ok` | Ran and produced valid geometry. |
-| `warning` | Ran, but something needs attention, such as a fillet radius clamped or text running past the face. |
-| `failed` | Did not run. The model continues without it. Carries a failure code from the action record. |
-| `blocked` | Not run because it refers to something a failed or suppressed step would have created. |
-| `suppressed` | Turned off by the person or agent. |
-| `pending` | Saved but not yet built. Shown in the viewer only. |
+| State        | Meaning                                                                                            |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| `ok`         | Ran and produced valid geometry.                                                                   |
+| `warning`    | Ran, but something needs attention, such as a fillet radius clamped or text running past the face. |
+| `failed`     | Did not run. The model continues without it. Carries a failure code from the action record.        |
+| `blocked`    | Not run because it refers to something a failed or suppressed step would have created.             |
+| `suppressed` | Turned off by the person or agent.                                                                 |
+| `pending`    | Saved but not yet built. Shown in the viewer only.                                                 |
 
 **A build with any failed or blocked step still produces artifacts**, so the person can see and fix it, but the build is marked `incomplete` in its facts. The viewer shows a red timeline badge. `inspect` checks on an incomplete build report `unknown`, never pass. _(my call: matches how Fusion keeps going past a broken feature, without letting a partial model pass checks.)_ An error outside the steps, in `base()` or in the script itself, still fails the build as today.
 
@@ -154,18 +154,18 @@ The timeline has a rollback marker. Choosing "view as of step N" queues a build 
 
 **Batch 1** (deal-toy first):
 
-| Action | Does | Key inputs |
-|---|---|---|
-| `body` | Adds a new labelled part from a primitive. | box, rounded box, cylinder, cone, sphere; size; placement on a plane or point |
-| `plane` | Adds a construction plane. | offset from a face or plane; angle about an edge; midplane between two faces; through three points |
-| `extrude` | Extrudes a profile from a face or plane. | profile shape and size; distance, symmetric, or up to a face; taper angle; operation new, join or cut |
-| `hole` | Cuts a hole. | simple, counterbore, countersink; diameter and depths; position by point, by offsets from two edges, or centred; depth by distance, through all or up to a face |
-| `fillet` | Rounds edges. | edges; radius |
-| `chamfer` | Bevels edges. | edges; distance, or distance and angle |
-| `text` | Engraves or embosses text on a face. | text; font from the installed set; height; depth; alignment and offset on the face |
-| `combine` | Joins, cuts or intersects parts. | target; tool; operation; keep tool. Cut with keep tool makes an embed cavity |
-| `move` | Moves or aligns a part. | translate; rotate about an axis; align a face to a face with an offset |
-| `custom` | Runs a saved custom action. | the custom action's own inputs |
+| Action    | Does                                       | Key inputs                                                                                                                                                      |
+| --------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `body`    | Adds a new labelled part from a primitive. | box, rounded box, cylinder, cone, sphere; size; placement on a plane or point                                                                                   |
+| `plane`   | Adds a construction plane.                 | offset from a face or plane; angle about an edge; midplane between two faces; through three points                                                              |
+| `extrude` | Extrudes a profile from a face or plane.   | profile shape and size; distance, symmetric, or up to a face; taper angle; operation new, join or cut                                                           |
+| `hole`    | Cuts a hole.                               | simple, counterbore, countersink; diameter and depths; position by point, by offsets from two edges, or centred; depth by distance, through all or up to a face |
+| `fillet`  | Rounds edges.                              | edges; radius                                                                                                                                                   |
+| `chamfer` | Bevels edges.                              | edges; distance, or distance and angle                                                                                                                          |
+| `text`    | Engraves or embosses text on a face.       | text; font from the installed set; height; depth; alignment and offset on the face                                                                              |
+| `combine` | Joins, cuts or intersects parts.           | target; tool; operation; keep tool. Cut with keep tool makes an embed cavity                                                                                    |
+| `move`    | Moves or aligns a part.                    | translate; rotate about an axis; align a face to a face with an offset                                                                                          |
+| `custom`  | Runs a saved custom action.                | the custom action's own inputs                                                                                                                                  |
 
 **Batch 2:** `shell`, `pattern` (linear and circular), `mirror`, `split` (by plane or face), `offset_face` (Press Pull on any face).
 
