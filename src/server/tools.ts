@@ -118,10 +118,10 @@ export const tools: Tool[] = [
             "SELECT revisions.* FROM revisions JOIN models ON models.id=revisions.model_id WHERE models.project_id=? ORDER BY number DESC",
           ).bind(i.projectId),
           c.env.DB.prepare(
-            "SELECT jobs.* FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=? ORDER BY created_at DESC",
+            "SELECT jobs.* FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=? AND jobs.purpose='build' ORDER BY created_at DESC",
           ).bind(i.projectId),
           c.env.DB.prepare(
-            "SELECT artifacts.* FROM artifacts JOIN jobs ON jobs.id=artifacts.job_id JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=?",
+            "SELECT artifacts.* FROM artifacts JOIN jobs ON jobs.id=artifacts.job_id JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=? AND jobs.purpose='build'",
           ).bind(i.projectId),
           c.env.DB.prepare(
             "SELECT * FROM documents WHERE project_id=? ORDER BY created_at DESC",
@@ -273,7 +273,8 @@ export const tools: Tool[] = [
         started_at: now(),
       };
       await c.env.DB.prepare(
-        "INSERT INTO sessions VALUES (?,?,?,?,?,?,NULL,?,NULL,?)",
+        // catalog_seen starts now: the session start lists the whole catalog.
+        "INSERT INTO sessions (id,project_id,member,client,prompt,title,summary,started_at,ended_at,last_event_at,catalog_seen) VALUES (?,?,?,?,?,?,NULL,?,NULL,?,?)",
       )
         .bind(
           session.id,
@@ -282,6 +283,7 @@ export const tools: Tool[] = [
           i.client ?? null,
           i.prompt,
           i.title ?? null,
+          session.started_at,
           session.started_at,
           session.started_at,
         )
@@ -435,7 +437,7 @@ export const tools: Tool[] = [
         .first<{ id: string; source: string }>();
       if (!revision) throw new AppError(404, "Revision not found");
       const job = await c.env.DB.prepare(
-        "SELECT facts FROM jobs WHERE revision_id=? AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
+        "SELECT facts FROM jobs WHERE revision_id=? AND purpose='build' AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
       )
         .bind(revision.id)
         .first<{ facts: string }>();

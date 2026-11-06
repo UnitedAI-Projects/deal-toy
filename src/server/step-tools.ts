@@ -36,7 +36,7 @@ const seesSource = (c: Context, owner: string) =>
 
 async function latestFacts(c: Context, revisionId: string) {
   const job = await c.env.DB.prepare(
-    "SELECT facts FROM jobs WHERE revision_id=? AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
+    "SELECT facts FROM jobs WHERE revision_id=? AND purpose='build' AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
   )
     .bind(revisionId)
     .first<{ facts: string }>();

@@ -102,7 +102,7 @@ export async function modelContext(
     .first<{ id: string; source: string }>();
   if (!revision) return `Model "${model.name}" has no revision yet.`;
   const job = await c.env.DB.prepare(
-    "SELECT status,facts FROM jobs WHERE revision_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    "SELECT status,facts FROM jobs WHERE revision_id=? AND purpose='build' ORDER BY created_at DESC, rowid DESC LIMIT 1",
   )
     .bind(revision.id)
     .first<{ status: SummaryInput["status"]; facts: string | null }>();
