@@ -36,6 +36,15 @@ def reset_log():
     _LAST = None
 
 
+_STOP_AFTER = None
+
+
+def set_stop_after(count):
+    """Run only the first `count` steps (None runs all). Later steps are neither run nor logged."""
+    global _STOP_AFTER
+    _STOP_AFTER = count
+
+
 class StepError(Exception):
     """A known failure, with a code from the action's catalog record."""
 
@@ -192,6 +201,8 @@ class Model:
         return value
 
     def _run(self, action_id, name, suppressed, inputs):
+        if _STOP_AFTER is not None and len(self.log) >= _STOP_AFTER:
+            return
         action = ACTIONS[action_id]
         entry = {"name": str(name)[:80], "action": action_id, "version": action["version"],
                  "state": "ok", "created": [], "ms": 0}

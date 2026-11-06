@@ -24,7 +24,15 @@ const artifact = z.object({
   mediaType: z.string(),
   base64: z.string().max(22_000_000),
 });
-const resultSchema = z.object({ artifacts: z.array(artifact).length(4) });
+const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(4) });
+/** A view-as-of preview exports only the viewer mesh and facts. */
+const PREVIEW = ["model.glb", "facts.json"];
+const jobOptions = z
+  .object({
+    stopAfter: z.number().int().min(1).max(300).optional(),
+    check: z.string().max(48).optional(),
+  })
+  .strict();
 const paramSpec = z
   .object({
     value: z.number().finite(),
@@ -75,6 +83,8 @@ export const factsSchema = z.object({
     .max(300)
     .optional(),
   incomplete: z.boolean().optional(),
+  /** Set on view-as-of builds: only the first N steps ran. */
+  stoppedAfter: z.number().int().positive().optional(),
 });
 const media: Record<string, string> = {
   "model.step": "application/step",
@@ -88,7 +98,13 @@ export async function consume(message: Message<unknown>, env: Env) {
     "SELECT jobs.*,revisions.source,models.project_id FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE jobs.id=?",
   )
     .bind(jobId)
-    .first<{ status: string; source: string; project_id: string }>();
+    .first<{
+      status: string;
+      source: string;
+      project_id: string;
+      purpose: "build" | "check" | "view";
+      options: string | null;
+    }>();
   if (!job || job.status === "succeeded" || job.status === "failed") {
     message.ack();
     return;
@@ -109,6 +125,19 @@ export async function consume(message: Message<unknown>, env: Env) {
     return;
   }
   await notify(env, job.project_id, { type: "workspace" });
+  // Options are written by the Worker; anything unreadable runs as a plain build.
+  let parsed: unknown = {};
+  try {
+    parsed = job.options ? JSON.parse(job.options) : {};
+  } catch {
+    parsed = {};
+  }
+  const options = jobOptions.safeParse(parsed).data ?? {};
+  const preview = job.purpose === "view";
+  const payload: Record<string, unknown> = { source: job.source };
+  if (preview)
+    Object.assign(payload, { stopAfter: options.stopAfter, preview });
+  const expected: string[] = preview ? PREVIEW : Object.keys(media);
   const container = env.CAD.getByName(jobId);
   const keys: string[] = [];
   try {
@@ -116,7 +145,7 @@ export async function consume(message: Message<unknown>, env: Env) {
       new Request("http://cad/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: job.source }),
+        body: JSON.stringify(payload),
       }),
     );
     const text = await boundedText(
@@ -140,7 +169,12 @@ export async function consume(message: Message<unknown>, env: Env) {
       );
     }
     const result = resultSchema.parse(JSON.parse(text));
-    if (new Set(result.artifacts.map((a) => a.name)).size !== 4)
+    const names: string[] = result.artifacts.map((a) => a.name);
+    if (
+      new Set(names).size !== names.length ||
+      names.length !== expected.length ||
+      !expected.every((n) => names.includes(n))
+    )
       throw new Error("Duplicate or missing exports");
     let total = 0;
     let facts = "{}";

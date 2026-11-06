@@ -1,3 +1,4 @@
+import base64
 import json
 import struct
 import sys
@@ -115,3 +116,18 @@ def test_export_under_same_user_thread_pressure():
         for thread in threads:
             if thread.ident is not None:
                 thread.join(timeout=5)
+
+
+def test_service_preview_returns_glb_and_facts():
+    source = ("import build123d as bd\nimport mantel as mt\n\ndef build():\n    m = mt.Model()\n"
+              "    # mantel:steps begin\n    m.body(\"A\", shape=\"box\", size=(1, 2, 3))\n"
+              "    m.body(\"B\", shape=\"box\", size=(1, 1, 1), at=(5, 0, 0))\n    # mantel:steps end\n    return m.result()\n")
+    result = execute(source, stop_after=1, preview=True)
+    assert [a["name"] for a in result["artifacts"]] == ["model.glb", "facts.json"]
+    facts = json.loads(base64.b64decode(result["artifacts"][1]["base64"]))
+    assert [s["name"] for s in facts["steps"]] == ["A"]
+
+
+def test_service_rejects_bad_options():
+    with pytest.raises(ValueError, match="stopAfter"):
+        execute("def build():\n    return 1\n", stop_after=0)
