@@ -2,6 +2,7 @@
 import base64
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -25,16 +26,45 @@ class HTTPServer(BaseHTTPServer):
         self.server_port = self.server_address[1]
 
 
-def execute(source: str, timeout=60):
+PREVIEW_FILES = ("model.glb", "facts.json")
+
+
+MODULE_KEY = re.compile(r"^[a-z][a-z0-9-]{1,39}@[0-9]{1,6}$")
+
+
+def execute(source: str, timeout=60, stop_after=None, preview=False, modules=None, check=None):
     if not isinstance(source, str) or not 0 < len(source.encode()) <= 100000:
         raise ValueError("Expected Python source up to 100 KB")
+    if stop_after is not None and (isinstance(stop_after, bool) or not isinstance(stop_after, int)
+                                   or not 1 <= stop_after <= 300):
+        raise ValueError("stopAfter must be a step number from 1 to 300")
+    if not isinstance(preview, bool):
+        raise ValueError("preview must be true or false")  # noqa: TRY004 - ValueError is the 400 reply
+    modules = {} if modules is None else modules
+    if not isinstance(modules, dict) or len(modules) > 20 or not all(
+            isinstance(k, str) and MODULE_KEY.match(k) and isinstance(v, str) and 0 < len(v.encode()) <= 100000
+            for k, v in modules.items()):
+        raise ValueError("modules must map up to 20 saved action keys (id@version) to sources up to 100 KB")
+    if check is not None and check not in modules:
+        raise ValueError("check must name one of the modules")
+    options = (["--stop-after", str(stop_after)] if stop_after is not None else []) + (["--preview"] if preview else [])
+    if check is not None:
+        options += ["--check", check]
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         (root / "model.py").write_text(source)
+        if modules:
+            saved = root / "saved"
+            saved.mkdir()
+            for key, text in modules.items():
+                (saved / f"{key}.py").write_text(text)
+                (saved / f"{key}.py").chmod(0o444)
+            saved.chmod(0o555)  # saved actions cannot write beside themselves
+            options += ["--modules", str(saved)]
         with (root / "logs.txt").open("w+") as logs:
             process = subprocess.Popen(
                 [sys.executable, "-I", str(Path(__file__).with_name("runner.py")),
-                 str(root / "model.py"), str(root / "out")],
+                 str(root / "model.py"), str(root / "out"), *options],
                 cwd=root, env={"PATH": os.environ.get("PATH", ""), "HOME": str(root),
                                "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
                 stdout=logs, stderr=logs, start_new_session=True)
@@ -56,6 +86,8 @@ def execute(source: str, timeout=60):
         artifacts = []
         size = 0
         for name, media in FILES.items():
+            if preview and name not in PREVIEW_FILES:
+                continue
             path = root / "out" / name
             if path.is_symlink() or not path.is_file():
                 raise ValueError("Missing or unsafe artifact: " + name)
@@ -94,7 +126,9 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= 150000:
                 raise ValueError("Invalid request size")
             payload = json.loads(self.rfile.read(length))
-            self.reply(200, execute(payload["source"]))
+            self.reply(200, execute(payload["source"], stop_after=payload.get("stopAfter"),
+                                    preview=payload.get("preview", False), modules=payload.get("modules"),
+                                    check=payload.get("check")))
         except (ValueError, KeyError) as error:
             self.reply(400, {"error": str(error)[:4000]})
         except (OSError, subprocess.SubprocessError, TypeError):

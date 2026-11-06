@@ -69,7 +69,14 @@ export async function saveRevision(
     throw new AppError(409, "Model changed. Reload before saving.");
   return { id: revisionId, number: expectedRevision + 1 };
 }
-export async function queueBuild(c: Context, revisionId: string) {
+export type JobPurpose = "build" | "check" | "view";
+/** Queues a job on a revision. Every purpose counts toward the member's daily build cap. */
+export async function queueBuild(
+  c: Context,
+  revisionId: string,
+  purpose: JobPurpose = "build",
+  options?: Record<string, unknown>,
+) {
   await revisionAccess(c, revisionId);
   const limit = Number.parseInt(c.env.DAILY_BUILD_LIMIT, 10) || 100;
   const today = await c.env.DB.prepare(
@@ -81,9 +88,17 @@ export async function queueBuild(c: Context, revisionId: string) {
     throw new AppError(429, "Daily build limit reached");
   const jobId = crypto.randomUUID();
   const admitted = await c.env.DB.prepare(
-    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by) SELECT ?,?,'queued',NULL,NULL,?,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running'))<10",
+    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by,purpose,options) SELECT ?,?,'queued',NULL,NULL,?,?,?,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running'))<10",
   )
-    .bind(jobId, revisionId, now(), now(), c.identity.email)
+    .bind(
+      jobId,
+      revisionId,
+      now(),
+      now(),
+      c.identity.email,
+      purpose,
+      options ? JSON.stringify(options) : null,
+    )
     .run();
   if (admitted.meta.changes !== 1)
     throw new AppError(429, "Build queue is full; try later");

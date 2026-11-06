@@ -3,6 +3,12 @@ import { z } from "zod";
 import { boundedText, hash } from "./core";
 import { fetchCad } from "./cad-runtime";
 import { notify } from "./activity";
+import {
+  checkSchema,
+  checkVerdict,
+  SAVED_KEY,
+  sourcesFor,
+} from "./actions/saved";
 export class CadContainer extends DurableObject<Env> {
   async fetch(request: Request) {
     const container = this.ctx.container;
@@ -24,7 +30,15 @@ const artifact = z.object({
   mediaType: z.string(),
   base64: z.string().max(22_000_000),
 });
-const resultSchema = z.object({ artifacts: z.array(artifact).length(4) });
+const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(4) });
+/** A view-as-of preview exports only the viewer mesh and facts. */
+const PREVIEW = ["model.glb", "facts.json"];
+const jobOptions = z
+  .object({
+    stopAfter: z.number().int().min(1).max(300).optional(),
+    check: z.string().max(48).optional(),
+  })
+  .strict();
 const paramSpec = z
   .object({
     value: z.number().finite(),
@@ -75,6 +89,10 @@ export const factsSchema = z.object({
     .max(300)
     .optional(),
   incomplete: z.boolean().optional(),
+  /** Set on view-as-of builds: only the first N steps ran. */
+  stoppedAfter: z.number().int().positive().optional(),
+  /** Set on saved-action check builds: the candidate's record and its example step. */
+  check: checkSchema.optional(),
 });
 const media: Record<string, string> = {
   "model.step": "application/step",
@@ -88,7 +106,13 @@ export async function consume(message: Message<unknown>, env: Env) {
     "SELECT jobs.*,revisions.source,models.project_id FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE jobs.id=?",
   )
     .bind(jobId)
-    .first<{ status: string; source: string; project_id: string }>();
+    .first<{
+      status: string;
+      source: string;
+      project_id: string;
+      purpose: "build" | "check" | "view";
+      options: string | null;
+    }>();
   if (!job || job.status === "succeeded" || job.status === "failed") {
     message.ack();
     return;
@@ -109,14 +133,59 @@ export async function consume(message: Message<unknown>, env: Env) {
     return;
   }
   await notify(env, job.project_id, { type: "workspace" });
+  // Options are written by the Worker; anything unreadable runs as a plain build.
+  let parsed: unknown = {};
+  try {
+    parsed = job.options ? JSON.parse(job.options) : {};
+  } catch {
+    parsed = {};
+  }
+  const options = jobOptions.safeParse(parsed).data ?? {};
+  const preview = job.purpose === "view";
+  const payload: Record<string, unknown> = { source: job.source };
+  if (preview)
+    Object.assign(payload, { stopAfter: options.stopAfter, preview });
+  const expected: string[] = preview ? PREVIEW : Object.keys(media);
   const container = env.CAD.getByName(jobId);
   const keys: string[] = [];
+  const checking =
+    job.purpose === "check" ? SAVED_KEY.exec(options.check ?? "") : null;
+  const settle = (
+    status: "ready" | "rejected",
+    value: string | null,
+    error: string | null,
+  ) =>
+    env.DB.prepare(
+      "UPDATE saved_actions SET status=?,record=COALESCE(?,record),error=?,job_id=?,ready_at=? WHERE id=? AND version=? AND status='checking'",
+    ).bind(
+      status,
+      value,
+      error,
+      jobId,
+      status === "ready" ? new Date().toISOString() : null,
+      checking?.[1] ?? "",
+      Number(checking?.[2] ?? 0),
+    );
   try {
+    // Saved actions the script pins travel with it; a check build also carries its candidate.
+    const modules = await sourcesFor(env, job.project_id, job.source);
+    if (checking) {
+      const candidate = await env.DB.prepare(
+        "SELECT source FROM saved_actions WHERE id=? AND version=?",
+      )
+        .bind(checking[1], Number(checking[2]))
+        .first<{ source: string }>();
+      if (!candidate)
+        throw new Error("The saved action being checked no longer exists");
+      modules[checking[0]] = candidate.source;
+      payload.check = checking[0];
+    }
+    if (Object.keys(modules).length) payload.modules = modules;
     const response = await container.fetch(
       new Request("http://cad/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: job.source }),
+        body: JSON.stringify(payload),
       }),
     );
     const text = await boundedText(
@@ -140,7 +209,12 @@ export async function consume(message: Message<unknown>, env: Env) {
       );
     }
     const result = resultSchema.parse(JSON.parse(text));
-    if (new Set(result.artifacts.map((a) => a.name)).size !== 4)
+    const names: string[] = result.artifacts.map((a) => a.name);
+    if (
+      new Set(names).size !== names.length ||
+      names.length !== expected.length ||
+      !expected.every((n) => names.includes(n))
+    )
       throw new Error("Duplicate or missing exports");
     let total = 0;
     let facts = "{}";
@@ -179,6 +253,14 @@ export async function consume(message: Message<unknown>, env: Env) {
         "UPDATE jobs SET status='succeeded',facts=?,updated_at=? WHERE id=? AND status='running'",
       ).bind(facts, new Date().toISOString(), jobId),
     );
+    if (checking) {
+      const verdict = checkVerdict(checking[0], JSON.parse(facts).check);
+      statements.push(
+        verdict.status === "ready"
+          ? settle("ready", JSON.stringify(verdict.record), null)
+          : settle("rejected", null, verdict.error),
+      );
+    }
     await env.DB.batch(statements);
     message.ack();
     await notify(env, job.project_id, { type: "workspace" });
@@ -190,6 +272,12 @@ export async function consume(message: Message<unknown>, env: Env) {
     )
       .bind(detail.slice(0, 4000), new Date().toISOString(), jobId)
       .run();
+    if (checking)
+      await settle(
+        "rejected",
+        null,
+        `The check build failed: ${detail}`.slice(0, 600),
+      ).run();
     message.ack();
     await notify(env, job.project_id, { type: "workspace" });
   } finally {

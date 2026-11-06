@@ -103,10 +103,21 @@ def labelled_parts(shape) -> list:
             for child in children[:500]]
 
 
-def build(source: Path, destination: Path) -> dict:
+def build(source: Path, destination: Path, stop_after: int | None = None, preview: bool = False,
+          modules: Path | None = None, check: str | None = None) -> dict:
+    """Builds and exports the model.
+
+    stop_after runs only the first N steps; preview skips STEP/STL; modules is a directory of saved
+    actions (`<id>@<version>.py`); check runs that saved action's example after the model's steps.
+    """
     spec = importlib.util.spec_from_file_location("user_model", source)
     module = importlib.util.module_from_spec(spec)
     mantel.reset_log()
+    mantel.set_stop_after(stop_after)
+    mantel.reset_saved()
+    if modules is not None:
+        mantel.load_saved(modules)
+    mantel.set_check(check)
     spec.loader.exec_module(module)
     shape = module.build()
     if not isinstance(shape, bd.Shape) or not shape.is_valid or not shape.solids():
@@ -119,10 +130,11 @@ def build(source: Path, destination: Path) -> dict:
     destination.mkdir(exist_ok=True)
     # STEP readers rebuild surface curves (pcurves) from the 3D geometry; writing them
     # roughly doubles the file and its export time.
-    if not bd.export_step(shape, destination / "model.step", write_pcurves=False):
-        raise ValueError("STEP export failed")
-    if not bd.export_stl(shape, destination / "model.stl", tolerance=MESH_TOLERANCE):
-        raise ValueError("STL export failed")
+    if not preview:
+        if not bd.export_step(shape, destination / "model.step", write_pcurves=False):
+            raise ValueError("STEP export failed")
+        if not bd.export_stl(shape, destination / "model.stl", tolerance=MESH_TOLERANCE):
+            raise ValueError("STL export failed")
     # The viewer mesh uses the STL tolerances rather than build123d's much finer default.
     bd.export_gltf(shape, destination / "model.glb", binary=True,
                    linear_deflection=MESH_TOLERANCE, angular_deflection=0.1)
@@ -139,6 +151,10 @@ def build(source: Path, destination: Path) -> dict:
     if steps is not None:
         facts["steps"] = steps
         facts["incomplete"] = any(s["state"] in ("failed", "blocked") for s in steps)
+        if stop_after is not None:
+            facts["stoppedAfter"] = stop_after
+    if check is not None:
+        facts["check"] = mantel.last_check() or {"key": check, "error": "The model did not reach m.result()"}
     (destination / "facts.json").write_text(json.dumps(facts))
     return facts
 
@@ -146,4 +162,12 @@ def build(source: Path, destination: Path) -> dict:
 if __name__ == "__main__":
     limits()
     fonts()
-    build(Path(sys.argv[1]), Path(sys.argv[2]))
+    options = sys.argv[3:]
+
+    def option(flag):
+        return options[options.index(flag) + 1] if flag in options else None
+
+    stop = option("--stop-after")
+    modules = option("--modules")
+    build(Path(sys.argv[1]), Path(sys.argv[2]), stop_after=int(stop) if stop else None,
+          preview="--preview" in options, modules=Path(modules) if modules else None, check=option("--check"))

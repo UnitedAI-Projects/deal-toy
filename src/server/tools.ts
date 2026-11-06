@@ -25,7 +25,14 @@ import {
 import { setParameter } from "./params";
 import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
 import { STEP_WRITES, stepTools } from "./step-tools";
+import { savedTools } from "./saved-tools";
 import { catalogIndex } from "./actions/catalog";
+import {
+  catalogNews,
+  savedIndex,
+  visiblePresets,
+  visibleSaved,
+} from "./actions/saved";
 import { modelContext } from "./actions/summary";
 export type { Tool } from "./tool-kit";
 /**
@@ -118,10 +125,10 @@ export const tools: Tool[] = [
             "SELECT revisions.* FROM revisions JOIN models ON models.id=revisions.model_id WHERE models.project_id=? ORDER BY number DESC",
           ).bind(i.projectId),
           c.env.DB.prepare(
-            "SELECT jobs.* FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=? ORDER BY created_at DESC",
+            "SELECT jobs.* FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=? AND jobs.purpose='build' ORDER BY created_at DESC",
           ).bind(i.projectId),
           c.env.DB.prepare(
-            "SELECT artifacts.* FROM artifacts JOIN jobs ON jobs.id=artifacts.job_id JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=?",
+            "SELECT artifacts.* FROM artifacts JOIN jobs ON jobs.id=artifacts.job_id JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE models.project_id=? AND jobs.purpose='build'",
           ).bind(i.projectId),
           c.env.DB.prepare(
             "SELECT * FROM documents WHERE project_id=? ORDER BY created_at DESC",
@@ -273,7 +280,8 @@ export const tools: Tool[] = [
         started_at: now(),
       };
       await c.env.DB.prepare(
-        "INSERT INTO sessions VALUES (?,?,?,?,?,?,NULL,?,NULL,?)",
+        // catalog_seen starts now: the session start lists the whole catalog.
+        "INSERT INTO sessions (id,project_id,member,client,prompt,title,summary,started_at,ended_at,last_event_at,catalog_seen) VALUES (?,?,?,?,?,?,NULL,?,NULL,?,?)",
       )
         .bind(
           session.id,
@@ -282,6 +290,7 @@ export const tools: Tool[] = [
           i.client ?? null,
           i.prompt,
           i.title ?? null,
+          session.started_at,
           session.started_at,
           session.started_at,
         )
@@ -300,7 +309,15 @@ export const tools: Tool[] = [
       return {
         sessionId: session.id,
         startedAt: session.started_at,
-        actions: catalogIndex(),
+        actions: [
+          catalogIndex(),
+          savedIndex(
+            await visibleSaved(c, i.projectId),
+            await visiblePresets(c, i.projectId),
+          ),
+        ]
+          .filter(Boolean)
+          .join("\n"),
       };
     },
   ),
@@ -435,7 +452,7 @@ export const tools: Tool[] = [
         .first<{ id: string; source: string }>();
       if (!revision) throw new AppError(404, "Revision not found");
       const job = await c.env.DB.prepare(
-        "SELECT facts FROM jobs WHERE revision_id=? AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
+        "SELECT facts FROM jobs WHERE revision_id=? AND purpose='build' AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
       )
         .bind(revision.id)
         .first<{ facts: string }>();
@@ -549,6 +566,7 @@ export const tools: Tool[] = [
     "settings.manage",
   ),
   ...stepTools,
+  ...savedTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -605,6 +623,16 @@ function summarize(name: string, input: unknown, value: unknown) {
       return `Read the ${i.id} action`;
     case "steps_list":
       return "Read the model's steps";
+    case "actions_save":
+      return `Saved action ${v.key} for checking`;
+    case "actions_status":
+      return `Read the status of ${i.key}`;
+    case "presets_save":
+      return `Saved preset ${v.id} v${v.version}`;
+    case "presets_list":
+      return "Read the presets";
+    case "builds_view_as_of":
+      return `Viewed the model as of "${i.step}"`;
     case "documents_add":
       return `Saved ${i.kind} draft`;
     default:
@@ -709,6 +737,27 @@ export async function dispatch(
       context = await modelContext(c, fields.modelId);
     } catch (error) {
       if (!(error instanceof AppError)) throw error;
+    }
+  }
+  // A running session hears once about saved actions and presets that appeared since it last looked.
+  if (channel === "mcp" && sessionId && name !== "session_start") {
+    const session = await c.env.DB.prepare(
+      "SELECT project_id,catalog_seen FROM sessions WHERE id=? AND member=?",
+    )
+      .bind(sessionId, c.identity.email)
+      .first<{ project_id: string; catalog_seen: string | null }>();
+    if (session) {
+      const news = await catalogNews(
+        c,
+        session.project_id,
+        session.catalog_seen ?? "",
+      );
+      if (news.lines.length) {
+        context = [context, ...news.lines].filter(Boolean).join("\n");
+        await c.env.DB.prepare("UPDATE sessions SET catalog_seen=? WHERE id=?")
+          .bind(news.seen, sessionId)
+          .run();
+      }
     }
   }
   return { value, notes, context };

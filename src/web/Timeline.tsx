@@ -11,6 +11,8 @@ export function Timeline(props: {
   building: boolean;
   editable: boolean;
   onChanged: () => void;
+  /** Show the model as it was after this step. */
+  onViewAsOf?: (step: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +88,17 @@ export function Timeline(props: {
             <p className="inline-error small" role="alert">
               {error}
             </p>
+          )}
+          {props.onViewAsOf && !props.building && (
+            <button
+              className="secondary"
+              onClick={() => {
+                props.onViewAsOf?.(chip.name);
+                setOpen(null);
+              }}
+            >
+              View as of this step
+            </button>
           )}
           {props.editable && !props.building && (
             <button

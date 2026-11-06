@@ -18,8 +18,16 @@ import {
   writeSteps,
   type StepValue,
 } from "./actions/script";
+import {
+  presetFor,
+  savedAction,
+  savedIndex,
+  SAVED_KEY,
+  visiblePresets,
+  visibleSaved,
+} from "./actions/saved";
 import { validateInputs } from "./actions/validate";
-import { AppError, id, modelAccess, type Context } from "./core";
+import { AppError, id, modelAccess, projectAccess, type Context } from "./core";
 import { define, queueBuild, saveRevision, type Tool } from "./tool-kit";
 
 /** The modeling-action tools: the self-describing catalog, and edits to a model's steps section. */
@@ -36,7 +44,7 @@ const seesSource = (c: Context, owner: string) =>
 
 async function latestFacts(c: Context, revisionId: string) {
   const job = await c.env.DB.prepare(
-    "SELECT facts FROM jobs WHERE revision_id=? AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
+    "SELECT facts FROM jobs WHERE revision_id=? AND purpose='build' AND status='succeeded' ORDER BY created_at DESC LIMIT 1",
   )
     .bind(revisionId)
     .first<{ facts: string }>();
@@ -52,7 +60,10 @@ async function latestFacts(c: Context, revisionId: string) {
 async function change(
   c: Context,
   i: { modelId: string; expectedRevision: number; sessionId?: string },
-  make: (steps: ReturnType<typeof readSteps>["steps"]) => StepChange,
+  make: (
+    steps: ReturnType<typeof readSteps>["steps"],
+    projectId: string,
+  ) => StepChange | Promise<StepChange>,
 ) {
   const model = await modelAccess(c, i.modelId);
   if (
@@ -69,7 +80,7 @@ async function change(
     .first<{ id: string; source: string }>();
   if (!revision) throw new AppError(404, "Revision not found");
   const { steps } = readSteps(revision.source);
-  const edit = make(steps);
+  const edit = await make(steps, model.project_id);
   const labels =
     (await latestFacts(c, revision.id))?.parts?.map((p) => p.label) ?? [];
   const source = writeSteps(
@@ -93,6 +104,51 @@ async function change(
   return { revision: saved, job };
 }
 
+/** Validates inputs for an action, loading the saved action a custom step names. */
+async function checked(
+  c: Context,
+  projectId: string,
+  action: string,
+  inputs: Record<string, unknown>,
+): Promise<Record<string, StepValue>> {
+  const key =
+    action === "custom" && typeof inputs.action === "string"
+      ? inputs.action
+      : null;
+  const saved = key ? (await savedAction(c, projectId, key)).record : undefined;
+  return validateInputs(getAction(action), inputs, saved);
+}
+
+/** Inputs for a new step: a preset's values, overridden by explicit ones, then fully validated. */
+async function withPreset(
+  c: Context,
+  projectId: string,
+  action: string,
+  inputs: Record<string, unknown>,
+  presetId?: string,
+) {
+  if (!presetId) return checked(c, projectId, action, inputs);
+  const preset = await presetFor(c, projectId, presetId);
+  const saved = SAVED_KEY.test(preset.action);
+  if ((saved ? "custom" : preset.action) !== action)
+    throw new AppError(
+      400,
+      `Preset ${presetId} is for ${preset.action}, not ${action}`,
+    );
+  const merged = {
+    ...preset.inputs,
+    ...(saved ? { action: preset.action } : {}),
+    ...inputs,
+  };
+  try {
+    return await checked(c, projectId, action, merged);
+  } catch (error) {
+    if (error instanceof AppError && error.status === 400)
+      throw new AppError(400, `Preset ${presetId}: ${error.message}`);
+    throw error;
+  }
+}
+
 function existing(steps: ReturnType<typeof readSteps>["steps"], name: string) {
   const step = steps.find((s) => s.name === name);
   if (!step) throw new AppError(404, `No step named "${name}"`);
@@ -102,17 +158,24 @@ function existing(steps: ReturnType<typeof readSteps>["steps"], name: string) {
 export const stepTools: Tool[] = [
   define(
     "actions_list",
-    "List the modeling actions you can add as steps, each with a one-line summary, plus the states a step can be in. Filter by category (Create, Modify, Construct, Combine, Arrange, Custom) or search text. Call actions_describe for an action's inputs before using it.",
+    "List the modeling actions you can add as steps, each with a one-line summary, plus the states a step can be in. Built-in actions come first; with projectId, the saved custom actions (id@version) and presets that project may use follow. Filter by category (Create, Modify, Construct, Combine, Arrange, Custom) or search text. Call actions_describe for an action's inputs before using it.",
     {
+      projectId: id.optional(),
       category: z.string().max(40).optional(),
       query: z.string().max(120).optional(),
     },
     true,
-    async (_c, i) => {
+    async (c, i) => {
+      if (i.projectId) await projectAccess(c, i.projectId, "read");
+      const saved = await visibleSaved(c, i.projectId ?? null);
+      const presets = await visiblePresets(c, i.projectId ?? null);
       const query = i.query?.toLowerCase();
+      const all = [...actions, ...saved.map((s) => s.record)];
       return {
-        index: catalogIndex(),
-        actions: actions
+        index: [catalogIndex(), savedIndex(saved, presets)]
+          .filter(Boolean)
+          .join("\n"),
+        actions: all
           .filter((a) => !i.category || a.category === i.category)
           .filter(
             (a) =>
@@ -128,16 +191,33 @@ export const stepTools: Tool[] = [
             category,
             summary,
           })),
+        presets,
         states: stepStates,
       };
     },
   ),
   define(
     "actions_describe",
-    "Read one modeling action in full: when to use it, its inputs as a described JSON Schema, which selections it takes, the names it creates, how it can fail and how to fix each failure, and an example call.",
-    { id: z.string().max(40) },
+    "Read one modeling action in full: when to use it, its inputs as a described JSON Schema, which selections it takes, the names it creates, how it can fail and how to fix each failure, an example call, and the presets for it. For a saved action (id@version), pass the projectId it is used in.",
+    { id: z.string().max(48), projectId: id.optional() },
     true,
-    async (_c, i) => getAction(i.id),
+    async (c, i) => {
+      if (i.projectId) await projectAccess(c, i.projectId, "read");
+      let record;
+      if (!SAVED_KEY.test(i.id)) record = getAction(i.id);
+      else if (i.projectId)
+        record = (await savedAction(c, i.projectId, i.id)).record;
+      else {
+        record = (await visibleSaved(c, null)).find(
+          (s) => s.key === i.id,
+        )?.record;
+        if (!record) throw new AppError(404, `No saved action ${i.id}`);
+      }
+      const presets = (await visiblePresets(c, i.projectId ?? null)).filter(
+        (p) => p.action === i.id,
+      );
+      return { ...record, presets };
+    },
   ),
   define(
     "steps_list",
@@ -169,22 +249,23 @@ export const stepTools: Tool[] = [
   ),
   define(
     "steps_add",
-    "Add one modeling action as a named step, saved as a new revision and built. Call actions_list for the catalog and actions_describe for the action's inputs. References: {ref:'face',of:'Base',name:'top'}, {ref:'face',of:'Base',normal:[0,0,1],near:[x,y,z]}, {ref:'edges',of:'Base',around:'top'} or between:['top','front'], {ref:'datum',name}, {ref:'part',label}; a number may be {param:'NAME'} from PARAMS. Inserted after `after` when given, else last.",
+    "Add one modeling action as a named step, saved as a new revision and built. Call actions_list for the catalog and actions_describe for the action's inputs. References: {ref:'face',of:'Base',name:'top'}, {ref:'face',of:'Base',normal:[0,0,1],near:[x,y,z]}, {ref:'edges',of:'Base',around:'top'} or between:['top','front'], {ref:'datum',name}, {ref:'part',label}; a number may be {param:'NAME'} from PARAMS. Inserted after `after` when given, else last. With preset, a saved preset's inputs are filled in first and explicit inputs win.",
     {
       ...target,
       action: z.string().max(40),
       name: stepName,
       inputs,
       after: stepName.optional(),
+      preset: z.string().max(40).optional(),
     },
     false,
     async (c, i) =>
-      change(c, i, () => ({
+      change(c, i, async (_steps, projectId) => ({
         op: "add",
         step: {
           action: i.action,
           name: i.name,
-          inputs: validateInputs(getAction(i.action), i.inputs),
+          inputs: await withPreset(c, projectId, i.action, i.inputs, i.preset),
         },
         after: i.after,
       })),
@@ -196,13 +277,15 @@ export const stepTools: Tool[] = [
     { ...target, name: stepName, inputs },
     false,
     async (c, i) =>
-      change(c, i, (steps) => ({
+      change(c, i, async (steps, projectId) => ({
         op: "edit",
         name: i.name,
-        inputs: validateInputs(
-          getAction(existing(steps, i.name).action),
+        inputs: await checked(
+          c,
+          projectId,
+          existing(steps, i.name).action,
           i.inputs,
-        ) as Record<string, StepValue>,
+        ),
       })),
     [...WRITE],
   ),

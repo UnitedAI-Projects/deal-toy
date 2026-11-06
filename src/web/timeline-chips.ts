@@ -44,3 +44,11 @@ export function timelineChips(steps: StepLog[], building: boolean): Chip[] {
     };
   });
 }
+
+/** The banner text while the viewer shows the model as of a step. */
+export function asOfLabel(steps: StepLog[], name: string): string {
+  const i = steps.findIndex((s) => s.name === name);
+  return i === -1
+    ? `As of ${name}`
+    : `As of step ${i + 1} of ${steps.length}: ${name}`;
+}

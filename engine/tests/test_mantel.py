@@ -338,3 +338,19 @@ def test_reference_to_a_removed_step_fails_not_found(tmp_path):
     facts = run(tmp_path, script([BLOCK, 'm.plane("Above", method="offset", reference=m.datum("Gone"), distance=5)']))
     above = step(facts, "Above")
     assert (above["state"], above["code"]) == ("failed", "datum_not_found")
+
+
+def test_stop_after_runs_only_the_first_steps(tmp_path):
+    source = tmp_path / "model.py"
+    source.write_text(script([
+        BLOCK,
+        'm.plane("Mid plane", method="midplane", between=[m.face("Block", "left"), m.face("Block", "right")])',
+        'm.hole("Hole", on=m.face("Block", "top"), diameter=5, depth=5)',
+    ]))
+    facts = build(source, tmp_path / "out", stop_after=2, preview=True)
+    assert [s["name"] for s in facts["steps"]] == ["Block", "Mid plane"]
+    assert facts["stoppedAfter"] == 2
+    assert facts["volume_mm3"] == pytest.approx(40 * 20 * 30)
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["facts.json", "model.glb"]
+    full = build(source, tmp_path / "full")
+    assert "stoppedAfter" not in full and len(full["steps"]) == 3
