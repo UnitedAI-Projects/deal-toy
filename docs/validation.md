@@ -193,3 +193,14 @@ Branch `feat/inspect-core`, implementing `docs/superpowers/plans/2026-11-06-insp
 - Engine tests compare record values with analytic ones: box faces and thicknesses, holes (diameter, depth, through), fillet radii, pair distance and overlap, and a box's tip angle `atan(5/20)`, all to 1e-6. The deal-toy fixture reports the coin's embed wall as 1.5 mm, the engraving as 0.3 mm (not matching `ENGRAVE_D`) and a density-weighted tip angle of 17.07°. Removing one density switches the result to uniform density.
 - Inspection adds 0.02 s to the bridge example (24 faces), 0.48 s to the 288-face steps example (66 KiB record) and 0.02 s to the inspection fixture, measured in the CAD image. Not yet measured on the 49-part production demo model.
 - In the app (local `wrangler dev` with the CAD container), clicking the block front showed 7200.00 mm², normal (0, −1, 0) and thickness 1.50 mm. A cut along X showed the coin's section 1.5 mm behind the front face, with each part in its own shade (`docs/images/workspace-inspect.png`). Two picks showed the between row. `view_highlight` turned the face amber in the live viewer with the agent's message (`docs/images/workspace-agent-highlight.png`). Checked at 390 px and in both themes.
+
+## Actions interface — 2026-11-06
+
+Branch `feat/actions-interface`, stacked on `feat/inspect-core`. Local evidence; not deployed.
+
+- In the app (local `wrangler dev` with the CAD container, on the deal-toy steps fixture):
+  - "+ Add step" → Hole: a pick on the block top filled `on`, diameter 6 and depth 10 showed a dashed ghost cylinder, and "Add step" built a new revision with the hole `ok`.
+  - Construction plane: after the engine started naming faces, a pick gave `face("Block", "top")`, and distance 5 showed a ghost plane 5 mm above (`docs/images/workspace-actions.png`). It was saved as the preset "Five above" and added as step 9, `ok`.
+  - Timeline: "Edit" changed the hole's diameter to 8 in revision 4, and dragging the Hole chip onto the plane's chip moved it after the plane in revision 5.
+  - A click stored the owner's selection for the agent's summary.
+  - At 390 px the page did not scroll sideways, and the action menu and form fit the screen.

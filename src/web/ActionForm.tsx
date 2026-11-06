@@ -113,8 +113,11 @@ export function ActionForm(props: {
       return (
         <select
           value={String(value ?? f.default ?? "")}
-          onChange={(e) => set(f.name, e.target.value)}
+          onChange={(e) => set(f.name, e.target.value || undefined)}
         >
+          {value === undefined && f.default === undefined && (
+            <option value="">Choose…</option>
+          )}
           {f.options?.map((o) => (
             <option key={o}>{o}</option>
           ))}
