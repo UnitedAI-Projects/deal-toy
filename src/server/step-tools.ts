@@ -208,7 +208,7 @@ export const stepTools: Tool[] = [
   ),
   define(
     "steps_remove",
-    "Remove one step. Later steps that refer to what it created will report blocked on the next build.",
+    "Remove one step. Later steps that refer to what it made fail with a not found error on the next build; remove or edit them too. To keep a step but skip it, use steps_suppress.",
     { ...target, name: stepName },
     false,
     async (c, i) => change(c, i, () => ({ op: "remove", name: i.name })),

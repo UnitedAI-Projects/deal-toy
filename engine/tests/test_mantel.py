@@ -107,6 +107,15 @@ def test_duplicate_name_fails(tmp_path):
     assert facts["volume_mm3"] == pytest.approx(40 * 20 * 30)
 
 
+def test_duplicate_does_not_block_the_original(tmp_path):
+    facts = run(tmp_path, script([
+        BLOCK,
+        'm.body("Block", shape="box", size=(5, 5, 5))',
+        'm.plane("Above", method="offset", reference=m.face("Block", "top"), distance=5)',
+    ]))
+    assert [s["state"] for s in facts["steps"]] == ["ok", "failed", "ok"], facts["steps"]
+
+
 def test_invalid_input_fails_the_step(tmp_path):
     facts = run(tmp_path, script([BLOCK, 'm.body("Lid", shape="box")', 'm.body("Big", shape="box", size=(5, 5, 9000))']))
     lid, big = step(facts, "Lid"), step(facts, "Big")
@@ -323,3 +332,9 @@ def test_example_layout_builds(tmp_path):
 def test_example_layout_matches_the_fixture():
     example = (ROOT / "examples/deal_toy_steps.py").read_text()
     assert example.split("import build123d", 1)[1] == FIXTURE.read_text().split("import build123d", 1)[1]
+
+
+def test_reference_to_a_removed_step_fails_not_found(tmp_path):
+    facts = run(tmp_path, script([BLOCK, 'm.plane("Above", method="offset", reference=m.datum("Gone"), distance=5)']))
+    above = step(facts, "Above")
+    assert (above["state"], above["code"]) == ("failed", "datum_not_found")

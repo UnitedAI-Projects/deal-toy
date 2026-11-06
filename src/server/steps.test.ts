@@ -276,6 +276,12 @@ describe("action and step tools", () => {
       }),
     ).rejects.toThrow("diameter must be at least 0.2 mm");
   });
+  it("describes removal truthfully", async () => {
+    const { tools } = await import("./tools");
+    const remove = tools.find((t) => t.name === "steps_remove")!;
+    expect(remove.description).not.toContain("blocked");
+    expect(remove.description).toContain("not found");
+  });
   it("facts with steps validate", () => {
     expect(factsSchema.parse(facts).steps).toHaveLength(7);
     expect(() =>

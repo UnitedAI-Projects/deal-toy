@@ -199,12 +199,14 @@ class Model:
         started = time.monotonic()
         saved = (dict(self.parts), dict(self.datums))
         self._warning = None
+        owns_name = False  # a step with an invalid or duplicate name must not shadow another step's
         try:
             if not isinstance(name, str) or not 0 < len(name) <= 80 or any(c in name for c in '"\\\n'):
                 raise StepError("invalid_input", "Step names are 1 to 80 characters without quotes, backslashes or line breaks")
             if name in self._names or name in self.parts or name in self.datums:
                 raise StepError("duplicate_name", f'A step or part is already named "{name}"')
             self._names.add(name)
+            owns_name = True
             if suppressed:
                 entry["state"] = "suppressed"
                 self._unavailable[name] = "is suppressed"
@@ -238,7 +240,7 @@ class Model:
             entry["message"] = (str(error) or type(error).__name__)[:300]
         finally:
             entry["ms"] = int((time.monotonic() - started) * 1000)
-        if entry["state"] in ("failed", "blocked") and name not in self._unavailable:
+        if owns_name and entry["state"] in ("failed", "blocked") and name not in self._unavailable:
             self._unavailable[name] = "failed" if entry["state"] == "failed" else "is blocked"
 
 
