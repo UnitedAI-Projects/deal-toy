@@ -149,3 +149,15 @@ def test_duplicate_labels_warn():
                             None)
     assert record["warnings"] == ['Two parts are labelled "A"']
     assert len(record["parts"]) == 2
+
+
+def test_faces_carry_created_names_and_sides(tmp_path):
+    build(ROOT / "examples/deal_toy_steps.py", tmp_path)
+    record = json.loads((tmp_path / "inspect.json").read_text())
+    base = next(p["index"] for p in record["parts"] if p["label"] == "Base")
+    walls = [f for f in record["faces"] if {"of": "Mount hole", "name": "wall"} in f.get("names", [])]
+    assert walls and all(f["type"] == "cylinder" and f["part"] == base for f in walls)
+    bottoms = [f for f in record["faces"] if f["part"] == base and "bottom" in f.get("sides", [])]
+    assert len(bottoms) == 1 and bottoms[0]["plane"]["normal"] == pytest.approx([0, 0, -1])
+    free = inspect_record(compound(labelled(bd.Box(1, 1, 1), "A")), None)
+    assert all("names" not in f for f in free["faces"])

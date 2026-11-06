@@ -4,7 +4,13 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { request } from "./api";
 import { sceneScale, toModel, type InspectRecord, type Vec3 } from "./inspect";
-import { overlayGroup, sectionCaps, sectionPlane } from "./overlays";
+import type { Ghost } from "./ghost";
+import {
+  ghostObject,
+  overlayGroup,
+  sectionCaps,
+  sectionPlane,
+} from "./overlays";
 const palette = {
   light: { grid: 0xd9d9d4, gridMajor: 0xc7c7c1, highlight: 0x6366f1 },
   dark: { grid: 0x2a2c31, gridMajor: 0x3a3d44, highlight: 0x818cf8 },
@@ -29,6 +35,8 @@ type Props = {
   highlights?: { faces: number[]; tone: "pick" | "agent" }[];
   /** Cut the model where the model coordinate on `axis` exceeds `offset` (mm). */
   section?: { axis: "x" | "y" | "z"; offset: number } | null;
+  /** An approximate preview of an action being filled in. */
+  ghost?: Ghost | null;
 };
 type Scene = {
   scene: THREE.Scene;
@@ -279,6 +287,24 @@ export function Viewer(props: Props) {
       group.traverse(disposeMesh);
     };
   }, [props.record, props.highlights, props.theme, loaded]);
+
+  // The preview of an action being filled in, in the model's frame.
+  useEffect(() => {
+    const s = state.current;
+    const object = s?.object;
+    if (!s || !object || !props.ghost || !props.record) return;
+    const scale = sceneScale(props.record, [s.size.x, s.size.z, s.size.y]);
+    const ghost = ghostObject(
+      props.ghost,
+      scale,
+      props.theme === "dark" ? 0x34d399 : 0x0f9f6e,
+    );
+    object.add(ghost);
+    return () => {
+      ghost.removeFromParent();
+      ghost.traverse(disposeMesh);
+    };
+  }, [props.ghost, props.record, props.theme, loaded]);
 
   // Section: clip every mesh and fill the cut with stencil caps.
   useEffect(() => {

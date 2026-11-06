@@ -1,3 +1,4 @@
+import type { Ghost } from "./ghost";
 import * as THREE from "three";
 import {
   toScene,
@@ -224,5 +225,92 @@ export function sectionCaps(
     cap.onAfterRender = (renderer) => renderer.clearStencil();
     group.add(cap);
   });
+  return group;
+}
+
+/** A translucent shape with outlined edges for an action being filled in. */
+export function ghostObject(
+  ghost: Ghost,
+  scale: number,
+  color: number,
+): THREE.Object3D {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.28,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    // Seen through the model, so a hole or a cut inside a part is visible.
+    depthTest: false,
+  });
+  const at = (p: Vec3) => new THREE.Vector3(...toScene(p, scale));
+  const direction = (v: Vec3) =>
+    new THREE.Vector3(...toScene(v, 1)).normalize();
+  let geometry: THREE.BufferGeometry;
+  const group = new THREE.Group();
+  group.name = "ghost";
+  const mesh = new THREE.Mesh(undefined, material);
+  if (ghost.kind === "plane") {
+    geometry = new THREE.PlaneGeometry(
+      ghost.size * scale * 1.2,
+      ghost.size * scale * 1.2,
+    );
+    mesh.position.copy(at(ghost.origin));
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      direction(ghost.normal),
+    );
+  } else if (ghost.kind === "cylinder") {
+    geometry = new THREE.CylinderGeometry(
+      ghost.radius * scale,
+      ghost.radius * scale,
+      ghost.length * scale,
+      40,
+    );
+    const axis = direction(ghost.axis);
+    mesh.position
+      .copy(at(ghost.origin))
+      .addScaledVector(axis, (ghost.length * scale) / 2);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+  } else if (ghost.kind === "prism") {
+    geometry = new THREE.BoxGeometry(
+      ghost.width * scale,
+      ghost.length * scale,
+      ghost.depth * scale,
+    );
+    const normal = direction(ghost.normal);
+    mesh.position
+      .copy(at(ghost.origin))
+      .addScaledVector(normal, (ghost.depth * scale) / 2);
+    // Width runs along model X where the face allows it, as the engine's sketch frame does.
+    const x = new THREE.Vector3(1, 0, 0);
+    if (Math.abs(x.dot(normal)) > 0.99) x.set(0, 0, -1);
+    const y = new THREE.Vector3().crossVectors(normal, x).normalize();
+    x.crossVectors(y, normal).normalize();
+    mesh.quaternion.setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(x, y, normal),
+    );
+  } else {
+    const box = new THREE.Box3().setFromPoints([at(ghost.min), at(ghost.max)]);
+    geometry = new THREE.BoxGeometry(
+      ...box.getSize(new THREE.Vector3()).toArray(),
+    );
+    box.getCenter(mesh.position);
+  }
+  mesh.geometry = geometry;
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geometry),
+    new THREE.LineDashedMaterial({
+      color,
+      dashSize: 2 * scale,
+      gapSize: 1.5 * scale,
+    }),
+  );
+  edges.computeLineDistances();
+  edges.position.copy(mesh.position);
+  edges.quaternion.copy(mesh.quaternion);
+  mesh.renderOrder = 50;
+  edges.renderOrder = 51;
+  group.add(mesh, edges);
   return group;
 }

@@ -2,7 +2,7 @@ import type { Context } from "../core";
 import { modelAccess } from "../core";
 import { AppError } from "../core";
 import type { StepLog } from "./catalog";
-import { readSteps, type Step } from "./script";
+import { pyValue, readSteps, type Step, type StepValue } from "./script";
 
 /** The compact model summary the agent receives with every MCP result that names a model. */
 export const SUMMARY_LIMIT = 1500;
@@ -112,11 +112,27 @@ export async function modelContext(
   } catch (error) {
     if (!(error instanceof AppError)) throw error;
   }
-  return modelSummary({
+  const summary = modelSummary({
     name: model.name,
     revision: model.revision,
     status: job?.status ?? null,
     facts: job?.facts ? (JSON.parse(job.facts) as Facts) : null,
     steps,
   });
+  // What the project owner has selected in the viewer in the last half hour.
+  const selection = await c.env.DB.prepare(
+    "SELECT refs FROM selections WHERE model_id=? AND member=? AND updated_at>? ORDER BY updated_at DESC LIMIT 1",
+  )
+    .bind(
+      modelId,
+      model.owner,
+      new Date(Date.now() - 30 * 60_000).toISOString(),
+    )
+    .first<{ refs: string }>();
+  if (!selection) return summary;
+  const refs = (JSON.parse(selection.refs) as StepValue[])
+    .map(pyValue)
+    .join(" · ");
+  const line = `Selected: ${refs}`.slice(0, 400);
+  return `${summary.slice(0, SUMMARY_LIMIT - line.length - 1)}\n${line}`;
 }

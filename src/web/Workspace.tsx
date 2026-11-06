@@ -18,6 +18,18 @@ import { ChatPanel } from "./ChatPanel";
 import { Timeline } from "./Timeline";
 import { InspectPanel, type Picked } from "./InspectPanel";
 import { pickFace, type InspectRecord } from "./inspect";
+import catalog from "../../engine/lib/mantel/catalog.json";
+import { ActionForm, type Preset } from "./ActionForm";
+import {
+  applyPick,
+  fieldsFor,
+  submitValues,
+  type ActionSchema,
+  type FormValues,
+} from "./forms";
+import { ghostShape } from "./ghost";
+import { refFromPick } from "./refs";
+import { Toolbar, type ToolbarAction } from "./Toolbar";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
 import { changedModel, initialModel } from "./follow";
@@ -59,6 +71,19 @@ export function Workspace(props: Props) {
     offset: number;
   } | null>(null);
   const [record, setRecord] = useState<InspectRecord | null>(null);
+  // An action form being filled in: a new step, or an existing one being edited.
+  const [form, setForm] = useState<{
+    action: ActionSchema & { id: string; title?: string };
+    savedKey?: string;
+    editing?: string;
+    name: string;
+    values: FormValues;
+    active: string | null;
+    error: string;
+    busy: boolean;
+  } | null>(null);
+  const [savedActions, setSavedActions] = useState<ToolbarAction[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
   // What the agent is pointing at, until the person clicks.
   const [agentPoint, setAgentPoint] = useState<{
     jobId: string;
@@ -242,6 +267,208 @@ export function Workspace(props: Props) {
       ]),
     ) as Record<"x" | "y" | "z", [number, number]>;
   }, [record]);
+  // Tell the agent what the owner has selected, as references that survive rebuilds.
+  useEffect(() => {
+    if (!owns || !model) return;
+    const refs = [selection, second]
+      .filter((p): p is Picked => !!p)
+      .map((p) =>
+        p.face !== undefined && record?.faces[p.face]
+          ? refFromPick(record, p.face)
+          : { ref: "part", label: p.label },
+      );
+    const timer = setTimeout(() => {
+      void call("selection_set", { modelId: model.id, refs }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [
+    selection?.label,
+    selection?.face,
+    second?.label,
+    second?.face,
+    model?.id,
+    record,
+  ]);
+  const paramValues = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(facts?.params ?? {}).map(([k, v]) => [k, v.value]),
+      ),
+    [facts],
+  );
+  const paramNames = Object.entries(facts?.params ?? {})
+    .filter(([, v]) => !v.unit || v.unit === "mm")
+    .map(([k]) => k);
+  const planeNames = (facts?.steps ?? [])
+    .filter((s) => s.action === "plane")
+    .map((s) => s.name);
+  const builtins = (
+    catalog.actions as unknown as (ActionSchema & ToolbarAction)[]
+  ).filter((a) => a.id !== "custom");
+  async function loadCatalog() {
+    try {
+      const listed = await call<{ actions: ToolbarAction[] }>("actions_list", {
+        projectId,
+        category: "Custom",
+      });
+      setSavedActions(listed.actions.filter((a) => a.id.includes("@")));
+      setPresets(await call<Preset[]>("presets_list", { projectId }));
+    } catch {
+      // The toolbar still offers the built-in actions.
+    }
+  }
+  async function openAction(
+    id: string,
+    editing?: { name: string; inputs: FormValues },
+  ) {
+    let action: (ActionSchema & { id: string; title?: string }) | undefined =
+      builtins.find((a) => a.id === id);
+    let savedKey: string | undefined;
+    let values = editing?.inputs ?? {};
+    if (!action) {
+      const key = id === "custom" ? String(editing?.inputs.action ?? "") : id;
+      action = await call("actions_describe", { id: key, projectId });
+      savedKey = key;
+      const { action: _key, ...rest } = values as FormValues & {
+        action?: string;
+      };
+      values = rest;
+    }
+    const used = new Set((facts?.steps ?? []).map((s) => s.name));
+    let name = action!.title ?? action!.id;
+    for (let n = 2; used.has(name); n++)
+      name = `${action!.title ?? action!.id} ${n}`;
+    setSelection(null);
+    setSecond(null);
+    setForm({
+      action: action!,
+      savedKey,
+      editing: editing?.name,
+      name: editing?.name ?? name,
+      values,
+      active:
+        fieldsFor(action!, values).find(
+          (f) => f.visible && (f.kind === "ref" || f.kind === "list"),
+        )?.name ?? null,
+      error: "",
+      busy: false,
+    });
+  }
+  async function submitForm() {
+    if (!form || !model || !latest) return;
+    const inputs = submitValues(form.action, form.values);
+    const body = form.savedKey ? { ...inputs, action: form.savedKey } : inputs;
+    setForm({ ...form, busy: true, error: "" });
+    try {
+      if (form.editing)
+        await call("steps_edit", {
+          modelId: model.id,
+          expectedRevision: latest.number,
+          name: form.editing,
+          inputs: body,
+        });
+      else
+        await call("steps_add", {
+          modelId: model.id,
+          expectedRevision: latest.number,
+          action: form.savedKey ? "custom" : form.action.id,
+          name: form.name.trim(),
+          inputs: body,
+        });
+      setForm(null);
+      setFollow(true);
+      await props.reload();
+    } catch (e) {
+      setForm(
+        (f) =>
+          f && {
+            ...f,
+            busy: false,
+            error: e instanceof Error ? e.message : "The step was not saved",
+          },
+      );
+    }
+  }
+  async function savePreset(name: string, description: string) {
+    if (!form) return;
+    const id =
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "preset";
+    const existing = presets.find((p) => p.id === id);
+    try {
+      await call("presets_save", {
+        projectId,
+        id: /^[a-z]/.test(id) ? id : `p-${id}`,
+        expectedVersion: existing?.version ?? 0,
+        action: form.savedKey ?? form.action.id,
+        name,
+        description,
+        inputs: submitValues(form.action, form.values),
+      });
+      setPresets(await call<Preset[]>("presets_list", { projectId }));
+    } catch (e) {
+      setForm(
+        (f) =>
+          f && {
+            ...f,
+            error: e instanceof Error ? e.message : "The preset was not saved",
+          },
+      );
+    }
+  }
+  // A pick while a form waits for one fills that field instead of selecting.
+  function pickIntoForm(
+    label: string,
+    hit: [number, number, number] | undefined,
+  ) {
+    if (!form?.active) return false;
+    const fields = fieldsFor(form.action, form.values);
+    const field = fields.find((f) => f.name === form.active);
+    const kinds = field?.refKinds ?? [];
+    let ref: unknown;
+    if (kinds.includes("face") || kinds.includes("edges")) {
+      const face = record && hit ? pickFace(record, label, hit) : null;
+      if (face === null) {
+        setForm({ ...form, error: "Click a face of the model" });
+        return true;
+      }
+      const picked = refFromPick(record!, face);
+      if (kinds.includes("face")) ref = picked;
+      else if (picked.ref === "face" && "name" in picked)
+        ref = { ref: "edges", of: picked.of, around: picked.name };
+      else {
+        setForm({
+          ...form,
+          error: "For edges, pick a named face or a side such as top",
+        });
+        return true;
+      }
+    } else if (kinds.includes("part")) ref = { ref: "part", label };
+    else return false;
+    const next = applyPick(fields, form.values, form.active, ref);
+    setForm({ ...form, values: next.values, active: next.next, error: "" });
+    return true;
+  }
+  const ghost =
+    form && record
+      ? ghostShape(
+          form.savedKey ? "custom" : form.action.id,
+          form.values,
+          record,
+          paramValues,
+        )
+      : null;
+  const toolbarReason = () =>
+    !canEdit
+      ? "Only the project owner can add steps"
+      : !facts?.steps
+        ? "This model has no steps section; ask the agent to adopt the standard layout"
+        : !editable
+          ? "View the latest revision to add steps"
+          : undefined;
   // The model as it was after one step, from a view-as-of preview build.
   const [asOf, setAsOf] = useState<{
     step: string;
@@ -330,8 +557,10 @@ export function Workspace(props: Props) {
           record={asOf ? null : record}
           highlights={highlights}
           section={asOf ? null : section}
+          ghost={asOf ? null : ghost}
           onSelect={(label, point, hit, additive) => {
             setAgentPoint(null);
+            if (label && pickIntoForm(label, hit)) return;
             if (!label) {
               setSelection(null);
               setSecond(null);
@@ -383,6 +612,12 @@ export function Workspace(props: Props) {
           )}
         </div>
         <div className="topbar-right">
+          <Toolbar
+            actions={[...builtins, ...savedActions]}
+            disabledReason={toolbarReason()}
+            onOpen={() => void loadCatalog()}
+            onChoose={(id) => void openAction(id)}
+          />
           <span
             className="chip status"
             title={connected ? "Live" : "Reconnecting…"}
@@ -465,6 +700,32 @@ export function Workspace(props: Props) {
             </button>
           </div>
         </div>
+      )}
+
+      {form && (
+        <ActionForm
+          action={form.action}
+          editing={form.editing}
+          name={form.name}
+          values={form.values}
+          active={form.active}
+          params={paramNames}
+          planes={planeNames}
+          presets={presets.filter(
+            (p) => p.action === (form.savedKey ?? form.action.id),
+          )}
+          error={form.error}
+          busy={form.busy}
+          canSavePreset={canEdit}
+          onName={(name) => setForm({ ...form, name })}
+          onValues={(values) => setForm({ ...form, values })}
+          onActive={(active) => setForm({ ...form, active })}
+          onSubmit={() => void submitForm()}
+          onSavePreset={(name, description) =>
+            void savePreset(name, description)
+          }
+          onClose={() => setForm(null)}
+        />
       )}
 
       {agentPoint && agentPoint.jobId === shownJob?.id && (
@@ -576,6 +837,15 @@ export function Workspace(props: Props) {
             await props.reload();
           }}
           onViewAsOf={viewAsOf}
+          onEdit={async (name) => {
+            if (!model) return;
+            const { steps } = await call<{
+              steps: { action: string; name: string; inputs: FormValues }[];
+            }>("steps_list", { modelId: model.id });
+            const step = steps.find((s) => s.name === name);
+            if (step)
+              await openAction(step.action, { name, inputs: step.inputs });
+          }}
         />
       )}
 

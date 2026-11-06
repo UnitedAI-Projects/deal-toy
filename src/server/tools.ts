@@ -595,6 +595,8 @@ const SELF_RECORDING = new Set([
   "projects_activity",
   "models_set_parameter",
   ...STEP_WRITES,
+  // A viewer's selection changes with every click; it is state, not activity.
+  "selection_set",
 ]);
 const MODEL_CHANGES = new Set([
   "models_create",
@@ -635,6 +637,8 @@ function summarize(name: string, input: unknown, value: unknown) {
       return "Read the presets";
     case "inspect_get":
       return "Read the inspection record";
+    case "selection_set":
+      return "Selected in the viewer";
     case "view_highlight":
       return `Pointed at ${
         [

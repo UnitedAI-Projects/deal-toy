@@ -22,6 +22,9 @@ export type FaceRecord = {
   sphere?: { center: Vec3; radius: number };
   torus?: { major: number; minor: number };
   thickness?: number;
+  /** Names that steps created for this face, in step order, and the part sides it is. */
+  names?: { of: string; name: string }[];
+  sides?: string[];
 };
 export type HoleRecord = {
   part: number;

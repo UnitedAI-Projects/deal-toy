@@ -523,7 +523,8 @@ function pyNumber(n: number) {
 const isScalarNumber = (v: StepValue) =>
   typeof v === "number" || (!!v && typeof v === "object" && "param" in v);
 
-function pyValue(value: StepValue): string {
+/** A value as it is written in a step call, for example m.face("Base", "bottom"). */
+export function pyValue(value: StepValue): string {
   if (value === null) return "None";
   if (typeof value === "boolean") return value ? "True" : "False";
   if (typeof value === "number") return pyNumber(value);

@@ -56,7 +56,8 @@ const triple = (v: unknown) =>
   v.length === 3 &&
   v.every((n) => typeof n === "number" && Number.isFinite(n));
 
-function isRef(kind: string, v: unknown): boolean {
+/** Whether a value is a reference of the given kind, in the steps section's JSON shape. */
+export function isRef(kind: string, v: unknown): boolean {
   if (!plain(v)) return false;
   switch (kind) {
     case "fn":

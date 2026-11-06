@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { notify, recordEvent, sessionFor } from "./activity";
-import { AppError, id, revisionAccess, type Context } from "./core";
+import { isRef } from "./actions/validate";
+import {
+  AppError,
+  id,
+  modelAccess,
+  revisionAccess,
+  type Context,
+} from "./core";
+import { now } from "./tool-kit";
 import { define, type Tool } from "./tool-kit";
 
 /** Tools that read a build's exact inspection record. */
@@ -31,6 +39,35 @@ export async function loadRecord(c: Context, jobId: string) {
 }
 
 export const inspectTools: Tool[] = [
+  define(
+    "selection_set",
+    "Record what you have selected in a model's viewer (up to 4 references), so the agent's model summary can name it. An empty list clears it.",
+    { modelId: id, refs: z.array(z.unknown()).max(4) },
+    false,
+    async (c, i) => {
+      await modelAccess(c, i.modelId, "read");
+      for (const ref of i.refs)
+        if (
+          !["face", "edges", "datum", "part", "point"].some((kind) =>
+            isRef(kind, ref),
+          )
+        )
+          throw new AppError(400, "A selection item is not a reference");
+      if (!i.refs.length)
+        await c.env.DB.prepare(
+          "DELETE FROM selections WHERE model_id=? AND member=?",
+        )
+          .bind(i.modelId, c.identity.email)
+          .run();
+      else
+        await c.env.DB.prepare(
+          "INSERT INTO selections VALUES (?,?,?,?) ON CONFLICT(model_id,member) DO UPDATE SET refs=excluded.refs,updated_at=excluded.updated_at",
+        )
+          .bind(i.modelId, c.identity.email, JSON.stringify(i.refs), now())
+          .run();
+      return { ok: true, count: i.refs.length };
+    },
+  ),
   define(
     "view_highlight",
     "Point at faces (by inspect index) or parts (by label) in the viewers of people watching this project, with a short message saying why. Use it when you talk about a measurement so the team sees what you mean. It changes nothing in the model.",
