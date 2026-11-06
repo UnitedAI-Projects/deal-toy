@@ -240,6 +240,8 @@ export function ghostObject(
     opacity: 0.28,
     side: THREE.DoubleSide,
     depthWrite: false,
+    // Seen through the model, so a hole or a cut inside a part is visible.
+    depthTest: false,
   });
   const at = (p: Vec3) => new THREE.Vector3(...toScene(p, scale));
   const direction = (v: Vec3) =>
@@ -307,6 +309,8 @@ export function ghostObject(
   edges.computeLineDistances();
   edges.position.copy(mesh.position);
   edges.quaternion.copy(mesh.quaternion);
+  mesh.renderOrder = 50;
+  edges.renderOrder = 51;
   group.add(mesh, edges);
   return group;
 }

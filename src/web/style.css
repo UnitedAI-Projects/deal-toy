@@ -1086,6 +1086,104 @@ button.wide {
 .step-detail {
   color: var(--muted);
 }
+.toolbar {
+  position: relative;
+}
+.toolbar-menu {
+  right: 0;
+  top: 40px;
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.toolbar-menu h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  margin: 6px 0 2px;
+}
+.toolbar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--ink);
+}
+.toolbar-item:hover,
+.toolbar-item:focus-visible {
+  background: var(--surface-2);
+}
+.action-form {
+  right: 14px;
+  top: 100px;
+  width: 340px;
+  max-height: calc(100% - 180px);
+  overflow-y: auto;
+}
+.action-form .form-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.action-form .form-row > span {
+  color: var(--muted);
+}
+.action-form input[type="number"],
+.action-form input[type="text"],
+.action-form input:not([type]),
+.action-form select {
+  width: 100%;
+  min-width: 0;
+}
+.pick-field,
+.number-field,
+.vec3,
+.preset-save {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.pick-field code {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.pick-field button.on {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.vec3 {
+  flex-wrap: nowrap;
+}
+.vec3 input {
+  width: 33%;
+}
+.number-field input {
+  flex: 1 1 80px;
+}
+.number-field select {
+  flex: 1 1 100%;
+}
+.more-options summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.more-options {
+  display: grid;
+  gap: 6px;
+}
 .agent-point {
   position: absolute;
   left: 368px;
@@ -1392,6 +1490,14 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     top: 132px;
+  }
+  .action-form {
+    left: 10px !important;
+    right: 10px;
+    top: auto;
+    bottom: 10px;
+    width: auto;
+    max-height: 60vh;
   }
   .agent-point {
     left: 10px;

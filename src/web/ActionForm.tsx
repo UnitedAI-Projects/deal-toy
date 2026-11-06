@@ -208,6 +208,18 @@ export function ActionForm(props: {
       />
     );
   };
+  // Optional inputs with a default stay out of the way until asked for.
+  const optional = (f: Field) =>
+    !f.required && f.default !== undefined && f.kind !== "ref";
+  const row = (f: Field) => (
+    <label className="form-row" key={f.name} title={f.description}>
+      <span>
+        {f.label}
+        {f.required ? " *" : ""}
+      </span>
+      {input(f)}
+    </label>
+  );
   return (
     <form
       className="popover action-form"
@@ -276,15 +288,13 @@ export function ActionForm(props: {
           </select>
         </label>
       )}
-      {fields.map((f) => (
-        <label className="form-row" key={f.name} title={f.description}>
-          <span>
-            {f.label}
-            {f.required ? " *" : ""}
-          </span>
-          {input(f)}
-        </label>
-      ))}
+      {fields.filter((f) => !optional(f)).map(row)}
+      {fields.some(optional) && (
+        <details className="more-options">
+          <summary>More options</summary>
+          {fields.filter(optional).map(row)}
+        </details>
+      )}
       <p className="muted small">
         The dashed shape on the model is a preview; the build replaces it.
       </p>

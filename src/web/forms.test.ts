@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import catalog from "../../engine/lib/mantel/catalog.json";
-import { fieldsFor, submitValues, type ActionSchema } from "./forms";
+import { applyPick, fieldsFor, submitValues, type ActionSchema } from "./forms";
 
 const action = (id: string) =>
   catalog.actions.find((a) => a.id === id) as unknown as ActionSchema;
@@ -110,6 +110,30 @@ describe("fieldsFor", () => {
       count: 2,
       visible: true,
       required: true,
+    });
+  });
+});
+
+describe("applyPick", () => {
+  it("fills the active pick field and moves to the next empty one", () => {
+    const plane = action("plane");
+    const fields = fieldsFor(plane, { method: "midplane" });
+    const left = { ref: "face", of: "Block", name: "left" };
+    const right = { ref: "face", of: "Block", name: "right" };
+    const first = applyPick(fields, { method: "midplane" }, "between", left);
+    expect(first).toEqual({
+      values: { method: "midplane", between: [left] },
+      next: "between",
+    });
+    const second = applyPick(fields, first.values, "between", right);
+    expect(second).toEqual({
+      values: { method: "midplane", between: [left, right] },
+      next: null,
+    });
+    const hole = fieldsFor(action("hole"), {});
+    expect(applyPick(hole, {}, "on", on)).toEqual({
+      values: { on },
+      next: null,
     });
   });
 });
