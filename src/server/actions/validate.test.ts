@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { actions, getAction } from "./catalog";
 import { readSteps } from "./script";
 import { unsupportedKeywords, validateInputs } from "./validate";
+import { notchRecord } from "./testdata/notch";
 
 const hole = getAction("hole");
 const base = {
@@ -82,13 +83,55 @@ describe("validateInputs", () => {
       validateInputs(hole, { ...base, on: { ref: "face", of: "Base" } }),
     ).toThrow("on must be a face reference");
   });
-  it("lets custom steps take any further inputs", () => {
-    expect(
-      validateInputs(getAction("custom"), { fn: { fn: "notch" }, depth: 2 }),
-    ).toEqual({ fn: { fn: "notch" }, depth: 2 });
-    expect(() => validateInputs(getAction("custom"), { depth: 2 })).toThrow(
-      "fn is required",
+  it("needs exactly one of fn and action for a custom step", () => {
+    const custom = getAction("custom");
+    expect(validateInputs(custom, { fn: { fn: "notch" }, depth: 2 })).toEqual({
+      fn: { fn: "notch" },
+      depth: 2,
+    });
+    for (const inputs of [
+      { depth: 2 },
+      { fn: { fn: "notch" }, action: "finger-notch@1" },
+    ])
+      expect(() => validateInputs(custom, inputs)).toThrow(
+        "A custom step needs exactly one of fn or action",
+      );
+    expect(() => validateInputs(custom, { action: "Finger Notch" })).toThrow(
+      "action must be a saved action as id@version",
     );
+  });
+  it("validates a saved action's own inputs", () => {
+    const custom = getAction("custom");
+    const saved = notchRecord();
+    const on = { ref: "face", of: "Lid", name: "front" };
+    expect(
+      validateInputs(
+        custom,
+        { action: "finger-notch@1", on, width: 18 },
+        saved,
+      ),
+    ).toEqual({
+      action: "finger-notch@1",
+      on,
+      width: 18,
+    });
+    expect(() =>
+      validateInputs(
+        custom,
+        { action: "finger-notch@1", on, width: 500 },
+        saved,
+      ),
+    ).toThrow("width must be at most 40 mm");
+    expect(() =>
+      validateInputs(
+        custom,
+        { action: "finger-notch@1", on, width: 9, colour: "red" },
+        saved,
+      ),
+    ).toThrow("colour is not an input of finger-notch@1");
+    expect(() =>
+      validateInputs(custom, { action: "finger-notch@2", on, width: 9 }, saved),
+    ).toThrow("No saved action finger-notch@2");
   });
   it("uses only the supported schema keywords in the catalog", () => {
     for (const action of actions)

@@ -208,13 +208,37 @@ function checkObject(
   }
 }
 
-/** Checks a step's inputs; returns them unchanged (defaults stay implicit) or refuses with 400. */
+const SAVED_KEY = /^[a-z][a-z0-9-]{1,39}@[0-9]{1,6}$/;
+
+/**
+ * Checks a step's inputs; returns them unchanged (defaults stay implicit) or refuses with 400.
+ * A custom step names exactly one of `fn` or `action`; with `action`, pass that saved action's record
+ * so its own inputs are checked.
+ */
 export function validateInputs(
   action: ActionRecord,
   inputs: unknown,
+  saved?: ActionRecord,
 ): Record<string, StepValue> {
   if (!plain(inputs)) throw new AppError(400, "inputs must be an object");
   try {
+    if (action.id === "custom") {
+      if ("fn" in inputs === "action" in inputs)
+        throw new Invalid(
+          "A custom step needs exactly one of fn or action (a saved action as id@version)",
+        );
+      if ("action" in inputs) {
+        const { action: key, ...rest } = inputs;
+        if (typeof key !== "string" || !SAVED_KEY.test(key))
+          throw new Invalid(
+            "action must be a saved action as id@version, for example finger-notch@2",
+          );
+        if (!saved || saved.id !== key)
+          throw new AppError(404, `No saved action ${key}`);
+        checkObject(saved.inputs, rest, "", key);
+        return inputs as Record<string, StepValue>;
+      }
+    }
     checkObject(action.inputs, inputs, "", action.id);
   } catch (error) {
     if (error instanceof Invalid) throw new AppError(400, error.message);

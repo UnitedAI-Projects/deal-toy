@@ -18,6 +18,7 @@ import {
   writeSteps,
   type StepValue,
 } from "./actions/script";
+import { savedAction } from "./actions/saved";
 import { validateInputs } from "./actions/validate";
 import { AppError, id, modelAccess, type Context } from "./core";
 import { define, queueBuild, saveRevision, type Tool } from "./tool-kit";
@@ -52,7 +53,10 @@ async function latestFacts(c: Context, revisionId: string) {
 async function change(
   c: Context,
   i: { modelId: string; expectedRevision: number; sessionId?: string },
-  make: (steps: ReturnType<typeof readSteps>["steps"]) => StepChange,
+  make: (
+    steps: ReturnType<typeof readSteps>["steps"],
+    projectId: string,
+  ) => StepChange | Promise<StepChange>,
 ) {
   const model = await modelAccess(c, i.modelId);
   if (
@@ -69,7 +73,7 @@ async function change(
     .first<{ id: string; source: string }>();
   if (!revision) throw new AppError(404, "Revision not found");
   const { steps } = readSteps(revision.source);
-  const edit = make(steps);
+  const edit = await make(steps, model.project_id);
   const labels =
     (await latestFacts(c, revision.id))?.parts?.map((p) => p.label) ?? [];
   const source = writeSteps(
@@ -91,6 +95,21 @@ async function change(
     },
   });
   return { revision: saved, job };
+}
+
+/** Validates inputs for an action, loading the saved action a custom step names. */
+async function checked(
+  c: Context,
+  projectId: string,
+  action: string,
+  inputs: Record<string, unknown>,
+): Promise<Record<string, StepValue>> {
+  const key =
+    action === "custom" && typeof inputs.action === "string"
+      ? inputs.action
+      : null;
+  const saved = key ? (await savedAction(c, projectId, key)).record : undefined;
+  return validateInputs(getAction(action), inputs, saved);
 }
 
 function existing(steps: ReturnType<typeof readSteps>["steps"], name: string) {
@@ -179,12 +198,12 @@ export const stepTools: Tool[] = [
     },
     false,
     async (c, i) =>
-      change(c, i, () => ({
+      change(c, i, async (_steps, projectId) => ({
         op: "add",
         step: {
           action: i.action,
           name: i.name,
-          inputs: validateInputs(getAction(i.action), i.inputs),
+          inputs: await checked(c, projectId, i.action, i.inputs),
         },
         after: i.after,
       })),
@@ -196,13 +215,15 @@ export const stepTools: Tool[] = [
     { ...target, name: stepName, inputs },
     false,
     async (c, i) =>
-      change(c, i, (steps) => ({
+      change(c, i, async (steps, projectId) => ({
         op: "edit",
         name: i.name,
-        inputs: validateInputs(
-          getAction(existing(steps, i.name).action),
+        inputs: await checked(
+          c,
+          projectId,
+          existing(steps, i.name).action,
           i.inputs,
-        ) as Record<string, StepValue>,
+        ),
       })),
     [...WRITE],
   ),
