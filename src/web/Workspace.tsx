@@ -59,6 +59,13 @@ export function Workspace(props: Props) {
     offset: number;
   } | null>(null);
   const [record, setRecord] = useState<InspectRecord | null>(null);
+  // What the agent is pointing at, until the person clicks.
+  const [agentPoint, setAgentPoint] = useState<{
+    jobId: string;
+    faces: number[];
+    parts: string[];
+    message: string;
+  } | null>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [menu, setMenu] = useState(false);
   const [chatOpen, setChatOpen] = useState(
@@ -75,6 +82,10 @@ export function Workspace(props: Props) {
     const stop = connectLive(
       projectId,
       (message) => {
+        if (message.type === "highlight") {
+          setAgentPoint(message);
+          return;
+        }
         if (message.type === "event")
           setActivity((current) => {
             if (current.events.some((e) => e.id === message.event.id))
@@ -204,6 +215,8 @@ export function Workspace(props: Props) {
       cancelled = true;
     };
   }, [inspectArtifact?.id]);
+  const agentFaces =
+    agentPoint && agentPoint.jobId === shownJob?.id ? agentPoint.faces : [];
   const highlights = useMemo(
     () => [
       {
@@ -212,8 +225,9 @@ export function Workspace(props: Props) {
         ),
         tone: "pick" as const,
       },
+      { faces: agentFaces, tone: "agent" as const },
     ],
-    [selection?.face, second?.face],
+    [selection?.face, second?.face, agentFaces.join(",")],
   );
   const bounds = useMemo(() => {
     if (!record?.parts.length) return null;
@@ -317,6 +331,7 @@ export function Workspace(props: Props) {
           highlights={highlights}
           section={asOf ? null : section}
           onSelect={(label, point, hit, additive) => {
+            setAgentPoint(null);
             if (!label) {
               setSelection(null);
               setSecond(null);
@@ -449,6 +464,19 @@ export function Workspace(props: Props) {
               Write the model yourself
             </button>
           </div>
+        </div>
+      )}
+
+      {agentPoint && agentPoint.jobId === shownJob?.id && (
+        <div className="agent-point" role="status">
+          <span className="dot on" aria-hidden="true" />
+          <span>
+            {agentPoint.message || "The agent is pointing at this"}
+            {agentPoint.parts.length ? ` · ${agentPoint.parts.join(", ")}` : ""}
+          </span>
+          <button className="link" onClick={() => setAgentPoint(null)}>
+            Dismiss
+          </button>
         </div>
       )}
 

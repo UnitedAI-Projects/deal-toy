@@ -635,6 +635,15 @@ function summarize(name: string, input: unknown, value: unknown) {
       return "Read the presets";
     case "inspect_get":
       return "Read the inspection record";
+    case "view_highlight":
+      return `Pointed at ${
+        [
+          ...(Array.isArray(i.faces) && i.faces.length
+            ? [`${i.faces.length} face${i.faces.length > 1 ? "s" : ""}`]
+            : []),
+          ...(Array.isArray(i.parts) ? i.parts : []),
+        ].join(", ") || "the model"
+      }`;
     case "builds_view_as_of":
       return `Viewed the model as of "${i.step}"`;
     case "documents_add":

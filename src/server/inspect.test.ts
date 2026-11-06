@@ -153,3 +153,132 @@ describe("inspection record", () => {
     ).toBe("failed");
   });
 });
+
+describe("view_highlight", () => {
+  const spying = (c: Context) => {
+    const broadcast = vi.fn(async () => {});
+    return {
+      broadcast,
+      context: {
+        ...c,
+        env: { ...c.env, LIVE: { getByName: () => ({ broadcast }) } },
+      } as unknown as Context,
+    };
+  };
+  async function session(c: Context, projectId: string) {
+    const { dispatch } = await import("./tools");
+    const { value } = await dispatch(
+      c,
+      "session_start",
+      { projectId, prompt: "Check the coin wall" },
+      "mcp",
+    );
+    return (value as { sessionId: string }).sessionId;
+  }
+  it("broadcasts the highlight and records the agent's message", async () => {
+    const { p, job } = await built();
+    const sessionId = await session(carol, p.id);
+    const { broadcast, context } = spying(carol);
+    await execute(context, "view_highlight", {
+      sessionId,
+      jobId: job.id,
+      faces: [1],
+      parts: ["Coin"],
+      message: "The coin is 1.5 mm behind this face",
+    });
+    const sent = (broadcast.mock.calls as unknown as [string, string][]).map(
+      ([full]) => JSON.parse(full),
+    );
+    expect(sent).toContainEqual({
+      type: "highlight",
+      jobId: job.id,
+      faces: [1],
+      parts: ["Coin"],
+      message: "The coin is 1.5 mm behind this face",
+    });
+    const { events } = (await execute(carol, "projects_activity", {
+      projectId: p.id,
+    })) as {
+      events: { kind: string; payload: { message?: string } }[];
+    };
+    expect(
+      events.some(
+        (e) =>
+          e.kind === "agent_update" &&
+          e.payload.message === "The coin is 1.5 mm behind this face",
+      ),
+    ).toBe(true);
+  });
+  it("refuses faces and parts the build does not have", async () => {
+    const { p, job } = await built();
+    const sessionId = await session(carol, p.id);
+    await expect(
+      execute(carol, "view_highlight", {
+        sessionId,
+        jobId: job.id,
+        faces: [9999],
+      }),
+    ).rejects.toThrow("No face 9999");
+    await expect(
+      execute(carol, "view_highlight", {
+        sessionId,
+        jobId: job.id,
+        parts: ["Ghost"],
+      }),
+    ).rejects.toThrow('No part "Ghost"');
+  });
+  it("refuses demo viewers and sessions on another project, broadcasting nothing", async () => {
+    const { p, job } = await built();
+    await env.DB.prepare("UPDATE projects SET demo=1 WHERE id=?")
+      .bind(p.id)
+      .run();
+    const other = await built();
+    const otherSession = await session(carol, other.p.id);
+    const { broadcast, context } = spying(viewer);
+    await expect(
+      execute(context, "view_highlight", {
+        sessionId: otherSession,
+        jobId: job.id,
+        faces: [1],
+      }),
+    ).rejects.toThrow();
+    const mine = spying(carol);
+    await expect(
+      execute(mine.context, "view_highlight", {
+        sessionId: otherSession,
+        jobId: job.id,
+        faces: [1],
+      }),
+    ).rejects.toThrow("Session belongs to another project");
+    expect(broadcast).not.toHaveBeenCalled();
+    expect(mine.broadcast).not.toHaveBeenCalled();
+  });
+});
+
+describe("view_highlight summary", () => {
+  it("logs what the agent pointed at in plain words", async () => {
+    const { p, job } = await built();
+    const { dispatch } = await import("./tools");
+    const { value } = await dispatch(
+      carol,
+      "session_start",
+      { projectId: p.id, prompt: "Point" },
+      "mcp",
+    );
+    const sessionId = (value as { sessionId: string }).sessionId;
+    await dispatch(
+      carol,
+      "view_highlight",
+      { sessionId, jobId: job.id, faces: [1, 2], parts: ["Coin"] },
+      "mcp",
+    );
+    const { events } = (await execute(carol, "projects_activity", {
+      projectId: p.id,
+    })) as {
+      events: { kind: string; payload: { summary?: string } }[];
+    };
+    expect(events.map((e) => e.payload.summary)).toContain(
+      "Pointed at 2 faces, Coin",
+    );
+  });
+});

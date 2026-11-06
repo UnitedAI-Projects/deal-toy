@@ -1086,6 +1086,26 @@ button.wide {
 .step-detail {
   color: var(--muted);
 }
+.agent-point {
+  position: absolute;
+  left: 368px;
+  right: 14px;
+  bottom: 96px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: calc(100% - 382px);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface-glass);
+  color: var(--ink);
+  border: 1px solid var(--agent);
+  border-radius: 10px;
+  padding: 6px 12px;
+  z-index: 7;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+}
 .inspect-tools {
   position: absolute;
   right: 14px;
@@ -1372,6 +1392,13 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     top: 132px;
+  }
+  .agent-point {
+    left: 10px;
+    right: 10px;
+    bottom: auto;
+    top: 240px;
+    max-width: none;
   }
   .inspect-tools {
     right: 10px;

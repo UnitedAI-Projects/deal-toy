@@ -189,7 +189,16 @@ export type ProjectEvent = {
 };
 export type Activity = { sessions: Session[]; events: ProjectEvent[] };
 export type LiveMessage =
-  { type: "event"; event: ProjectEvent } | { type: "workspace" };
+  | { type: "event"; event: ProjectEvent }
+  | { type: "workspace" }
+  /** The agent points at faces or parts of a build in every watching viewer. */
+  | {
+      type: "highlight";
+      jobId: string;
+      faces: number[];
+      parts: string[];
+      message: string;
+    };
 /**
  * Follows a project's live activity. Each attempt first asks the signed-in API for a
  * single-use ticket that the socket presents. Reconnects with backoff.
