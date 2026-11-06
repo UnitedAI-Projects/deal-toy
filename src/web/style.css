@@ -1086,6 +1086,27 @@ button.wide {
 .step-detail {
   color: var(--muted);
 }
+.asof-banner {
+  position: absolute;
+  top: 100px;
+  left: 368px;
+  right: 14px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: calc(100% - 382px);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--surface-glass);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 6px 12px;
+  z-index: 7;
+  font-size: 13px;
+}
+.asof-banner span {
+  color: var(--muted);
+}
 .build-banner {
   position: absolute;
   left: 368px;
@@ -1301,6 +1322,13 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     top: 132px;
+  }
+  .asof-banner {
+    left: 10px;
+    right: 10px;
+    top: 168px;
+    max-width: none;
+    flex-wrap: wrap;
   }
   .step-popover {
     left: 0;

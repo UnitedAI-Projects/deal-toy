@@ -15,6 +15,7 @@ import {
 } from "./api";
 import { ChatPanel } from "./ChatPanel";
 import { Timeline } from "./Timeline";
+import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
 import { changedModel, initialModel } from "./follow";
 import type { ThemeChoice } from "./theme";
@@ -178,6 +179,59 @@ export function Workspace(props: Props) {
     });
     setDemo(!demo);
   }
+  // The model as it was after one step, from a view-as-of preview build.
+  const [asOf, setAsOf] = useState<{
+    step: string;
+    revisionId: string;
+    glb?: string;
+    error?: string;
+  } | null>(null);
+  useEffect(() => setAsOf(null), [modelId, shown?.id]);
+  async function viewAsOf(step: string) {
+    if (!shown) return;
+    const revisionId = shown.id;
+    setAsOf({ step, revisionId });
+    try {
+      let job = await call<{ id: string; status: string }>(
+        "builds_view_as_of",
+        {
+          revisionId,
+          step,
+        },
+      );
+      for (
+        let i = 0;
+        i < 90 && job.status !== "succeeded" && job.status !== "failed";
+        i++
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        job = await call("builds_get", { jobId: job.id });
+      }
+      const result = job as {
+        status: string;
+        error?: string;
+        artifacts?: { id: string; name: string }[];
+      };
+      const glbId = result.artifacts?.find((a) => a.name === "model.glb")?.id;
+      setAsOf((current) =>
+        current?.step === step && current.revisionId === revisionId
+          ? glbId
+            ? { ...current, glb: glbId }
+            : { ...current, error: result.error ?? "The preview did not build" }
+          : current,
+      );
+    } catch (e) {
+      setAsOf((current) =>
+        current?.step === step
+          ? {
+              ...current,
+              error:
+                e instanceof Error ? e.message : "The preview did not build",
+            }
+          : current,
+      );
+    }
+  }
   const editable =
     canEdit &&
     !!latest &&
@@ -203,7 +257,7 @@ export function Workspace(props: Props) {
     <div className="workspace">
       <Suspense fallback={<div className="viewer" />}>
         <Viewer
-          artifactId={glb?.id}
+          artifactId={asOf?.glb ?? glb?.id}
           modelKey={modelId}
           theme={props.theme}
           parts={parts}
@@ -371,7 +425,21 @@ export function Workspace(props: Props) {
             setFollow(true);
             await props.reload();
           }}
+          onViewAsOf={viewAsOf}
         />
+      )}
+
+      {asOf && facts?.steps && (
+        <div className="asof-banner" role="status">
+          <strong>{asOfLabel(facts.steps, asOf.step)}</strong>
+          <span>
+            {asOf.error ??
+              (asOf.glb ? "Later steps are hidden." : "Building the preview…")}
+          </span>
+          <button className="link" onClick={() => setAsOf(null)}>
+            Back to latest
+          </button>
+        </div>
       )}
 
       {viewedJob?.status === "failed" && (
