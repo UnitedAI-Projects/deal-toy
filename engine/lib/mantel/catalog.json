@@ -1,0 +1,1555 @@
+{
+  "version": 1,
+  "states": [
+    {
+      "state": "ok",
+      "meaning": "The step ran and produced valid geometry."
+    },
+    {
+      "state": "warning",
+      "meaning": "The step ran, but something needs attention, such as a fillet radius that was reduced or text that runs past the face."
+    },
+    {
+      "state": "failed",
+      "meaning": "The step did not run; the model continues without it. The failure code says why and how to fix it."
+    },
+    {
+      "state": "blocked",
+      "meaning": "The step was not run because it refers to something a failed or suppressed step would have created."
+    },
+    {
+      "state": "suppressed",
+      "meaning": "The step is turned off. It stays in the script and can be turned back on."
+    },
+    {
+      "state": "pending",
+      "meaning": "The step is saved but has not been built yet."
+    }
+  ],
+  "actions": [
+    {
+      "id": "body",
+      "version": 1,
+      "title": "Body",
+      "category": "Create",
+      "summary": "Add a new labelled part from a box, rounded box, cylinder, cone or sphere.",
+      "description": "Use for the blocks, bases and plinths a deal toy starts from. The step name becomes the part label, and the part gets named sides (top, bottom, left, right, front, back) for later steps. Do not use it to cut material: use extrude with operation cut, hole, or combine.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "shape": {
+            "type": "string",
+            "enum": ["box", "rounded_box", "cylinder", "cone", "sphere"],
+            "description": "The primitive"
+          },
+          "size": {
+            "type": "array",
+            "description": "Box size along X, Y and Z",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": 0.1,
+              "maximum": 2000
+            }
+          },
+          "radius": {
+            "type": "number",
+            "description": "Edge radius of a rounded box",
+            "unit": "mm",
+            "minimum": 0.05,
+            "maximum": 500
+          },
+          "diameter": {
+            "type": "number",
+            "description": "Diameter of a cylinder or sphere, or the bottom diameter of a cone",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 2000
+          },
+          "top_diameter": {
+            "type": "number",
+            "description": "Top diameter of a cone; 0 makes a point",
+            "unit": "mm",
+            "minimum": 0,
+            "maximum": 2000
+          },
+          "height": {
+            "type": "number",
+            "description": "Height of a cylinder or cone",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 2000
+          },
+          "at": {
+            "type": "array",
+            "description": "Where the centre of the body's bottom sits, in model coordinates",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "on": {
+            "x-ref": ["face", "datum"],
+            "description": "Optional face or plane the body stands on; its bottom is placed on it, centred at the projection of at"
+          }
+        },
+        "required": ["shape"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "shape": {
+                  "const": "box"
+                }
+              }
+            },
+            "then": {
+              "required": ["size"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "shape": {
+                  "const": "rounded_box"
+                }
+              }
+            },
+            "then": {
+              "required": ["size", "radius"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "shape": {
+                  "const": "cylinder"
+                }
+              }
+            },
+            "then": {
+              "required": ["diameter", "height"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "shape": {
+                  "const": "cone"
+                }
+              }
+            },
+            "then": {
+              "required": ["diameter", "top_diameter", "height"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "shape": {
+                  "const": "sphere"
+                }
+              }
+            },
+            "then": {
+              "required": ["diameter"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "on",
+          "kind": "face",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "on",
+          "kind": "plane",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {},
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "datum_not_found",
+          "explanation": "No construction plane has that name.",
+          "fix": "Use the name of an earlier plane step."
+        },
+        {
+          "code": "not_planar",
+          "explanation": "The selected face is curved, but this action needs a flat face or a construction plane.",
+          "fix": "Pick a flat face or a plane."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "bodies",
+      "example": "m.body(\"Block\", shape=\"box\", size=(80, 30, 60), at=(0, 0, 10))"
+    },
+    {
+      "id": "plane",
+      "version": 1,
+      "title": "Construction plane",
+      "category": "Construct",
+      "summary": "Add a named construction plane: offset from a face, angled about an edge, midway between faces, or through 3 points.",
+      "description": "Use to place features where no face exists, such as text floating on a mid-plane or a cut through the middle of a part. A plane adds no material. Later steps refer to it with m.datum(name).",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": ["offset", "angle", "midplane", "three_points"],
+            "description": "How the plane is defined"
+          },
+          "reference": {
+            "x-ref": ["face", "datum"],
+            "description": "The face or plane to offset or rotate from"
+          },
+          "distance": {
+            "type": "number",
+            "description": "Offset along the normal of the reference",
+            "unit": "mm",
+            "minimum": -2000,
+            "maximum": 2000,
+            "default": 0
+          },
+          "about": {
+            "x-ref": "edges",
+            "description": "The straight edge to rotate about, for method angle"
+          },
+          "angle": {
+            "type": "number",
+            "description": "Rotation about the edge, for method angle",
+            "unit": "deg",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "between": {
+            "type": "array",
+            "description": "The two parallel faces for method midplane",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "x-ref": "face",
+              "description": "One of the two faces"
+            }
+          },
+          "points": {
+            "type": "array",
+            "description": "Three points for method three_points",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "array",
+              "description": "A point in model coordinates",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number",
+                "description": "One coordinate",
+                "unit": "mm",
+                "minimum": -2000,
+                "maximum": 2000
+              }
+            }
+          }
+        },
+        "required": ["method"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "offset"
+                }
+              }
+            },
+            "then": {
+              "required": ["reference", "distance"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "angle"
+                }
+              }
+            },
+            "then": {
+              "required": ["reference", "about", "angle"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "midplane"
+                }
+              }
+            },
+            "then": {
+              "required": ["between"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "three_points"
+                }
+              }
+            },
+            "then": {
+              "required": ["points"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "reference",
+          "kind": "face",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "reference",
+          "kind": "plane",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "about",
+          "kind": "edge",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "between",
+          "kind": "face",
+          "min": 0,
+          "max": 2
+        }
+      ],
+      "creates": {},
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "datum_not_found",
+          "explanation": "No construction plane has that name.",
+          "fix": "Use the name of an earlier plane step."
+        },
+        {
+          "code": "not_planar",
+          "explanation": "The selected face is curved, but this action needs a flat face or a construction plane.",
+          "fix": "Pick a flat face or a plane."
+        },
+        {
+          "code": "no_edges",
+          "explanation": "The edge selection matched no edges.",
+          "fix": "Pick edges again, or check that the two named faces meet."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "plane",
+      "example": "m.plane(\"Mid plane\", method=\"midplane\", between=[m.face(\"Base\", \"left\"), m.face(\"Base\", \"right\")])"
+    },
+    {
+      "id": "extrude",
+      "version": 1,
+      "title": "Extrude",
+      "category": "Create",
+      "summary": "Extrude a rectangle, rounded rectangle, circle, slot or polygon from a face to add, cut or make a part.",
+      "description": "Use for pockets, bosses, slots and recesses with a simple outline. Use hole for round holes with counterbores or countersinks, text for lettering, and combine to cut one existing part from another. Negative distances go into the part.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "x-ref": ["face", "datum"],
+            "description": "The flat face or construction plane to work on"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "rectangle",
+              "rounded_rectangle",
+              "circle",
+              "slot",
+              "polygon"
+            ],
+            "description": "The outline to extrude"
+          },
+          "width": {
+            "type": "number",
+            "description": "Profile width along the face's horizontal direction",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 2000
+          },
+          "length": {
+            "type": "number",
+            "description": "Profile length along the face's vertical direction",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 2000
+          },
+          "radius": {
+            "type": "number",
+            "description": "Corner radius of a rounded rectangle",
+            "unit": "mm",
+            "minimum": 0.05,
+            "maximum": 500
+          },
+          "diameter": {
+            "type": "number",
+            "description": "Diameter of a circle, or of the circle around a polygon",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 2000
+          },
+          "sides": {
+            "type": "integer",
+            "description": "Number of polygon sides",
+            "unit": "count",
+            "minimum": 3,
+            "maximum": 64
+          },
+          "at": {
+            "type": "array",
+            "description": "A point in model coordinates, projected onto the face; defaults to the face's centre",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "rotation": {
+            "type": "number",
+            "description": "Rotation of the profile about the face normal",
+            "unit": "deg",
+            "minimum": -360,
+            "maximum": 360,
+            "default": 0
+          },
+          "extent": {
+            "type": "string",
+            "enum": ["distance", "symmetric", "through", "up_to"],
+            "description": "How far to go: a distance, a distance split both ways, through the whole part, or up to a face",
+            "default": "distance"
+          },
+          "distance": {
+            "type": "number",
+            "description": "Distance along the face normal; negative goes into the part",
+            "unit": "mm",
+            "minimum": -2000,
+            "maximum": 2000
+          },
+          "up_to": {
+            "x-ref": "face",
+            "description": "The face to stop at when extent is up_to"
+          },
+          "taper": {
+            "type": "number",
+            "description": "Draft angle of the side walls; positive narrows away from the face",
+            "unit": "deg",
+            "minimum": -45,
+            "maximum": 45,
+            "default": 0
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["new", "join", "cut"],
+            "description": "Make a new part named after the step, add to the target, or cut from it",
+            "default": "join"
+          },
+          "target": {
+            "x-ref": "part",
+            "description": "The part to join to or cut from; defaults to the part that owns the face"
+          }
+        },
+        "required": ["on", "profile"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "profile": {
+                  "const": "rectangle"
+                }
+              }
+            },
+            "then": {
+              "required": ["width", "length"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "profile": {
+                  "const": "rounded_rectangle"
+                }
+              }
+            },
+            "then": {
+              "required": ["width", "length", "radius"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "profile": {
+                  "const": "circle"
+                }
+              }
+            },
+            "then": {
+              "required": ["diameter"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "profile": {
+                  "const": "slot"
+                }
+              }
+            },
+            "then": {
+              "required": ["width", "length"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "profile": {
+                  "const": "polygon"
+                }
+              }
+            },
+            "then": {
+              "required": ["diameter", "sides"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "extent": {
+                  "const": "distance"
+                }
+              }
+            },
+            "then": {
+              "required": ["distance"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "extent": {
+                  "const": "symmetric"
+                }
+              }
+            },
+            "then": {
+              "required": ["distance"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "extent": {
+                  "const": "up_to"
+                }
+              }
+            },
+            "then": {
+              "required": ["up_to"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "on",
+          "kind": "face",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "input": "on",
+          "kind": "plane",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "input": "up_to",
+          "kind": "face",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "end": "The end face opposite the starting face",
+        "sides": "The side walls of the extrusion"
+      },
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "datum_not_found",
+          "explanation": "No construction plane has that name.",
+          "fix": "Use the name of an earlier plane step."
+        },
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "not_planar",
+          "explanation": "The selected face is curved, but this action needs a flat face or a construction plane.",
+          "fix": "Pick a flat face or a plane."
+        },
+        {
+          "code": "missed_target",
+          "explanation": "The tool did not touch the target part, so nothing changed.",
+          "fix": "Move the tool so it overlaps the target, or check the direction."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "prism",
+      "example": "m.extrude(\"Pocket\", on=m.face(\"Base\", \"top\"), profile=\"rectangle\", width=20, length=10, distance=-3, operation=\"cut\")"
+    },
+    {
+      "id": "hole",
+      "version": 1,
+      "title": "Hole",
+      "category": "Modify",
+      "summary": "Cut a simple, counterbored or countersunk round hole into a face, to a depth, through all or up to a face.",
+      "description": "Use for mounting and screw holes. The hole is drilled perpendicular to the face at the point at. For non-round cavities use extrude with operation cut; to make a cavity shaped like another part, use combine.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "x-ref": "face",
+            "description": "The flat face the hole is drilled into"
+          },
+          "at": {
+            "type": "array",
+            "description": "A point in model coordinates, projected onto the face; defaults to the face's centre",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "diameter": {
+            "type": "number",
+            "description": "Hole diameter",
+            "unit": "mm",
+            "minimum": 0.2,
+            "maximum": 200
+          },
+          "extent": {
+            "type": "string",
+            "enum": ["distance", "through", "up_to"],
+            "description": "How deep to drill",
+            "default": "distance"
+          },
+          "depth": {
+            "type": "number",
+            "description": "Hole depth, for extent distance",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 2000
+          },
+          "up_to": {
+            "x-ref": "face",
+            "description": "The face to stop at when extent is up_to"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["simple", "counterbore", "countersink"],
+            "description": "The hole type",
+            "default": "simple"
+          },
+          "cb_diameter": {
+            "type": "number",
+            "description": "Counterbore diameter",
+            "unit": "mm",
+            "minimum": 0.3,
+            "maximum": 300
+          },
+          "cb_depth": {
+            "type": "number",
+            "description": "Counterbore depth",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 500
+          },
+          "cs_diameter": {
+            "type": "number",
+            "description": "Countersink diameter at the face",
+            "unit": "mm",
+            "minimum": 0.3,
+            "maximum": 300
+          },
+          "cs_angle": {
+            "type": "number",
+            "description": "Countersink included angle",
+            "unit": "deg",
+            "minimum": 60,
+            "maximum": 120,
+            "default": 90
+          }
+        },
+        "required": ["on", "diameter"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "extent": {
+                  "const": "distance"
+                }
+              }
+            },
+            "then": {
+              "required": ["depth"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "extent": {
+                  "const": "up_to"
+                }
+              }
+            },
+            "then": {
+              "required": ["up_to"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "counterbore"
+                }
+              }
+            },
+            "then": {
+              "required": ["cb_diameter", "cb_depth"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "countersink"
+                }
+              }
+            },
+            "then": {
+              "required": ["cs_diameter"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "on",
+          "kind": "face",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "input": "up_to",
+          "kind": "face",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "wall": "The cylindrical wall of the hole",
+        "floor": "The flat bottom of a blind hole",
+        "counterbore_wall": "The wall of the counterbore",
+        "countersink": "The conical countersink face"
+      },
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "not_planar",
+          "explanation": "The selected face is curved, but this action needs a flat face or a construction plane.",
+          "fix": "Pick a flat face or a plane."
+        },
+        {
+          "code": "too_large",
+          "explanation": "The feature does not fit on the selected face.",
+          "fix": "Reduce its size or pick a larger face."
+        },
+        {
+          "code": "missed_target",
+          "explanation": "The tool did not touch the target part, so nothing changed.",
+          "fix": "Move the tool so it overlaps the target, or check the direction."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "cylinder",
+      "example": "m.hole(\"Mount hole\", on=m.face(\"Base\", \"bottom\"), at=(-30, 0, 0), diameter=5, extent=\"through\")"
+    },
+    {
+      "id": "fillet",
+      "version": 1,
+      "title": "Fillet",
+      "category": "Modify",
+      "summary": "Round the selected edges with a radius.",
+      "description": "Use to soften the edges of blocks and bases. A radius that is too large for an edge is reduced to the largest that builds, and the step reports a warning. For a flat bevel use chamfer.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "edges": {
+            "x-ref": "edges",
+            "description": "The edges to round"
+          },
+          "radius": {
+            "type": "number",
+            "description": "Fillet radius",
+            "unit": "mm",
+            "minimum": 0.05,
+            "maximum": 500
+          }
+        },
+        "required": ["edges", "radius"],
+        "additionalProperties": false
+      },
+      "selections": [
+        {
+          "input": "edges",
+          "kind": "edge",
+          "min": 1,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "rounds": "The rounded faces"
+      },
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "no_edges",
+          "explanation": "The edge selection matched no edges.",
+          "fix": "Pick edges again, or check that the two named faces meet."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "none",
+      "example": "m.fillet(\"Base edges\", edges=m.edges(\"Base\", around=\"top\"), radius=1)"
+    },
+    {
+      "id": "chamfer",
+      "version": 1,
+      "title": "Chamfer",
+      "category": "Modify",
+      "summary": "Bevel the selected edges by a distance, optionally at an angle.",
+      "description": "Use for flat bevels on edges, such as a lead-in on a hole or a crisp edge on a plaque. For rounded edges use fillet.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "edges": {
+            "x-ref": "edges",
+            "description": "The edges to bevel"
+          },
+          "distance": {
+            "type": "number",
+            "description": "Chamfer distance",
+            "unit": "mm",
+            "minimum": 0.05,
+            "maximum": 500
+          },
+          "angle": {
+            "type": "number",
+            "description": "Chamfer angle from the first face",
+            "unit": "deg",
+            "minimum": 10,
+            "maximum": 80,
+            "default": 45
+          }
+        },
+        "required": ["edges", "distance"],
+        "additionalProperties": false
+      },
+      "selections": [
+        {
+          "input": "edges",
+          "kind": "edge",
+          "min": 1,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "bevels": "The bevel faces"
+      },
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "no_edges",
+          "explanation": "The edge selection matched no edges.",
+          "fix": "Pick edges again, or check that the two named faces meet."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "none",
+      "example": "m.chamfer(\"Base bevel\", edges=m.edges(\"Base\", around=\"top\"), distance=1)"
+    },
+    {
+      "id": "text",
+      "version": 1,
+      "title": "Text",
+      "category": "Create",
+      "summary": "Engrave or emboss a line of text on a flat face.",
+      "description": "Use for deal names, dates and logos in words. Text reads upright when viewed from outside the face. Engrave cuts into the part; emboss raises the letters. Check the inspect record for engraving depth requirements.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "x-ref": "face",
+            "description": "The flat face to put the text on"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text, one line",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "font": {
+            "type": "string",
+            "enum": [
+              "Liberation Sans",
+              "Liberation Sans Bold",
+              "Liberation Serif",
+              "Liberation Serif Bold",
+              "Liberation Mono",
+              "Liberation Mono Bold"
+            ],
+            "description": "Font from the build image",
+            "default": "Liberation Sans"
+          },
+          "height": {
+            "type": "number",
+            "description": "Letter height",
+            "unit": "mm",
+            "minimum": 0.5,
+            "maximum": 200
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["engrave", "emboss"],
+            "description": "Cut the letters in or raise them",
+            "default": "engrave"
+          },
+          "depth": {
+            "type": "number",
+            "description": "Engrave depth or emboss height",
+            "unit": "mm",
+            "minimum": 0.05,
+            "maximum": 20
+          },
+          "at": {
+            "type": "array",
+            "description": "A point in model coordinates, projected onto the face; defaults to the face's centre",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "align": {
+            "type": "string",
+            "enum": ["left", "center", "right"],
+            "description": "Horizontal alignment about at",
+            "default": "center"
+          },
+          "rotation": {
+            "type": "number",
+            "description": "Rotation about the face normal",
+            "unit": "deg",
+            "minimum": -360,
+            "maximum": 360,
+            "default": 0
+          }
+        },
+        "required": ["on", "text", "height", "depth"],
+        "additionalProperties": false
+      },
+      "selections": [
+        {
+          "input": "on",
+          "kind": "face",
+          "min": 1,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "text_faces": "The faces of the letters"
+      },
+      "failures": [
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "not_planar",
+          "explanation": "The selected face is curved, but this action needs a flat face or a construction plane.",
+          "fix": "Pick a flat face or a plane."
+        },
+        {
+          "code": "too_large",
+          "explanation": "The feature does not fit on the selected face.",
+          "fix": "Reduce its size or pick a larger face."
+        },
+        {
+          "code": "font_missing",
+          "explanation": "The requested font is not installed in the build image.",
+          "fix": "Choose one of the listed fonts."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "text",
+      "example": "m.text(\"Deal text\", on=m.face(\"Base\", \"front\"), text=\"ACME\", height=6, depth=0.5)"
+    },
+    {
+      "id": "combine",
+      "version": 1,
+      "title": "Combine",
+      "category": "Combine",
+      "summary": "Join, cut or intersect one part with another; cut and keep the tool to make an embed cavity.",
+      "description": "Use to merge parts, to cut one part's shape out of another, or to keep only their overlap. Cutting with keep_tool makes the cavity an embedded object sits in, such as a coin in an acrylic block. The tool part is removed unless keep_tool is true.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "x-ref": "part",
+            "description": "The part that is changed"
+          },
+          "tool": {
+            "x-ref": "part",
+            "description": "The part used to change it"
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["join", "cut", "intersect"],
+            "description": "Join adds the tool, cut removes it, intersect keeps only the overlap"
+          },
+          "keep_tool": {
+            "type": "boolean",
+            "description": "Keep the tool part afterwards",
+            "default": false
+          }
+        },
+        "required": ["target", "tool", "operation"],
+        "additionalProperties": false
+      },
+      "selections": [
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "input": "tool",
+          "kind": "part",
+          "min": 1,
+          "max": 1
+        }
+      ],
+      "creates": {},
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "missed_target",
+          "explanation": "The tool did not touch the target part, so nothing changed.",
+          "fix": "Move the tool so it overlaps the target, or check the direction."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "bodies",
+      "example": "m.combine(\"Coin cavity\", target=m.part(\"Base\"), tool=m.part(\"Coin\"), operation=\"cut\", keep_tool=True)"
+    },
+    {
+      "id": "move",
+      "version": 1,
+      "title": "Move",
+      "category": "Arrange",
+      "summary": "Translate or rotate a part, or align one of its faces to another face.",
+      "description": "Use to place parts relative to each other, such as setting a figure on its base. Align moves the part so its face lies against the target face, facing it, at the offset. Moving changes no shapes.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "part": {
+            "x-ref": "part",
+            "description": "The part to move"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["translate", "rotate", "align"],
+            "description": "How to move it"
+          },
+          "by": {
+            "type": "array",
+            "description": "Translation in model coordinates",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "axis": {
+            "type": "string",
+            "enum": ["X", "Y", "Z"],
+            "description": "Axis to rotate about, through origin"
+          },
+          "angle": {
+            "type": "number",
+            "description": "Rotation angle",
+            "unit": "deg",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "origin": {
+            "type": "array",
+            "description": "A point on the rotation axis",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "face": {
+            "x-ref": "face",
+            "description": "The face of the moving part to align"
+          },
+          "to": {
+            "x-ref": ["face", "datum"],
+            "description": "The face or plane to align it to"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Gap left between the aligned faces",
+            "unit": "mm",
+            "minimum": -2000,
+            "maximum": 2000,
+            "default": 0
+          }
+        },
+        "required": ["part", "method"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "translate"
+                }
+              }
+            },
+            "then": {
+              "required": ["by"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "rotate"
+                }
+              }
+            },
+            "then": {
+              "required": ["axis", "angle"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "align"
+                }
+              }
+            },
+            "then": {
+              "required": ["face", "to"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "part",
+          "kind": "part",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "input": "face",
+          "kind": "face",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "to",
+          "kind": "face",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "input": "to",
+          "kind": "plane",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {},
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "datum_not_found",
+          "explanation": "No construction plane has that name.",
+          "fix": "Use the name of an earlier plane step."
+        },
+        {
+          "code": "not_planar",
+          "explanation": "The selected face is curved, but this action needs a flat face or a construction plane.",
+          "fix": "Pick a flat face or a plane."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "bodies",
+      "example": "m.move(\"Lift coin\", part=m.part(\"Coin\"), method=\"translate\", by=(0, 0, 2))"
+    },
+    {
+      "id": "custom",
+      "version": 1,
+      "title": "Custom step",
+      "category": "Custom",
+      "summary": "Run a Python function from this script as a step, for anything the other actions do not cover.",
+      "description": "Use only when no action fits. The function is defined at top level in the script, outside the steps section, as def name(m, **inputs), and may return a dict of created names to faces. Every other keyword argument is passed to it. If you write the same function twice, offer to save it for reuse.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "fn": {
+            "x-ref": "fn",
+            "description": "The top-level function to run, by name"
+          }
+        },
+        "required": ["fn"],
+        "additionalProperties": true
+      },
+      "selections": [],
+      "creates": {},
+      "failures": [
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "none",
+      "example": "m.custom(\"Notch\", fn=notch, depth=2)"
+    }
+  ]
+}

@@ -23,47 +23,11 @@ import {
   type Note,
 } from "./activity";
 import { setParameter } from "./params";
-export type Tool = {
-  name: string;
-  description: string;
-  schema: z.ZodObject;
-  readOnly: boolean;
-  /** Every listed permission is required. */
-  permission?: Permission[];
-  run: (context: Context, input: unknown) => Promise<unknown>;
-};
-function define<S extends z.ZodRawShape>(
-  name: string,
-  description: string,
-  shape: S,
-  readOnly: boolean,
-  run: (
-    c: Context,
-    input: z.infer<z.ZodObject<S>> & { sessionId?: string },
-  ) => Promise<unknown>,
-  permission?: Permission | Permission[],
-): Tool {
-  // Every tool accepts an optional sessionId so the call attaches to an agent session.
-  const schema = z.object({ sessionId: id.optional(), ...shape }).strict();
-  return {
-    name,
-    description,
-    schema,
-    readOnly,
-    permission:
-      permission === undefined
-        ? undefined
-        : Array.isArray(permission)
-          ? permission
-          : [permission],
-    run: (c, input) =>
-      run(
-        c,
-        schema.parse(input) as z.infer<z.ZodObject<S>> & { sessionId?: string },
-      ),
-  };
-}
-const now = () => new Date().toISOString();
+import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
+import { STEP_WRITES, stepTools } from "./step-tools";
+import { catalogIndex } from "./actions/catalog";
+import { modelContext } from "./actions/summary";
+export type { Tool } from "./tool-kit";
 /**
  * Source rebuilds the exact geometry, so on a project someone else owns it is shown only to
  * members who may download exports.
@@ -78,56 +42,6 @@ const anonymous = <T extends Record<string, unknown>>(
 });
 const seesSource = (c: Context, owner: string) =>
   owner === c.identity.email || c.identity.permissions.has("exports.download");
-async function saveRevision(
-  c: Context,
-  modelId: string,
-  expectedRevision: number,
-  source: string,
-) {
-  await modelAccess(c, modelId);
-  const revisionId = crypto.randomUUID();
-  const rows = await c.env.DB.batch([
-    c.env.DB.prepare(
-      "INSERT INTO revisions SELECT ?,id,revision+1,?,? FROM models WHERE id=? AND revision=?",
-    ).bind(revisionId, source, now(), modelId, expectedRevision),
-    c.env.DB.prepare(
-      "UPDATE models SET revision=revision+1 WHERE id=? AND revision=? AND EXISTS(SELECT 1 FROM revisions WHERE id=?)",
-    ).bind(modelId, expectedRevision, revisionId),
-  ]);
-  if (rows[0].meta.changes !== 1)
-    throw new AppError(409, "Model changed. Reload before saving.");
-  return { id: revisionId, number: expectedRevision + 1 };
-}
-async function queueBuild(c: Context, revisionId: string) {
-  await revisionAccess(c, revisionId);
-  const limit = Number.parseInt(c.env.DAILY_BUILD_LIMIT, 10) || 100;
-  const today = await c.env.DB.prepare(
-    "SELECT count(*) AS n FROM jobs WHERE created_by=? AND created_at>?",
-  )
-    .bind(c.identity.email, new Date(Date.now() - 86400_000).toISOString())
-    .first<{ n: number }>();
-  if ((today?.n ?? 0) >= limit)
-    throw new AppError(429, "Daily build limit reached");
-  const jobId = crypto.randomUUID();
-  const admitted = await c.env.DB.prepare(
-    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by) SELECT ?,?,'queued',NULL,NULL,?,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running'))<10",
-  )
-    .bind(jobId, revisionId, now(), now(), c.identity.email)
-    .run();
-  if (admitted.meta.changes !== 1)
-    throw new AppError(429, "Build queue is full; try later");
-  try {
-    await c.env.BUILDS.send({ jobId });
-  } catch {
-    await c.env.DB.prepare(
-      "UPDATE jobs SET status='failed',error='Queue unavailable',updated_at=? WHERE id=?",
-    )
-      .bind(now(), jobId)
-      .run();
-    throw new AppError(503, "Build queue unavailable");
-  }
-  return { id: jobId, status: "queued" };
-}
 type ParamSpec = {
   value: number;
   unit?: string;
@@ -382,7 +296,12 @@ export const tools: Tool[] = [
           client: i.client ?? null,
         },
       });
-      return { sessionId: session.id, startedAt: session.started_at };
+      // The catalog index rides on every session start, so the agent always knows the actions.
+      return {
+        sessionId: session.id,
+        startedAt: session.started_at,
+        actions: catalogIndex(),
+      };
     },
   ),
   define(
@@ -629,6 +548,7 @@ export const tools: Tool[] = [
     },
     "settings.manage",
   ),
+  ...stepTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -654,12 +574,14 @@ const SELF_RECORDING = new Set([
   "notes_add",
   "projects_activity",
   "models_set_parameter",
+  ...STEP_WRITES,
 ]);
 const MODEL_CHANGES = new Set([
   "models_create",
   "models_save",
   "models_build",
   "models_set_parameter",
+  ...STEP_WRITES,
 ]);
 function summarize(name: string, input: unknown, value: unknown) {
   const i = (input ?? {}) as Record<string, unknown>;
@@ -677,6 +599,12 @@ function summarize(name: string, input: unknown, value: unknown) {
       return "Read the project";
     case "projects_create":
       return `Created project ${i.name}`;
+    case "actions_list":
+      return "Read the action catalog";
+    case "actions_describe":
+      return `Read the ${i.id} action`;
+    case "steps_list":
+      return "Read the model's steps";
     case "documents_add":
       return `Saved ${i.kind} draft`;
     default:
@@ -693,7 +621,7 @@ export async function dispatch(
   name: string,
   input: unknown,
   channel: Channel,
-): Promise<{ value: unknown; notes: Note[] }> {
+): Promise<{ value: unknown; notes: Note[]; context?: string }> {
   const tool = tools.find((t) => t.name === name);
   if (!tool) throw new AppError(404, "Tool not found");
   for (const permission of tool.permission ?? [])
@@ -774,7 +702,16 @@ export async function dispatch(
     if (target || name === "projects_get")
       notes = await takeNotes(c, projectId, target ?? null);
   }
-  return { value, notes };
+  // Agent results that name a model end with a compact summary of it (steps, health, parts).
+  let context: string | undefined;
+  if (channel === "mcp" && typeof fields.modelId === "string") {
+    try {
+      context = await modelContext(c, fields.modelId);
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error;
+    }
+  }
+  return { value, notes, context };
 }
 export async function execute(c: Context, name: string, input: unknown) {
   return (await dispatch(c, name, input, "internal")).value;

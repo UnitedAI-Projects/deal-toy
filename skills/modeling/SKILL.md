@@ -17,10 +17,24 @@ description: Create or revise a build123d model in a Deal Toy project while the 
 
    Each `value` must be a plain number. Derive positions from parameters instead of repeating numbers. Give each part a label (`part.label = "Arch rib"`) matching the `part` names, and return a `bd.Compound(children=[...])` of the labelled parts so each stays selectable. A fused single solid is allowed, but it has only one selectable part.
 
-6. Save with `models_save` using the revision you read as `expectedRevision`. On conflict, read the new source and reconcile the team's change before saving. A team member may change a `PARAMS` value from the interface, which creates a new revision.
-7. Call `models_build` once. Poll `builds_get` until succeeded or failed. A failed build has no validated output. Fix the cause rather than silently removing requested features.
-8. Inspect bounds, solid count, volume, parts and parameters. `volume_mm3` sums part volumes, so overlaps count twice. Open the GLB preview for appearance and arrangement; use geometry measurements for numerical requirements. STEP retains exact exchange geometry, STL is a mesh, GLB is a preview, and Python remains the editable source.
-9. Record checks, assumptions and unresolved requirements in a revision-linked document. A valid solid is not a manufacturing approval.
-10. Finish with `session_end` and a one or two sentence summary of the result and anything left undone.
+6. Use the standard steps layout so the team can see and edit each feature as a step: `import mantel as mt`, a `base()` function for free Python that returns the starting parts (or `None`), and a `build()` that runs one modeling action per line between the markers. `examples/deal_toy_steps.py` is the reference:
 
-The runtime has no network access, credentials, package installation or persistent filesystem. It accepts one Python source, up to 100 KB. Use built-in dependencies only; heavy builds have bounded runtime and output size. Scripts cannot access other projects.
+   ```python
+   def build():
+       m = mt.Model(base(), params=PARAMS)
+       # mantel:steps begin
+       m.body("Block", shape="box", size=(mt.P("BLOCK_W"), 40, 60), on=m.face("Base", "top"))
+       m.hole("Mount hole", on=m.face("Base", "bottom"), at=(-30, 0, 0), diameter=mt.P("HOLE_D"), extent="through")
+       # mantel:steps end
+       return m.result()
+   ```
+
+   Prefer `steps_add` with a catalog action over editing Python: the session start lists the actions, and `actions_describe` gives an action's inputs, the names it creates and its failures; call it before using an action for the first time in a session. Refer to faces by a name a step created (`m.face("Mount hole", "wall")`), by a part's side (`top`, `bottom`, `left`, `right`, `front`, `back`), or by a query (`normal=`, `near=`). Sides move as material is added, so take a construction plane first when several steps must start from the same face. Use `custom` with `fn=` (a top-level function in the script) only when no action fits; if you write the same function twice, tell the person it can be saved for reuse once saved actions ship.
+
+7. Save with `models_save` using the revision you read as `expectedRevision`. On conflict, read the new source and reconcile the team's change before saving. A team member may change a `PARAMS` value from the interface, which creates a new revision.
+8. Call `models_build` once. Poll `builds_get` until succeeded or failed. A failed build has no validated output. Fix the cause rather than silently removing requested features.
+9. Every tool result that names a model ends with a short summary of its steps, their states, parts and parameters; read it. After a build, handle each `failed` or `blocked` step using the failure's fix from `actions_describe`, and never report an `incomplete` build as a finished model. Inspect bounds, solid count, volume, parts and parameters. `volume_mm3` sums part volumes, so overlaps count twice. Open the GLB preview for appearance and arrangement; use geometry measurements for numerical requirements. STEP retains exact exchange geometry, STL is a mesh, GLB is a preview, and Python remains the editable source.
+10. Record checks, assumptions and unresolved requirements in a revision-linked document. A valid solid is not a manufacturing approval.
+11. Finish with `session_end` and a one or two sentence summary of the result and anything left undone.
+
+The runtime has no network access, credentials, package installation or persistent filesystem. It accepts one Python source, up to 100 KB. Use built-in dependencies only (build123d and mantel); heavy builds have bounded runtime and output size. Scripts cannot access other projects.

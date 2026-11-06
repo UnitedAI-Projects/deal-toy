@@ -14,6 +14,7 @@ import {
   type Workspace as WorkspaceData,
 } from "./api";
 import { ChatPanel } from "./ChatPanel";
+import { Timeline } from "./Timeline";
 import { diffLines } from "./diff";
 import { changedModel, initialModel } from "./follow";
 import type { ThemeChoice } from "./theme";
@@ -349,6 +350,24 @@ export function Workspace(props: Props) {
               name,
               value,
             });
+            setFollow(true);
+            await props.reload();
+          }}
+        />
+      )}
+
+      {model && latest && facts?.steps && (
+        <Timeline
+          key={shownJob?.id}
+          modelId={model.id}
+          revision={latest.number}
+          steps={facts.steps}
+          incomplete={!!facts.incomplete}
+          building={
+            viewedJob?.status === "queued" || viewedJob?.status === "running"
+          }
+          editable={editable}
+          onChanged={async () => {
             setFollow(true);
             await props.reload();
           }}

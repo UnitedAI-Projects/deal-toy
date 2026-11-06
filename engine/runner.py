@@ -12,6 +12,10 @@ from OCP.Font import Font_FontAspect, Font_FontMgr, Font_StrictLevel
 from OCP.OSD import OSD_Parallel, OSD_ThreadPool
 from OCP.TCollection import TCollection_AsciiString
 
+# The mantel step library ships beside the runner; -I keeps the script's own directory off the path.
+sys.path.insert(0, str(Path(__file__).with_name("lib")))
+import mantel
+
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 MESH_TOLERANCE = 0.05
 
@@ -102,6 +106,7 @@ def labelled_parts(shape) -> list:
 def build(source: Path, destination: Path) -> dict:
     spec = importlib.util.spec_from_file_location("user_model", source)
     module = importlib.util.module_from_spec(spec)
+    mantel.reset_log()
     spec.loader.exec_module(module)
     shape = module.build()
     if not isinstance(shape, bd.Shape) or not shape.is_valid or not shape.solids():
@@ -130,6 +135,10 @@ def build(source: Path, destination: Path) -> dict:
     params = declared_params(module)
     if params is not None:
         facts["params"] = params
+    steps = mantel.last_log()
+    if steps is not None:
+        facts["steps"] = steps
+        facts["incomplete"] = any(s["state"] in ("failed", "blocked") for s in steps)
     (destination / "facts.json").write_text(json.dumps(facts))
     return facts
 

@@ -23,10 +23,16 @@ export async function mcp(request: Request, c: Context) {
         },
         async (input) => {
           try {
-            const { value, notes } = await dispatch(c, tool.name, input, "mcp");
+            const { value, notes, context } = await dispatch(
+              c,
+              tool.name,
+              input,
+              "mcp",
+            );
             return {
               content: [
                 { type: "text" as const, text: JSON.stringify(value) },
+                ...(context ? [{ type: "text" as const, text: context }] : []),
                 ...(notes.length
                   ? [{ type: "text" as const, text: formatNotes(notes) }]
                   : []),
