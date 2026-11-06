@@ -43,8 +43,8 @@ export type StepStateRecord = {
 };
 
 /** The built-in actions. The engine image bundles the same file. */
-export const actions = data.actions as ActionRecord[];
-export const stepStates = data.states as StepStateRecord[];
+export const actions = data.actions as unknown as ActionRecord[];
+export const stepStates = data.states as unknown as StepStateRecord[];
 
 export function getAction(id: string): ActionRecord {
   const action = actions.find((a) => a.id === id);
