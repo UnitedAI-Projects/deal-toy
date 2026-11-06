@@ -241,13 +241,13 @@
             "enum": ["offset", "angle", "midplane", "three_points"],
             "description": "How the plane is defined"
           },
-          "from": {
+          "reference": {
             "x-ref": ["face", "datum"],
             "description": "The face or plane to offset or rotate from"
           },
           "distance": {
             "type": "number",
-            "description": "Offset along the normal of from",
+            "description": "Offset along the normal of the reference",
             "unit": "mm",
             "minimum": -2000,
             "maximum": 2000,
@@ -306,7 +306,7 @@
               }
             },
             "then": {
-              "required": ["from", "distance"]
+              "required": ["reference", "distance"]
             }
           },
           {
@@ -318,7 +318,7 @@
               }
             },
             "then": {
-              "required": ["from", "about", "angle"]
+              "required": ["reference", "about", "angle"]
             }
           },
           {
@@ -349,13 +349,13 @@
       },
       "selections": [
         {
-          "input": "from",
+          "input": "reference",
           "kind": "face",
           "min": 0,
           "max": 1
         },
         {
-          "input": "from",
+          "input": "reference",
           "kind": "plane",
           "min": 0,
           "max": 1

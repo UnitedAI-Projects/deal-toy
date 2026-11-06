@@ -10,6 +10,7 @@ RUN uv sync --no-cache --link-mode copy --frozen --no-dev --compile-bytecode \
     && python -m compileall -q -x '/(test|tests|idle_test)/' /usr/local/lib/python3.12 \
     && useradd --uid 1000 --create-home cad
 COPY engine/runner.py engine/service.py ./
+COPY engine/lib ./lib
 USER cad
 EXPOSE 8080
 CMD ["/opt/cad/.venv/bin/python", "/opt/cad/service.py"]
