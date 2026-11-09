@@ -9,6 +9,11 @@ import { member } from "./test-helpers";
 import bridge from "../../examples/bridge.py";
 import modelingSkill from "../../skills/modeling/SKILL.md";
 import { tools } from "./tools";
+import cupSource from "../../examples/tea_cup_steps.py";
+import cupDesign from "../../examples/tea_cup_design.json";
+import cupFacts from "../../examples/exports/tea_cup/facts.json";
+import { readSteps, writeSteps } from "./actions/script";
+import { layerNames } from "./design/ownership";
 
 let carol: Context;
 let dave: Context;
@@ -954,6 +959,167 @@ describe("modeling skill", () => {
     // The design comes first: design_start is named before the first geometry tool.
     expect(modelingSkill.indexOf("`design_start`")).toBeLessThan(
       modelingSkill.indexOf("`steps_add`"),
+    );
+  });
+});
+
+describe("tea cup end to end", () => {
+  it("a tea cup is designed, built and changed through MCP", async () => {
+    const c = await member("cup-e2e@example.test", { level: "Maker" });
+    const mcp = (name: string, input: Record<string, unknown>) =>
+      agent(name, { sessionId, ...input }, c);
+    const p = (await execute(c, "projects_create", { name: "Cups" })) as {
+      id: string;
+    };
+    const { sessionId } = (await agent(
+      "session_start",
+      { projectId: p.id, prompt: "A white tea cup with a handle" },
+      c,
+    )) as { sessionId: string };
+    const { id: modelId } = (await mcp("models_create", {
+      projectId: p.id,
+      name: "Tea cup",
+    })) as { id: string };
+    const { planId: framework } = (await mcp("design_start", {
+      modelId,
+      ...cupDesign,
+    })) as { planId: string };
+
+    // The framework: a skeleton with an empty steps section, then one layer at a time.
+    const { steps } = readSteps(cupSource);
+    let revision = (
+      (await mcp("models_save", {
+        modelId,
+        expectedRevision: 0,
+        source: writeSteps(cupSource, []),
+      })) as { number: number }
+    ).number;
+    for (const step of steps) {
+      await mcp("change_progress", {
+        planId: framework,
+        layer: step.name,
+        phrases: [`Adding the ${step.name.toLowerCase()}`],
+      });
+      revision = (
+        (await mcp("steps_add", {
+          modelId,
+          expectedRevision: revision,
+          action: step.action,
+          name: step.name,
+          inputs: step.inputs,
+        })) as { revision: { number: number } }
+      ).revision.number;
+    }
+    await mcp("change_finish", { planId: framework, summary: "Cup built." });
+    const { sheet } = (await mcp("design_get", { modelId })) as {
+      sheet: Sheet;
+    };
+    expect(sheet.built).toBe(true);
+
+    // A new layer.
+    const saucer = (await mcp("change_begin", {
+      modelId,
+      request: "Add a saucer",
+      add: [{ name: "Saucer", kind: "shape", region: region(-10, 0) }],
+    })) as { planId: string };
+    await mcp("change_progress", { planId: saucer.planId, layer: "Saucer" });
+    revision = (
+      (await mcp("steps_add", {
+        modelId,
+        expectedRevision: revision,
+        action: "revolve",
+        name: "Saucer",
+        inputs: {
+          profile: [
+            [0, -10],
+            [75, -10],
+            [75, -6],
+            [0, -6],
+          ],
+        },
+      })) as { revision: { number: number } }
+    ).revision.number;
+    await mcp("change_finish", { planId: saucer.planId, summary: "Saucer." });
+
+    // A one-layer edit.
+    const handle = (await mcp("change_begin", {
+      modelId,
+      request: "A thinner handle",
+      edit: ["Handle"],
+    })) as { planId: string };
+    const handleStep = steps.find((s) => s.name === "Handle")!;
+    await mcp("change_progress", { planId: handle.planId, layer: "Handle" });
+    revision = (
+      (await mcp("steps_edit", {
+        modelId,
+        expectedRevision: revision,
+        name: "Handle",
+        inputs: { ...handleStep.inputs, diameter: 7 },
+      })) as { revision: { number: number } }
+    ).revision.number;
+    await mcp("change_finish", { planId: handle.planId, summary: "7 mm." });
+
+    // A size change: PARAMS, with the wall and handle following.
+    const taller = (await mcp("change_begin", {
+      modelId,
+      request: "Make it 110 mm tall",
+      edit: ["Framework"],
+      follow: ["Cup wall", "Handle"],
+      sections: [
+        { name: "Overall size", value: "110 mm tall", source: "answered" },
+      ],
+    })) as { planId: string };
+    const latestRevision = await latest(modelId);
+    await env.DB.prepare(
+      "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at) VALUES (?,?,'succeeded',NULL,?,?,?)",
+    )
+      .bind(
+        crypto.randomUUID(),
+        latestRevision.id,
+        JSON.stringify(cupFacts),
+        stamp(),
+        stamp(),
+      )
+      .run();
+    await mcp("change_progress", { planId: taller.planId, layer: "Framework" });
+    await mcp("models_set_parameter", {
+      modelId,
+      expectedRevision: revision,
+      name: "CUP_HEIGHT",
+      value: 110,
+    });
+    await mcp("change_finish", { planId: taller.planId, summary: "110 mm." });
+
+    const { results: revisions } = await env.DB.prepare(
+      "SELECT change_id FROM revisions WHERE model_id=? ORDER BY number",
+    )
+      .bind(modelId)
+      .all<{ change_id: string | null }>();
+    expect(revisions).toHaveLength(steps.length + 4);
+    expect(revisions.every((r) => r.change_id)).toBe(true);
+    const { results: plans } = await env.DB.prepare(
+      "SELECT status,by_kind FROM change_plans WHERE model_id=?",
+    )
+      .bind(modelId)
+      .all<{ status: string; by_kind: string }>();
+    expect(plans).toHaveLength(4);
+    expect(
+      plans.every((x) => x.status === "finished" && x.by_kind === "agent"),
+    ).toBe(true);
+    const types = (await changeEvents(p.id)).map((e) => e.type);
+    expect(types).toEqual([
+      ...steps.map(() => "progress"),
+      "finish",
+      ...["begin", "progress", "finish"],
+      ...["begin", "progress", "finish"],
+      ...["begin", "progress", "finish"],
+    ]);
+    expect(layerNames((await latest(modelId)).source)).toEqual([
+      ...cupDesign.framework.map((l) => l.name),
+      "Saucer",
+    ]);
+    expect((await latest(modelId)).source).toContain(
+      '"CUP_HEIGHT": {"value": 110.0',
     );
   });
 });
