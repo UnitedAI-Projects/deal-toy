@@ -5,7 +5,7 @@ Repository: `UnitedAI-Projects/deal-toy`. The product is named Mantel: an AI-nat
 ## Boundaries
 
 - `src/server/tools.ts` owns typed business operations shared by HTTP and MCP. Every operation enforces identity, project ownership and current tool enablement. A new tool declares the permission it needs (`src/server/access.ts`); writes use owner access, and reads on demo projects use `"read"` access and withhold source and member emails from non-owners.
-- `src/server/auth.ts`, `google.ts`, `settings.ts` and `members.ts` own sign-in, sessions, API keys, members and levels. Browser routes accept only the session cookie and `/mcp` only API keys; keep that split. Add a test for every denial path.
+- `src/server/auth.ts`, `google.ts`, `settings.ts` and `members.ts` own sign-in, sessions, members and levels; `oauth.ts` owns MCP sign-in. Browser routes accept only the session cookie and `/mcp` only OAuth tokens; keep that split. Add a test for every denial path.
 - `src/server/builds.ts` owns queued execution and artifact persistence. `engine/` contains the isolated Python/build123d runtime. Preserve one job per container, disabled egress, no credentials, bounded execution, and immutable inputs.
 - `src/web/` owns the project library, modeling workspace and extension interface. Native CAD runs in containers; the browser displays derived GLB geometry.
 - `skills/` contains workflow guidance. Skills cannot grant permissions. New executable tools require implementation, tests and deployment; Markdown cannot install code.

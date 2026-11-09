@@ -9,14 +9,6 @@ import {
   type Permission,
 } from "./api";
 
-type Key = {
-  id: string;
-  name: string;
-  prefix: string;
-  created_at: string;
-  expires_at: string;
-  last_used_at: string | null;
-};
 type Member = {
   email: string;
   name: string;
@@ -35,7 +27,7 @@ type Level = {
   permissions: Permission[];
   members: number;
 };
-type Section = "account" | "keys" | "members" | "levels";
+type Section = "account" | "apps" | "members" | "levels";
 const get = async <T,>(path: string): Promise<T> =>
   (await request(path)).json();
 const day = (iso: string | null) =>
@@ -66,7 +58,7 @@ export function Settings(props: {
   const [section, setSection] = useState<Section>("account");
   const sections: [Section, string, boolean][] = [
     ["account", "Account", true],
-    ["keys", "API keys", true],
+    ["apps", "Connected apps", true],
     ["members", "Members", admin],
     ["levels", "Access levels", admin],
   ];
@@ -99,7 +91,7 @@ export function Settings(props: {
       </aside>
       <section className="settings-main">
         {section === "account" && <Account {...props} />}
-        {section === "keys" && <Keys me={props.me} />}
+        {section === "apps" && <Apps />}
         {section === "members" && admin && <Members me={props.me} />}
         {section === "levels" && admin && <Levels />}
       </section>
@@ -209,162 +201,15 @@ function Account(props: {
   );
 }
 
-function Keys({ me }: { me: Me }) {
-  const allowed = can(me, "keys.use");
-  const [keys, setKeys] = useState<Key[]>([]);
-  const [name, setName] = useState("");
-  const [days, setDays] = useState(90);
-  const [created, setCreated] = useState<{ name: string; key: string } | null>(
-    null,
-  );
-  const [copied, setCopied] = useState("");
-  const { busy, error, run } = useAction();
-  const load = async () => setKeys(await get<Key[]>("/api/settings/keys"));
-  useEffect(() => {
-    void load();
-  }, []);
-  const command = (key: string) =>
-    `claude mcp add --transport http mantel ${location.origin}/mcp --header "Authorization: Bearer ${key}"`;
-  const copy = (label: string, text: string) =>
-    void navigator.clipboard.writeText(text).then(() => setCopied(label));
+function Apps() {
   return (
     <>
-      <h1>API keys</h1>
+      <h1>Connected apps</h1>
       <p className="muted lede">
         Connect Claude Code or another MCP client by adding{" "}
-        <code>{location.origin}/mcp</code> and signing in when it asks. Keys are
-        for scripts and CI. Either way, the app acts as you and has your current
-        access.
+        <code>{location.origin}/mcp</code> and signing in when it asks. The app
+        acts as you and has your current access.
       </p>
-      {!allowed && (
-        <div className="panel">
-          <p className="panel-body muted">
-            API keys need the “API keys” permission. Ask an admin.
-          </p>
-        </div>
-      )}
-      {allowed && (
-        <div className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Your keys</h2>
-              <p className="muted small">
-                Up to 10 active keys. Revoking one stops it at once.
-              </p>
-            </div>
-          </div>
-          <form
-            className="panel-body key-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(async () => {
-                const result = await send<{ name: string; key: string }>(
-                  "/api/settings/keys",
-                  "POST",
-                  { name, days },
-                );
-                setCreated(result);
-                setCopied("");
-                setName("");
-                await load();
-              });
-            }}
-          >
-            <label>
-              Name
-              <input
-                value={name}
-                maxLength={60}
-                required
-                placeholder="MacBook Claude Code"
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label>
-              Expires after
-              <select
-                value={days}
-                onChange={(e) => setDays(Number(e.target.value))}
-              >
-                <option value={30}>30 days</option>
-                <option value={90}>90 days</option>
-                <option value={365}>1 year</option>
-              </select>
-            </label>
-            <button disabled={busy}>Create key</button>
-          </form>
-          {error && <p className="inline-error panel-body">{error}</p>}
-          {created && (
-            <div className="key-reveal" role="status">
-              <p>
-                <strong>Copy “{created.name}” now.</strong> You won't see it
-                again.
-              </p>
-              <code>{created.key}</code>
-              <div className="row">
-                <button onClick={() => copy("key", created.key)}>
-                  {copied === "key" ? "Copied" : "Copy key"}
-                </button>
-                <button
-                  className="secondary"
-                  onClick={() => copy("command", command(created.key))}
-                >
-                  {copied === "command" ? "Copied" : "Copy Claude Code command"}
-                </button>
-                <button className="ghost" onClick={() => setCreated(null)}>
-                  Done
-                </button>
-              </div>
-              <p className="muted small">
-                The command stores the key in Claude Code's settings on that
-                computer.
-              </p>
-            </div>
-          )}
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th className="hide-sm">Key</th>
-                <th>Last used</th>
-                <th className="hide-sm">Expires</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((k) => (
-                <tr key={k.id}>
-                  <td>{k.name}</td>
-                  <td className="hide-sm mono">{k.prefix}…</td>
-                  <td>{ago(k.last_used_at)}</td>
-                  <td className="hide-sm">{day(k.expires_at)}</td>
-                  <td className="right">
-                    <button
-                      className="danger"
-                      disabled={busy}
-                      onClick={() =>
-                        run(async () => {
-                          await send(`/api/settings/keys/${k.id}`, "DELETE");
-                          await load();
-                        })
-                      }
-                    >
-                      Revoke
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!keys.length && (
-                <tr>
-                  <td colSpan={5} className="muted">
-                    No active keys.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
       <ConnectedApps />
     </>
   );
@@ -383,7 +228,7 @@ function ConnectedApps() {
     <div className="panel">
       <div className="panel-head">
         <div>
-          <h2>Connected apps</h2>
+          <h2>Your apps</h2>
           <p className="muted small">
             Apps you allowed through sign-in. Disconnecting one stops it at
             once.

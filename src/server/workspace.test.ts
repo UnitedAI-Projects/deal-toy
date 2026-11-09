@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { execute } from "./tools";
 import { consume } from "./builds";
 import { hash, type Context } from "./core";
-import { apiKey, cookieFor, member } from "./test-helpers";
+import { cookieFor, mcpToken, member } from "./test-helpers";
 declare global {
   namespace Cloudflare {
     interface Env {
@@ -14,13 +14,13 @@ declare global {
 }
 let alice: Context;
 let bob: Context;
-let key: string;
+let token: string;
 let aliceCookie: string;
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
   alice = await member("alice@example.test", { owner: true, level: "Admin" });
   bob = await member("bob@example.test", { level: "Maker" });
-  key = await apiKey("alice@example.test");
+  token = await mcpToken("alice@example.test");
   aliceCookie = await cookieFor("alice@example.test");
 });
 async function project(c = alice) {
@@ -190,7 +190,7 @@ describe("Workspace authorization and revisions", () => {
     const response = await exports.default.fetch("https://example.test/mcp", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${key}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
       },
@@ -208,17 +208,13 @@ describe("Workspace authorization and revisions", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(`"name":"mantel"`);
   });
-  it("rejects expired keys", async () => {
-    const expired = await apiKey("alice@example.test");
-    await env.DB.prepare("UPDATE api_keys SET expires_at=? WHERE hash=?")
-      .bind("2020-01-01T00:00:00.000Z", await hash(expired))
-      .run();
+  it("rejects an unknown token", async () => {
     expect(
       (
         await exports.default.fetch("https://example.test/mcp", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${expired}`,
+            Authorization: "Bearer not-a-real-token",
             "Content-Type": "application/json",
           },
           body: "{}",

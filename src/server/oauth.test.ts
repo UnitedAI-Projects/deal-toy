@@ -1,7 +1,15 @@
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { apiKey, cookieFor, member } from "./test-helpers";
+import {
+  approve,
+  begin,
+  cookieFor,
+  cookiePairs,
+  decide,
+  exchange,
+  member,
+} from "./test-helpers";
 
 const origin = "https://example.test";
 beforeAll(async () => {
@@ -47,23 +55,30 @@ describe("MCP sign-in discovery", () => {
   });
 });
 
-describe("API keys on /mcp", () => {
-  it("still accepts API keys on /mcp", async () => {
+describe("tokens other than OAuth", () => {
+  it("refuses a Mantel API key on /mcp and points to sign-in", async () => {
     await member("key@oauth.test", { level: "Maker" });
-    const r = await mcpWith(await apiKey("key@oauth.test"));
-    expect(r.status).toBe(200);
-    expect(await r.text()).toContain("projects_list");
+    const r = await mcpWith(`mtl_${"x".repeat(43)}`);
+    expect(r.status).toBe(401);
+    expect(r.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
   });
-  it("still refuses a key whose member lost keys.use, naming the API keys permission", async () => {
-    await member("nokey@oauth.test", { level: "Maker" });
-    const key = await apiKey("nokey@oauth.test");
-    await member("nokey@oauth.test", { level: "Maker", revoke: ["keys.use"] });
-    const r = await mcpWith(key);
-    expect(r.status).toBe(403);
-    expect(await r.text()).toContain("need the “API keys” permission");
-  });
-  it("refuses an unknown key", async () => {
-    expect((await mcpWith(`mtl_${"x".repeat(43)}`)).status).toBe(401);
+  it("has no API key settings", async () => {
+    await member("nokeys@oauth.test", { level: "Admin" });
+    const session = await cookieFor("nokeys@oauth.test");
+    for (const method of ["GET", "POST"])
+      expect(
+        (
+          await exports.default.fetch(`${origin}/api/settings/keys`, {
+            method,
+            headers: {
+              Cookie: session,
+              Origin: origin,
+              "Content-Type": "application/json",
+            },
+            body: method === "POST" ? JSON.stringify({ name: "x" }) : undefined,
+          })
+        ).status,
+      ).toBe(404);
   });
 });
 
@@ -89,128 +104,6 @@ describe("client registration", () => {
   });
 });
 
-// A full OAuth connection, the way an MCP client makes one.
-let address = 0;
-const b64url = (bytes: Uint8Array) =>
-  btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-async function pkce() {
-  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const challenge = b64url(
-    new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
-    ),
-  );
-  return { verifier, challenge };
-}
-async function register(name = "Test client") {
-  const r = await exports.default.fetch(`${origin}/oauth/register`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "CF-Connecting-IP": `198.51.100.${++address}`,
-    },
-    body: JSON.stringify({
-      client_name: name,
-      redirect_uris: ["https://client.test/cb"],
-      token_endpoint_auth_method: "none",
-    }),
-  });
-  expect(r.status).toBe(201);
-  return (await r.json<{ client_id: string }>()).client_id;
-}
-const cookiePairs = (r: Response) =>
-  r.headers.getSetCookie().map((c) => c.split(";")[0]);
-async function begin(
-  cookie: string | null,
-  options: { name?: string; state?: string; clientId?: string } = {},
-) {
-  const clientId = options.clientId ?? (await register(options.name));
-  const { verifier, challenge } = await pkce();
-  const query = new URLSearchParams({
-    response_type: "code",
-    client_id: clientId,
-    redirect_uri: "https://client.test/cb",
-    scope: "mantel",
-    state: options.state ?? "state-1",
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-    resource: `${origin}/mcp`,
-  });
-  const path = `/authorize?${query}`;
-  const page = await exports.default.fetch(`${origin}${path}`, {
-    headers: cookie ? { Cookie: cookie } : {},
-    redirect: "manual",
-  });
-  const html = await page.text();
-  const handle = /name="handle" value="([^"]+)"/.exec(html)?.[1] ?? "";
-  const account = /name="account" value="([^"]+)"/.exec(html)?.[1] ?? "";
-  return { clientId, verifier, path, page, html, handle, account };
-}
-function decide(
-  flow: Awaited<ReturnType<typeof begin>>,
-  cookies: string[],
-  action: "allow" | "cancel",
-) {
-  return exports.default.fetch(`${origin}/authorize`, {
-    method: "POST",
-    redirect: "manual",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Origin: origin,
-      Cookie: [...cookies, ...cookiePairs(flow.page)].join("; "),
-    },
-    body: new URLSearchParams({
-      handle: flow.handle,
-      return_to: flow.path,
-      account: flow.account,
-      action,
-    }),
-  });
-}
-/** Signs in and clicks Allow; returns the authorization code the app receives. */
-async function approve(session: string, email: string, clientId?: string) {
-  const flow = await begin(session, { clientId });
-  expect(flow.page.status).toBe(200);
-  const approved = await decide(flow, [session], "allow");
-  expect(approved.status).toBe(302);
-  const redirect = new URL(approved.headers.get("Location") ?? "");
-  expect(redirect.origin + redirect.pathname).toBe("https://client.test/cb");
-  expect(redirect.searchParams.get("state")).toBe("state-1");
-  const code = redirect.searchParams.get("code") ?? "";
-  // Codes and tokens embed the grant's user id; it must not be the member's email.
-  expect(code).not.toContain(email);
-  return { code, flow };
-}
-/** The app's half: swaps the code for its passes. */
-async function exchange(
-  approval: Awaited<ReturnType<typeof approve>>,
-  email: string,
-) {
-  const r = await exports.default.fetch(`${origin}/oauth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code: approval.code,
-      redirect_uri: "https://client.test/cb",
-      client_id: approval.flow.clientId,
-      code_verifier: approval.flow.verifier,
-      resource: `${origin}/mcp`,
-    }),
-  });
-  expect(r.status).toBe(200);
-  const tokens = await r.json<{
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
-  }>();
-  expect(tokens.access_token).not.toContain(email);
-  expect(tokens.refresh_token).not.toContain(email);
-  return { clientId: approval.flow.clientId, ...tokens };
-}
 async function connect(
   email: string,
   level: "Demo" | "Maker" | "Admin" = "Maker",
@@ -236,12 +129,6 @@ describe("connecting an app", () => {
       Authorization: `Bearer ${t.access_token}`,
     });
     expect(api.status).toBe(401);
-  });
-  it("lets a member without keys.use connect", async () => {
-    const t = await connect("nokeys@oauth.test", "Maker", {
-      revoke: ["keys.use"],
-    });
-    expect(await toolNames(t.access_token)).toContain("projects_list");
   });
   it("gives a demo-level token read access but no editing or building", async () => {
     const names = await toolNames(
@@ -390,10 +277,8 @@ describe("connected apps", () => {
       [],
     );
   });
-  it("are listed for a member without keys.use", async () => {
-    const t = await connect("appsnokeys@oauth.test", "Demo", {
-      revoke: ["keys.use"],
-    });
+  it("are listed for a demo-level member", async () => {
+    const t = await connect("appsdemo@oauth.test", "Demo");
     const r = await settings(t.session, "/connected-apps");
     expect(r.status).toBe(200);
     expect(await r.json()).toHaveLength(1);

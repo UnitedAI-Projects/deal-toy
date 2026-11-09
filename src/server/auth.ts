@@ -92,41 +92,6 @@ export async function authenticateBrowser(
   return identity;
 }
 
-/** The member behind an API key on /mcp. Keys are never accepted by the browser API. */
-export async function authenticateKey(
-  request: Request,
-  env: Db,
-): Promise<Identity & { keyId: string }> {
-  const authorization = request.headers.get("Authorization");
-  const token = authorization?.startsWith("Bearer ")
-    ? authorization.slice(7)
-    : "";
-  if (token.length < 32 || token.length > 256)
-    throw new AppError(401, "Provide an API key from Settings → API keys");
-  const now = new Date();
-  const row = await env.DB.prepare(
-    "SELECT id,email,last_used_at FROM api_keys WHERE hash=? AND revoked_at IS NULL AND expires_at>?",
-  )
-    .bind(await hash(token), now.toISOString())
-    .first<{ id: string; email: string; last_used_at: string | null }>();
-  if (!row) throw new AppError(401, "API key is invalid, expired or revoked");
-  const identity = await loadIdentity(env, row.email);
-  // Losing the permission switches off every key the member has, without deleting them.
-  if (!identity.permissions.has("keys.use"))
-    throw new AppError(
-      403,
-      "API keys need the “API keys” permission. Ask an admin.",
-    );
-  if (
-    !row.last_used_at ||
-    now.getTime() - Date.parse(row.last_used_at) > ACTIVE_MS
-  )
-    await env.DB.prepare("UPDATE api_keys SET last_used_at=? WHERE id=?")
-      .bind(now.toISOString(), row.id)
-      .run();
-  return { ...identity, keyId: row.id };
-}
-
 /** Ends this browser's session, or every session the member has. Returns a clearing cookie. */
 export async function signOut(request: Request, env: Db, everywhere: boolean) {
   const token = readCookie(request, SESSION_COOKIE);

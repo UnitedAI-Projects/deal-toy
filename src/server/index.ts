@@ -107,7 +107,7 @@ export const app = {
           ),
         );
       }
-      // The browser API takes only sessions. /mcp (OAuth tokens and API keys) is served by
+      // The browser API takes only sessions. /mcp (OAuth tokens) is served by
       // the OAuth provider before a request reaches this handler.
       const identity = await authenticateBrowser(request, env);
       const c = { env, identity };

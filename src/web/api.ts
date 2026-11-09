@@ -1,4 +1,4 @@
-/** Calls the app's API with the browser's session cookie; API keys are for MCP clients only. */
+/** Calls the app's API with the browser's session cookie. */
 export async function request(path: string, init: RequestInit = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...init });
   if (!response.ok) {
@@ -30,7 +30,6 @@ export const PERMISSIONS = [
   ["builds.run", "Run builds", "Queue CAD builds (uses compute)"],
   ["exports.download", "Download exports", "STEP, STL and source code"],
   ["notes.write", "Leave notes", "Send notes to agents"],
-  ["keys.use", "API keys", "Create and use API keys"],
   ["members.manage", "Manage members", "Change levels and suspend people"],
   [
     "settings.manage",
