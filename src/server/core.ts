@@ -16,7 +16,9 @@ export type Identity = {
   owner: boolean;
   permissions: Set<Permission>;
 };
-export type Context = { env: Env; identity: Identity };
+/** How a call arrived: an agent over MCP, the web interface over HTTP, or the server itself. */
+export type Channel = "mcp" | "http" | "internal";
+export type Context = { env: Env; identity: Identity; channel?: Channel };
 export async function hash(value: string | Uint8Array): Promise<string> {
   const data =
     typeof value === "string" ? new TextEncoder().encode(value) : value;

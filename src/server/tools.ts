@@ -8,6 +8,7 @@ import {
   projectAccess,
   revisionAccess,
   shortText,
+  type Channel,
   type Context,
 } from "./core";
 import {
@@ -27,6 +28,7 @@ import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
 import { STEP_WRITES, stepTools } from "./step-tools";
 import { savedTools } from "./saved-tools";
 import { inspectTools } from "./inspect-tools";
+import { checkTools } from "./check-tools";
 import { catalogIndex } from "./actions/catalog";
 import {
   catalogNews,
@@ -569,6 +571,7 @@ export const tools: Tool[] = [
   ...stepTools,
   ...savedTools,
   ...inspectTools,
+  ...checkTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -585,7 +588,7 @@ export async function catalog(c: Context) {
       enabled: results.find((r) => r.name === t.name)?.enabled !== 0,
     }));
 }
-export type Channel = "mcp" | "http" | "internal";
+export type { Channel };
 /** Tools that write their own events; recording them as tool calls too would duplicate. */
 const SELF_RECORDING = new Set([
   "session_start",
@@ -599,6 +602,7 @@ const SELF_RECORDING = new Set([
   "selection_set",
 ]);
 const MODEL_CHANGES = new Set([
+  "checks_save",
   "models_create",
   "models_save",
   "models_build",
@@ -722,7 +726,7 @@ export async function dispatch(
       : null;
   let value: unknown;
   try {
-    value = await tool.run(c, input);
+    value = await tool.run({ ...c, channel }, input);
   } catch (error) {
     await log(
       false,

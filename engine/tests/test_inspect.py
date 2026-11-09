@@ -232,3 +232,27 @@ def test_step_reload_keeps_face_indices(tmp_path, example):
         assert (a["part"], a["type"]) == (b["part"], b["type"])
         assert a["area"] == pytest.approx(b["area"], abs=1e-6)
         assert a["center"] == pytest.approx(b["center"], abs=1e-6)
+
+
+def _close(a, b, path="record"):
+    if isinstance(a, dict):
+        assert isinstance(b, dict) and a.keys() == b.keys(), f"{path}: keys differ"
+        for key in a:
+            _close(a[key], b[key], f"{path}.{key}")
+    elif isinstance(a, list):
+        assert isinstance(b, list) and len(a) == len(b), f"{path}: lengths differ"
+        for k, (x, y) in enumerate(zip(a, b, strict=True)):
+            _close(x, y, f"{path}[{k}]")
+    elif isinstance(a, float) or isinstance(b, float):
+        assert a == pytest.approx(b, abs=1e-5), path
+    else:
+        assert a == b, path
+
+
+@pytest.mark.parametrize("name", ["deal_toy_inspect", "enclosure_inspect"])
+def test_stored_worker_fixtures_are_current(name):
+    sys.path.insert(0, str(ENGINE / "tools"))
+    from gen_fixtures import FIXTURES, record_of
+
+    stored = json.loads((ENGINE / "tests" / "fixtures" / f"{name}.inspect.json").read_text())
+    _close(record_of(FIXTURES[name]), stored)
