@@ -182,7 +182,24 @@ def _pairs(parts, record):
     return out
 
 
-def _dimensions(shape, module, faces, record):
+def _joint_dimension(item, name, joints, record, params):
+    """A placement: a declared dimension whose value is a joint's position or angle."""
+    index = next((k for k, joint in enumerate(joints) if joint is item["joint"]), None)
+    if index is None:
+        raise ValueError("the joint does not connect two parts of the built model")
+    joint = record["joints"][index]
+    entry = {"name": name, "value": joint["value"], "joint": index, "unit": joint["unit"],
+             "scale": float(item.get("scale", 1)), "matches_param": False}
+    param = item.get("param")
+    if param is not None:
+        entry["param"] = str(param)
+        spec = params.get(param)
+        if isinstance(spec, dict) and isinstance(spec.get("value"), (int, float)):
+            entry["matches_param"] = abs(joint["value"] - spec["value"] * entry["scale"]) < 1e-3
+    return entry
+
+
+def _dimensions(shape, module, faces, record, joints=()):
     declare = getattr(module, "dimensions", None)
     if not callable(declare):
         return []
@@ -200,6 +217,9 @@ def _dimensions(shape, module, faces, record):
     for item in list(declared)[:200]:
         try:
             name = str(item["name"])[:120]
+            if "joint" in item:
+                out.append(_joint_dimension(item, name, joints, record, params))
+                continue
             first, second = item["between"]
             ia, ib = index_of(first), index_of(second)
             if ia is None or ib is None:
@@ -210,8 +230,8 @@ def _dimensions(shape, module, faces, record):
                 value = abs((bd.Vector(*eb["center"]) - bd.Vector(*ea["center"])).dot(bd.Vector(*ea["plane"]["normal"])))
             else:
                 value = first.distance_to(second)
-            entry = {"name": name, "value": _r(value), "faces": [ia, ib], "scale": float(item.get("scale", 1)),
-                     "matches_param": False}
+            entry = {"name": name, "value": _r(value), "faces": [ia, ib], "unit": "mm",
+                     "scale": float(item.get("scale", 1)), "matches_param": False}
             if "moves" in item:
                 entry["moves"] = index_of(item["moves"])
             param = item.get("param")
@@ -383,6 +403,70 @@ def _draft(parts, module, record):
     return out
 
 
+def _range(low, high):
+    return [_r(low), None if math.isinf(high) else _r(high)]
+
+
+def _joint_entry(label, joint, other, part, to):
+    """The record entry for one connection, and a warning when its motion is not recorded."""
+    frame = bd.Plane(joint.location)
+    entry = {"name": str(label)[:120], "kind": "rigid", "part": part, "to": to, "origin": _v(frame.origin),
+             "axis": _v(frame.z_dir), "range": [0.0, 0.0], "value": 0.0, "unit": "mm"}
+    warning = None
+    if isinstance(joint, bd.LinearJoint):
+        entry.update(kind="linear", range=_range(*joint.linear_range), value=_r(joint.position or 0))
+    elif isinstance(joint, bd.RevoluteJoint):
+        # build123d 0.13 keeps the connected angle only in the private _angle (pinned by a test).
+        entry.update(kind="revolute", range=_range(*joint.angular_range), value=_r(joint._angle or 0), unit="deg")
+    elif isinstance(joint, bd.RigidJoint):
+        if isinstance(other, (bd.LinearJoint, bd.RevoluteJoint)):
+            warning = (f'Joint "{label}": connect from the {type(other).__name__} on "{other.parent.label}" '
+                       "to record its motion")
+    else:
+        warning = (f'Joint "{label}" is a {type(joint).__name__}; only rigid, linear and revolute joints '
+                   "move in the viewer")
+    return entry, warning
+
+
+def _joints(parts, record):
+    """Connections between top-level parts: at most one per moving part, and never a cycle."""
+    index = {id(p): i for i, p in enumerate(parts)}
+    found = []
+    for to, part in enumerate(parts):
+        declared = getattr(part, "joints", None) or {}
+        for label in sorted(declared)[:200]:
+            joint = declared[label]
+            other = getattr(joint, "connected_to", None)
+            moving = index.get(id(getattr(other, "parent", None)))
+            if moving is not None and moving != to:
+                found.append((moving, to, label, joint, other))
+    found.sort(key=lambda f: (f[0], f[1], f[2]))
+    parent, entries, objects = {}, [], []
+    for moving, to, label, joint, other in found:
+        name = parts[moving].label
+        if moving in parent:
+            record["warnings"].append(f'Part "{name}" is moved by two joints; only "{parent[moving][1]}" is used'[:300])
+            continue
+        up, cycle = to, False
+        while up in parent:
+            up = parent[up][0]
+            if up == moving:
+                cycle = True
+                break
+        if cycle or to == moving:
+            record["warnings"].append(f'Joint "{label}" would make a cycle of joints; it is not used'[:300])
+            continue
+        parent[moving] = (to, label)
+        entry, warning = _joint_entry(label, joint, other, moving, to)
+        if warning:
+            record["warnings"].append(warning[:300])
+        entries.append(entry)
+        objects.append(joint)
+    order = sorted(range(len(entries)), key=lambda k: (entries[k]["part"], entries[k]["name"]))
+    record["joints"] = [entries[k] for k in order]
+    return [objects[k] for k in order]
+
+
 def complete(record, shape, module, faces):
     """Adds the whole-model measurements to a record built by inspect_record."""
     parts = _children(shape)
@@ -392,7 +476,8 @@ def complete(record, shape, module, faces):
     record["pairs"] = _pairs(parts, record)
     record["materials"] = _materials(module, record)
     record["embeds"] = _embeds(parts, module, record)
-    record["dimensions"] = _dimensions(shape, module, faces, record) if faces is not None else []
+    joints = _joints(parts, record)
+    record["dimensions"] = _dimensions(shape, module, faces, record, joints) if faces is not None else []
     record["stability"] = _stability(parts, record)
     record["draft"] = _draft(parts, module, record) if faces is not None else []
     return record

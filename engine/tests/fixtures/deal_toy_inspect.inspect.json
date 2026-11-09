@@ -477,11 +477,13 @@
       "wall": 1.5
     }
   ],
+  "joints": [],
   "dimensions": [
     {
       "name": "Engraving depth",
       "value": 0.3,
       "faces": [1, 10],
+      "unit": "mm",
       "scale": 1.0,
       "matches_param": false,
       "moves": 10,
