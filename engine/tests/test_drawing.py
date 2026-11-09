@@ -11,6 +11,7 @@ import service
 from drawing import (
     PANEL_WIDTH,
     PAPER,
+    bands,
     choose_enlargement,
     clean,
     draw,
@@ -181,3 +182,50 @@ def test_only_a_step_file_is_drawn(step):
 def test_the_spec_must_be_an_object(built):
     with pytest.raises(ValueError, match="spec"):
         service.execute_drawing(built, "title")
+
+
+def stacked(tmp_path, spec):
+    """A 90 x 50 x 18 base carrying a 76 x 14 x 92 body, as two solids."""
+    base = bd.Box(90, 50, 18, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN))
+    body = bd.Pos(0, 0, 18) * bd.Box(76, 14, 92, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN))
+    step = tmp_path / "stack.step"
+    bd.export_step(bd.Compound(children=[base, body]), step)
+    result = draw(step, spec, tmp_path / "out")
+    return ezdxf.readfile(tmp_path / "out" / "blueprint.dxf"), result
+
+
+def test_stacked_parts_get_step_dimensions_on_the_views(tmp_path):
+    doc, _ = stacked(tmp_path, {"title": "Toy", "revision": 3})
+    assert not doc.audit().has_errors
+    measured = sorted(round(d.get_measurement(), 3) for d in doc.modelspace().query("DIMENSION"))
+    for expected in (18, 92, 76, 90, 50, 110):
+        assert expected in measured
+    words = [e.dxf.text for e in doc.layouts.get(PAPER[0]).query("TEXT")]
+    assert any("STEPS BETWEEN THE EXTENTS" in w for w in words)
+
+
+def test_narrow_steps_and_lettering_are_not_dimensioned():
+    assert bands([(0, 10), (10, 12), (12, 40)], 5) == [(0, 10), (12, 40)]
+    assert bands([(0, 40)], 5) == []
+    assert bands([(i, i + 0.5) for i in range(20)], 0.1) == []
+
+
+def test_the_sheet_has_an_isometric_view_clear_of_the_others(tmp_path):
+    doc, result = stacked(tmp_path, {"title": "Toy", "revision": 3})
+    assert result["pictorial"]
+    points = [p[:2] for e in doc.modelspace().query('LWPOLYLINE[layer=="PICTORIAL"]') for p in e.get_points()]
+    assert points
+    assert min(p[0] for p in points) > 90
+    assert min(p[1] for p in points) > 110
+
+
+def test_materials_list_volume_mass_and_total():
+    spec = {"materials": [{"part": "Base", "name": "Walnut", "volume": 80049.0, "mass": 48.83},
+                          {"part": "Body", "name": "C360 brass", "volume": 87005.0, "mass": 739.54}]}
+    assert panel_sections(spec)[0][2] == [("Base", "Walnut", "80,049", "48.83"), ("Body", "C360 brass", "87,005", "739.54"),
+                                          ("TOTAL", "", "", "788.37")]
+
+
+def test_a_partial_mass_has_no_total():
+    spec = {"materials": [{"part": "Base", "name": "Walnut", "volume": 1.0, "mass": 1.0}, {"part": "Body", "name": "Brass"}]}
+    assert panel_sections(spec)[0][2] == [("Base", "Walnut", "1", "1.00"), ("Body", "Brass", "-", "-")]

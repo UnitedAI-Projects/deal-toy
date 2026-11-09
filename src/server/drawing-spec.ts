@@ -7,7 +7,7 @@ import type {
 
 /** What the blueprint can state beyond its views, all of it measured by the build's inspection. */
 export type DrawingDetails = {
-  materials: { part: string; name: string }[];
+  materials: { part: string; name: string; volume?: number; mass?: number }[];
   dimensions: { name: string; value: number; matches: boolean }[];
   holes: {
     part: string;
@@ -64,7 +64,17 @@ export function drawingDetails(record: InspectRecord): DrawingDetails {
     record.parts.find((p) => p.index === part)?.label ?? `Part ${part}`;
   return {
     materials: Object.entries(record.materials ?? {})
-      .map(([part, material]) => ({ part, name: material.name }))
+      .map(([part, material]) => {
+        const solid = record.parts.find((p) => p.label === part);
+        return {
+          part,
+          name: material.name,
+          ...(solid && {
+            volume: solid.volume,
+            mass: (solid.volume / 1000) * material.density_g_cm3,
+          }),
+        };
+      })
       .slice(0, MAX_ROWS),
     dimensions: (record.dimensions ?? [])
       .map(({ name, value, matches_param: matches }) => ({

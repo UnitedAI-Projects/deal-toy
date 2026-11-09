@@ -77,7 +77,14 @@ describe("drawingDetails", () => {
         ],
       }),
     );
-    expect(details.materials).toEqual([{ part: "Body", name: "C360 brass" }]);
+    expect(details.materials).toEqual([
+      {
+        part: "Body",
+        name: "C360 brass",
+        volume: 1,
+        mass: expect.closeTo(0.0085),
+      },
+    ]);
     expect(details.dimensions).toEqual([
       { name: "Body width", value: 76, matches: false },
     ]);
@@ -99,7 +106,9 @@ describe("drawingDetails", () => {
   });
 
   it("keeps a hole it cannot judge", () => {
-    const details = drawingDetails(record({ holes: [hole([99], 4, [0, 0, 1])] }));
+    const details = drawingDetails(
+      record({ holes: [hole([99], 4, [0, 0, 1])] }),
+    );
     expect(details.holes).toHaveLength(1);
   });
 
