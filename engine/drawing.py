@@ -1,10 +1,12 @@
 """Dimensioned drawing of a build's persisted STEP: blueprint.dxf + blueprint.pdf.
 
 Runs in the job container and imports no model code. Views, dimension values and hole callouts are
-read from the solid, so the sheet cannot disagree with the STEP. It is a draft for review; tolerances
-and material come from the manufacturing brief and are stated as open here.
+read from the solid, so the sheet cannot disagree with the STEP. The panel beside the views prints
+what the build's inspection measured, passed in the spec. It is a draft for review; tolerances come
+from the manufacturing brief and are stated as open here.
 """
 import json
+import math
 import re
 import sys
 from datetime import UTC, datetime
@@ -41,6 +43,8 @@ DIM_OFFSET = 12.0
 MAX_HIDDEN_EDGES = 6000
 MAX_CENTER_MARKS = 60
 MAX_CIRCLE_SIZES = 6
+PANEL_WIDTH = 130.0
+PANEL_ROW = 4.4
 FAR = 100000.0
 FONT = "MANTEL"
 LAYERS = {  # name: (ACI color, linetype, lineweight in 1/100 mm)
@@ -59,10 +63,10 @@ VIEWS = {  # third-angle: camera, up, and the world axes that become (u, v), wit
 }
 
 
-def choose_enlargement(width: float, depth: float, height: float) -> float:
-    """Largest standard scale at which the three views and their dimensions fit the sheet."""
+def choose_enlargement(width: float, depth: float, height: float, panel: float = 0.0) -> float:
+    """Largest standard scale at which the three views and their dimensions fit beside the panel."""
     _, paper_w, paper_h = PAPER
-    room_w = paper_w - 2 * BORDER - VIEW_GAP - 2 * VIEW_MARGIN
+    room_w = paper_w - 2 * BORDER - VIEW_GAP - 2 * VIEW_MARGIN - panel
     room_h = paper_h - 2 * BORDER - TITLE_HEIGHT - VIEW_GAP - 2 * VIEW_MARGIN
     for factor in ENLARGEMENTS:
         if (width + depth) * factor <= room_w and (height + depth) * factor <= room_h:
@@ -78,6 +82,53 @@ def clean(value, limit: int, fallback: str) -> str:
     """Title-block text comes from project names: printable, one line, bounded."""
     text = re.sub(r"[^\x20-\x7e]", " ", str(value)).strip() if value is not None else ""
     return text[:limit] or fallback
+
+
+def mm(value) -> str:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("not a measurement")
+    return f"{number:.2f}"
+
+
+def span(box: dict, axis: int) -> str:
+    return f"{mm(box['min'][axis])} to {mm(box['max'][axis])}"
+
+
+def _rows(items, make) -> list:
+    """A row that cannot be read is left off: the sheet prints only what was measured."""
+    rows = []
+    for item in items if isinstance(items, list) else []:
+        try:
+            rows.append(make(item))
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            continue
+    return rows
+
+
+def panel_sections(spec: dict) -> list:
+    """Tables for the panel, as (title, ((heading, x in paper mm), ...), rows). Empty ones are left out."""
+    materials = _rows(spec.get("materials"), lambda m: (clean(m["part"], 24, "-"), clean(m["name"], 60, "-")))
+
+    def dimension(item):
+        return clean(item["name"], 70, "-"), mm(item["value"]) + ("" if item.get("matches", True) else " CHECK")
+
+    def hole(item):
+        at = ", ".join(mm(v) for v in item["at"][:3])
+        return (clean(item["part"], 16, "-"), mm(item["diameter"]),
+                mm(item["depth"]) + (" BLIND" if item.get("blind") else ""), at)
+
+    def extent(item):
+        return (clean(item["name"], 26, "-"), span(item["bbox"], 0), span(item["bbox"], 1), span(item["bbox"], 2))
+
+    holes = [(f"H{i + 1}", *row) for i, row in enumerate(_rows(spec.get("holes"), hole))]
+    sections = (
+        ("MATERIALS", (("PART", 0), ("MATERIAL", 38)), materials),
+        ("FEATURE DIMENSIONS", (("NAME", 0), ("MM", 100)), _rows(spec.get("dimensions"), dimension)),
+        ("HOLES", (("ID", 0), ("PART", 9), ("DIA", 36), ("DEPTH", 50), ("START X, Y, Z", 76)), holes),
+        ("TEXT EXTENTS", (("TEXT", 0), ("X", 40), ("Y", 70), ("Z", 98)), _rows(spec.get("text"), extent)),
+    )
+    return [section for section in sections if section[2]]
 
 
 def _edges(compound) -> list:
@@ -135,7 +186,9 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
     box = shape.bounding_box()
     lows, size = tuple(box.min), tuple(box.size)
     width, depth, height = size
-    factor = choose_enlargement(width, depth, height)
+    sections = panel_sections(spec)
+    panel = PANEL_WIDTH if sections else 0.0
+    factor = choose_enlargement(width, depth, height, panel)
     scale = 1 / factor
     gap = VIEW_GAP * scale
     offset = DIM_OFFSET * scale
@@ -205,7 +258,7 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
     paper, paper_w, paper_h = PAPER
     sheet = doc.layouts.new(paper)
     sheet.page_setup(size=(paper_w, paper_h), margins=(0, 0, 0, 0), units="mm", scale=1)
-    area = (BORDER, BORDER + TITLE_HEIGHT, paper_w - BORDER, paper_h - BORDER)
+    area = (BORDER, BORDER + TITLE_HEIGHT, paper_w - BORDER - panel, paper_h - BORDER)
     area_w, area_h = area[2] - area[0], area[3] - area[1]
     sheet.add_viewport(center=((area[0] + area[2]) / 2, (area[1] + area[3]) / 2), size=(area_w, area_h),
                        view_center_point=((width + gap + depth) / 2, (height + gap + depth) / 2),
@@ -225,7 +278,7 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
     rule((BORDER, BORDER + TITLE_HEIGHT), (paper_w - BORDER, BORDER + TITLE_HEIGHT))
     block_x = paper_w - BORDER - 150
     rule((block_x, BORDER), (block_x, BORDER + TITLE_HEIGHT))
-    rows = [("TITLE", title), ("REVISION", revision), ("DATE", date),
+    rows = [("TITLE", title), ("PROJECT", clean(spec.get("project"), 60, "-")), ("REVISION", revision), ("DATE", date),
             ("SCALE", f"{scale_label(factor)} ON {paper}"),
             ("UNITS", "MM - DO NOT SCALE DRAWING"), ("PROJECTION", "THIRD ANGLE")]
     row_h = TITLE_HEIGHT / len(rows)
@@ -236,9 +289,37 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
             rule((block_x, y + row_h), (paper_w - BORDER, y + row_h))
         text(key, block_x + 2, y + 2.2, 2.2, "TITLEBLOCK")
         text(value, block_x + 28, y + 2.2, 2.5, "TITLEBLOCK")
+    if sections:
+        panel_x = paper_w - BORDER - panel
+        rule((panel_x, BORDER + TITLE_HEIGHT), (panel_x, paper_h - BORDER))
+        y = paper_h - BORDER - 6
+        floor = BORDER + TITLE_HEIGHT + 2 * PANEL_ROW
+        text("ALL VALUES IN MM, MEASURED FROM THE BUILD", panel_x + 3, y, 2.4)
+        y -= 1.5 * PANEL_ROW
+        omitted = 0
+        for heading, columns, table in sections:
+            room = int((y - floor) / PANEL_ROW) - 2
+            shown = table[:max(room, 0)]
+            omitted += len(table) - len(shown)
+            if not shown:
+                continue
+            text(heading, panel_x + 3, y, 2.8)
+            y -= PANEL_ROW
+            for name, column in columns:
+                text(name, panel_x + 3 + column, y, 2.0, "TITLEBLOCK")
+            y -= PANEL_ROW
+            for row in shown:
+                for value, (_, column) in zip(row, columns, strict=True):
+                    text(value, panel_x + 3 + column, y, 2.2)
+                y -= PANEL_ROW
+            y -= 0.5 * PANEL_ROW
+        if omitted:
+            text(f"{omitted} MORE ROWS DO NOT FIT. SEE INSPECT.JSON.", panel_x + 3, floor - PANEL_ROW, 2.4)
+    listed_materials = any(section[0] == "MATERIALS" for section in sections)
     notes = [
         "NOTES",
         f"1. OVERALL {width:.2f} W x {depth:.2f} D x {height:.2f} H MM, MEASURED FROM THE SOLID.",
+        "2. TOLERANCES NOT SPECIFIED. SEE THE MANUFACTURING BRIEF." if listed_materials else
         "2. TOLERANCES AND MATERIAL NOT SPECIFIED. SEE THE MANUFACTURING BRIEF.",
         "3. DRAFT DERIVED FROM THE MODEL. NOT REVIEWED OR APPROVED FOR MANUFACTURE.",
     ]
