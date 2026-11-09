@@ -264,3 +264,21 @@ A teammate connected Claude's custom connector over MCP sign-in. Their app was l
 - `src/web/empty.test.ts` covers no apps, an unknown list, one app, two apps, three or more, and one app signed in twice. Full `bash ci/run.sh` passed: 308 Worker tests and 84 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run.
 - In the app (local `wrangler dev`): with no connected app, the empty project showed the original wording. A local client named "Claude" was registered and approved on the consent page, and its code was exchanged for tokens. Opening the project then showed "Claude is connected" (`docs/images/workspace-empty-connected.png`). After disconnecting it through the Settings API, the original wording returned.
 - At 390 px there is no horizontal scroll and both buttons fit on one row (`docs/images/workspace-empty-connected-mobile.png`). Known limit, present before this change: with the activity panel open on a phone, its "Hide activity" toggle overlaps the empty screen's first button.
+
+## API keys removed; MCP sign-in only — 2026-11-09
+
+Every MCP client now connects through OAuth sign-in, so Mantel API keys (`mtl_…`) were removed. The **Settings → API keys** page, its `/api/settings/keys` routes, the `keys.use` permission and the `/mcp` key resolver are gone. Settings now has a **Connected apps** page with the existing connected-apps list. `0009_remove_api_keys.sql` deletes `keys.use` from levels and per-person adjustments and drops `api_keys`. Before the change, production had two keys, both already revoked; the last was used on 2026-11-05. The privacy policy was updated to match (effective 2026-11-09).
+
+- Tests that called `/mcp` with keys now get tokens through the full OAuth flow (`mcpToken` in `src/server/test-helpers.ts`). New tests show that an `mtl_` key on `/mcp` gets a 401 pointing to sign-in, `/api/settings/keys` returns 404, and the migration leaves no `api_keys` table or `keys.use` grant. The accounts-migration test no longer checks the key rows it once produced, because a later migration drops them.
+- Full `bash ci/run.sh` passed: 300 Worker tests and 84 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run.
+- In the app (local `wrangler dev`, migration 0009 applied): Settings lists Account and Connected apps under "You", and the Connected apps page shows the server URL and the existing list (`docs/images/settings-connected-apps.png`). Access levels no longer lists an API keys permission. At 390 px there is no horizontal scroll (`docs/images/settings-connected-apps-mobile.png`).
+- Known limit: a script or CI job can no longer call `/mcp` without a browser sign-in. Rolling back the Worker alone would not bring keys back, because the migration drops the table; D1 Time Travel can restore it.
+
+## Copyable MCP setup instructions in Settings — 2026-11-09
+
+**Settings → Connected apps** now opens with a **Set up your AI** panel. **Copy instructions** copies text a member pastes into their AI app. The text gives this site's `/mcp` URL, says sign-in is OAuth and there are no keys, and lists each client's own setup: the `claude mcp add` and `codex mcp add`/`codex mcp login` commands, Cursor/VS Code, and Claude's custom connector (which the member adds themselves). It warns that sign-in returns to the computer the AI runs on, then has the AI confirm with `projects_list` and read the modeling skill with `skills_list`. The workspace Connect drawer points to it.
+
+- `src/web/setup.test.ts` checks the URL in every command, that the text never mentions keys or bearer tokens, and that it asks for the `projects_list` check. Full `bash ci/run.sh` passed: 310 Worker tests and 100 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run.
+- The `claude mcp add` and `codex mcp add`/`login` flags were checked against the installed CLIs' `--help`.
+- In the app (local `wrangler dev`): **Copy instructions** changed to "Copied" and back after about 2.5 seconds, with no error (`docs/images/settings-setup-prompt.png`). At 390 px there is no horizontal scroll (`docs/images/settings-setup-prompt-mobile.png`). Browsers may break a line after the hyphen in `--transport`; the copied text is unchanged.
+- Not verified: pasting the instructions into an AI app and completing a sign-in from them.

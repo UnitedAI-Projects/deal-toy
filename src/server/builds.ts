@@ -19,7 +19,7 @@ export class CadContainer extends DurableObject<Env> {
     const container = this.ctx.container;
     if (!container) throw new Error("CAD container binding is missing");
     // Persistent backstop if a request or queue consumer disappears mid-build.
-    await this.ctx.storage.setAlarm(Date.now() + 180_000);
+    await this.ctx.storage.setAlarm(Date.now() + 945_000);
     return fetchCad(container, request);
   }
   async destroy() {
@@ -44,6 +44,21 @@ const artifact = z.object({
 const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(5) });
 /** A view-as-of preview exports only the viewer mesh and facts. */
 const PREVIEW = ["model.glb", "facts.json"];
+const drawingResult = z.object({
+  artifacts: z
+    .array(
+      z.object({
+        name: z.enum(["blueprint.pdf", "blueprint.dxf"]),
+        mediaType: z.string(),
+        base64: z.string().max(22_000_000),
+      }),
+    )
+    .length(2),
+});
+const drawingMedia = {
+  "blueprint.pdf": "application/pdf",
+  "blueprint.dxf": "image/vnd.dxf",
+};
 const target = z.union([
   z.object({ face: z.number().int().nonnegative() }).strict(),
   z.object({ part: z.number().int().nonnegative() }).strict(),
@@ -53,6 +68,7 @@ const jobOptions = z
     stopAfter: z.number().int().min(1).max(300).optional(),
     check: z.string().max(48).optional(),
     build: z.string().uuid().optional(),
+    drawing: z.literal(true).optional(),
     requests: z
       .array(
         z.object({ key: z.string().max(80), a: target, b: target }).strict(),
@@ -183,7 +199,7 @@ export async function consume(message: Message<unknown>, env: Env) {
     return;
   }
   // Duplicate deliveries never start a second execution. The scheduled sweep marks
-  // abandoned claims failed after fifteen minutes so an explicit rebuild is possible.
+  // abandoned claims failed after twenty minutes so an explicit rebuild is possible.
   if (job.status === "running") {
     message.ack();
     return;
@@ -233,7 +249,9 @@ export async function consume(message: Message<unknown>, env: Env) {
     );
   try {
     if (job.purpose === "measure") {
-      await measure(env, jobId, options, container);
+      if (options.drawing)
+        await draw(env, jobId, job.revision_id, options, container, keys);
+      else await measure(env, jobId, options, container);
       message.ack();
       await notify(env, job.project_id, { type: "workspace" });
       return;
@@ -343,6 +361,8 @@ export async function consume(message: Message<unknown>, env: Env) {
     await env.DB.batch(statements);
     message.ack();
     await notify(env, job.project_id, { type: "workspace" });
+    if (job.purpose === "build")
+      await queueDrawing(env, jobId, job.revision_id);
     if (job.purpose === "build" && inspected && job.created_by)
       await measureForChecks(env, {
         buildId: jobId,
@@ -384,6 +404,119 @@ export async function consume(message: Message<unknown>, env: Env) {
   }
 }
 
+/**
+ * A drawing runs as a measure job with `drawing` set, so it needs no new job purpose, and adds its
+ * files to the build it draws. It belongs to no member: one drawing per build, not one more build
+ * against the daily cap. A failure to queue never fails the build.
+ */
+async function queueDrawing(env: Env, buildId: string, revisionId: string) {
+  const id = crypto.randomUUID();
+  const at = new Date().toISOString();
+  try {
+    await env.DB.prepare(
+      "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by,purpose,options) VALUES (?,?,'queued',NULL,NULL,?,?,NULL,'measure',?)",
+    )
+      .bind(
+        id,
+        revisionId,
+        at,
+        at,
+        JSON.stringify({ build: buildId, drawing: true }),
+      )
+      .run();
+    await env.BUILDS.send({ jobId: id });
+  } catch (error) {
+    await env.DB.prepare(
+      "UPDATE jobs SET status='failed',error='Queue unavailable',updated_at=? WHERE id=?",
+    )
+      .bind(new Date().toISOString(), id)
+      .run();
+    console.error(
+      JSON.stringify({
+        event: "drawing_queue_failed",
+        buildId,
+        error: error instanceof Error ? error.message : "unknown",
+      }),
+    );
+  }
+}
+/** Draws a finished build from its STEP; the container runs no model code. */
+async function draw(
+  env: Env,
+  jobId: string,
+  revisionId: string,
+  options: z.infer<typeof jobOptions>,
+  container: { fetch: (request: Request) => Promise<Response> },
+  keys: string[],
+) {
+  if (!options.build) throw new Error("A drawing job needs a build");
+  const object = await stepOf(env, options.build);
+  const spec = await env.DB.prepare(
+    "SELECT m.name AS title,r.number AS revision FROM revisions r JOIN models m ON m.id=r.model_id WHERE r.id=?",
+  )
+    .bind(revisionId)
+    .first<{ title: string; revision: number }>();
+  const response = await container.fetch(
+    new Request("http://cad/drawing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        step: toBase64(new Uint8Array(await object.arrayBuffer())),
+        spec: spec ?? {},
+      }),
+    }),
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = z.object({ error: z.string() }).safeParse(body);
+    throw new Error(detail.success ? detail.data.error : "Drawing failed");
+  }
+  const { artifacts } = drawingResult.parse(body);
+  if (new Set(artifacts.map((a) => a.name)).size !== artifacts.length)
+    throw new Error("Duplicate drawing files");
+  const statements: D1PreparedStatement[] = [];
+  for (const artifact of artifacts) {
+    const binary = Uint8Array.from(atob(artifact.base64), (c) =>
+      c.charCodeAt(0),
+    );
+    const objectKey = `builds/${options.build}/${artifact.name}`;
+    keys.push(objectKey);
+    await env.ARTIFACTS.put(objectKey, binary, {
+      httpMetadata: { contentType: drawingMedia[artifact.name] },
+    });
+    statements.push(
+      env.DB.prepare("INSERT INTO artifacts VALUES (?,?,?,?,?,?,?)").bind(
+        crypto.randomUUID(),
+        options.build,
+        artifact.name,
+        objectKey,
+        drawingMedia[artifact.name],
+        await hash(binary),
+        binary.length,
+      ),
+    );
+  }
+  statements.push(
+    env.DB.prepare(
+      "UPDATE jobs SET status='succeeded',facts=?,updated_at=? WHERE id=? AND status='running'",
+    ).bind(
+      JSON.stringify({ drawn: options.build }),
+      new Date().toISOString(),
+      jobId,
+    ),
+  );
+  await env.DB.batch(statements);
+}
+async function stepOf(env: Env, buildId: string) {
+  const step = await env.DB.prepare(
+    "SELECT object_key FROM artifacts WHERE job_id=? AND name='model.step'",
+  )
+    .bind(buildId)
+    .first<{ object_key: string }>();
+  const object = step ? await env.ARTIFACTS.get(step.object_key) : null;
+  if (!object) throw new Error("The build's STEP is gone");
+  return object;
+}
 /** A measure job: the build's STEP goes to the container, which runs no model code. */
 async function measure(
   env: Env,
@@ -393,13 +526,7 @@ async function measure(
 ) {
   if (!options.build || !options.requests?.length)
     throw new Error("A measure job needs a build and requests");
-  const step = await env.DB.prepare(
-    "SELECT object_key FROM artifacts WHERE job_id=? AND name='model.step'",
-  )
-    .bind(options.build)
-    .first<{ object_key: string }>();
-  const object = step ? await env.ARTIFACTS.get(step.object_key) : null;
-  if (!object) throw new Error("The build's STEP is gone");
+  const object = await stepOf(env, options.build);
   const response = await container.fetch(
     new Request("http://cad/measure", {
       method: "POST",

@@ -32,7 +32,7 @@ import {
 } from "./fit-state";
 import type { DimensionRecord } from "../shared/inspect-types";
 import type { Check, CheckResult, Target } from "../shared/checks";
-import { pickFace, type InspectRecord } from "./inspect";
+import { materialsUsed, pickFace, type InspectRecord } from "./inspect";
 import catalog from "../../engine/lib/mantel/catalog.json";
 import { ActionForm, type Preset } from "./ActionForm";
 import {
@@ -54,6 +54,41 @@ import sample from "../../examples/bridge.py?raw";
 const Viewer = lazy(() =>
   import("./Viewer").then((module) => ({ default: module.Viewer })),
 );
+
+/** What the toy is made of, from the materials its model declares. */
+function Materials({ record }: { record: InspectRecord }) {
+  const { used, undeclared, total_g } = materialsUsed(record);
+  return (
+    <section className="materials" aria-label="Materials">
+      <strong>Materials</strong>
+      {used.length === 0 ? (
+        <p className="muted">This build declares no materials.</p>
+      ) : (
+        <dl className="facts">
+          {used.map((use) => (
+            <div className="fact-row" key={use.name}>
+              <dt>
+                {use.name} · {use.parts.join(", ")}
+              </dt>
+              <dd>{use.mass_g.toFixed(2)} g</dd>
+            </div>
+          ))}
+          {undeclared.length > 0 ? (
+            <>
+              <dt>Not declared · {undeclared.join(", ")}</dt>
+              <dd>unknown</dd>
+            </>
+          ) : (
+            <>
+              <dt>Total mass</dt>
+              <dd>{total_g.toFixed(2)} g</dd>
+            </>
+          )}
+        </dl>
+      )}
+    </section>
+  );
+}
 const briefTemplate = `# Manufacturing brief — DRAFT\n\nQuantity: TBD\nMaterial and grade: TBD\nProcess: TBD with manufacturer\nFinish and colour: TBD\nCritical dimensions and tolerances: TBD\nArtwork and engraving: TBD\nAssembly and adhesives: TBD\nInspection and sample approval: Required\nPackaging and shipping: TBD\n\nOpen questions:\n- Confirm process and supplier capabilities.\n- Review dimensioned engineering drawings.\n- Approve a physical sample before batch production.\n`;
 type Drawer = "code" | "downloads" | "documents" | "connect" | null;
 type Props = {
@@ -1320,6 +1355,15 @@ export function Workspace(props: Props) {
                     </button>
                   ))}
                 </div>
+                {canDownload &&
+                  artifacts.length > 0 &&
+                  !artifacts.some((a) => a.name === "blueprint.pdf") && (
+                    <p className="muted">
+                      The blueprint appears here a minute or two after a build
+                      finishes. If none appears, the drawing failed or the build
+                      is older than blueprints; rebuild to try again.
+                    </p>
+                  )}
                 {facts && (
                   <dl className="facts">
                     <dt>Size</dt>
@@ -1340,6 +1384,7 @@ export function Workspace(props: Props) {
                     ))}
                   </dl>
                 )}
+                {record && <Materials record={record} />}
                 <p className="muted">
                   A valid solid is not a manufacturing approval. Drawings, DFM
                   and a sample approval are separate reviews.
@@ -1817,13 +1862,11 @@ function Connect(props: { onSettings: () => void }) {
         />
       </label>
       <p className="muted">
-        Apps you allow are listed under Connected apps in{" "}
+        To have your AI set itself up, copy the instructions in{" "}
         <button className="link" onClick={props.onSettings}>
-          Settings → API keys
-        </button>
-        . For a client without sign-in, create an API key there and send it as
-        the <code>Authorization: Bearer</code> header, kept in the client's
-        secret store.
+          Settings → Connected apps
+        </button>{" "}
+        and paste them into it. Apps you allow are listed there too.
       </p>
       <pre className="code">{`session_start  → your prompt appears here
 session_update → short progress notes

@@ -25,7 +25,7 @@ def limits():
     # under RLIMIT_NPROC. Use a single OCCT thread without relaxing job limits.
     OSD_Parallel.SetUseOcctThreads_s(True)
     OSD_ThreadPool.DefaultPool_s(1).Init(1)
-    resource.setrlimit(resource.RLIMIT_CPU, (50, 50))
+    resource.setrlimit(resource.RLIMIT_CPU, (780, 780))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_ARTIFACT_BYTES, MAX_ARTIFACT_BYTES))
     resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
     # Linux container memory is additionally bounded by the instance size.

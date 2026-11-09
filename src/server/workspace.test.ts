@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { execute } from "./tools";
 import { consume } from "./builds";
 import { hash, type Context } from "./core";
-import { apiKey, cookieFor, member } from "./test-helpers";
+import { cookieFor, mcpToken, member } from "./test-helpers";
 declare global {
   namespace Cloudflare {
     interface Env {
@@ -14,13 +14,13 @@ declare global {
 }
 let alice: Context;
 let bob: Context;
-let key: string;
+let token: string;
 let aliceCookie: string;
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
   alice = await member("alice@example.test", { owner: true, level: "Admin" });
   bob = await member("bob@example.test", { level: "Maker" });
-  key = await apiKey("alice@example.test");
+  token = await mcpToken("alice@example.test");
   aliceCookie = await cookieFor("alice@example.test");
 });
 async function project(c = alice) {
@@ -190,7 +190,7 @@ describe("Workspace authorization and revisions", () => {
     const response = await exports.default.fetch("https://example.test/mcp", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${key}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
       },
@@ -208,17 +208,13 @@ describe("Workspace authorization and revisions", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(`"name":"mantel"`);
   });
-  it("rejects expired keys", async () => {
-    const expired = await apiKey("alice@example.test");
-    await env.DB.prepare("UPDATE api_keys SET expires_at=? WHERE hash=?")
-      .bind("2020-01-01T00:00:00.000Z", await hash(expired))
-      .run();
+  it("rejects an unknown token", async () => {
     expect(
       (
         await exports.default.fetch("https://example.test/mcp", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${expired}`,
+            Authorization: "Bearer not-a-real-token",
             "Content-Type": "application/json",
           },
           body: "{}",
@@ -326,6 +322,168 @@ describe("Build lifecycle", () => {
         )
       ).status,
     ).toBe(200);
+  });
+  function runtime(names: string[]) {
+    const facts = {
+      units: "mm",
+      bounds: [1, 2, 3],
+      volume_mm3: 6,
+      solids: 1,
+      valid: true,
+      manufacturing_approval: "not_reviewed",
+    };
+    const artifacts = names.map((name) => ({
+      name,
+      mediaType: "ignored",
+      base64: btoa(
+        name === "facts.json"
+          ? JSON.stringify(facts)
+          : name === "inspect.json"
+            ? '{"version":1,"units":"mm","warnings":[],"parts":[],"faces":[],"holes":[],"faces_truncated":false}'
+            : "synthetic-test-bytes",
+      ),
+    }));
+    return {
+      fetch: vi.fn(
+        async (_request: Request) => Response.json({ artifacts }) as Response,
+      ),
+      destroy: vi.fn(async () => {}),
+    };
+  }
+  const core = [
+    "model.step",
+    "model.stl",
+    "model.glb",
+    "facts.json",
+    "inspect.json",
+  ];
+  const drawings = ["blueprint.pdf", "blueprint.dxf"];
+  async function drawingJobAfterBuild() {
+    const { jobId, message } = await queuedJob();
+    const send = vi.fn(async (_body: { jobId: string }) => {});
+    const container = runtime(core);
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      BUILDS: { send },
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    expect(send).toHaveBeenCalledTimes(1);
+    const drawingId = send.mock.calls[0][0].jobId;
+    return {
+      jobId,
+      drawingId,
+      message: {
+        body: { jobId: drawingId },
+        ack: vi.fn(),
+        retry: vi.fn(),
+      } as unknown as Message<unknown>,
+    };
+  }
+  function drawingRuntime(response: Response) {
+    return {
+      fetch: vi.fn(async (_request: Request) => response),
+      destroy: vi.fn(async () => {}),
+    };
+  }
+  const drawn = {
+    artifacts: drawings.map((name) => ({
+      name,
+      mediaType: "ignored",
+      base64: btoa("synthetic-test-bytes"),
+    })),
+  };
+  it("draws a finished build in its own job and adds the files to that build", async () => {
+    const { jobId, drawingId, message } = await drawingJobAfterBuild();
+    const container = drawingRuntime(Response.json(drawn));
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const request = container.fetch.mock.calls[0][0];
+    expect(new URL(request.url).pathname).toBe("/drawing");
+    const body = (await request.clone().json()) as {
+      step: string;
+      spec: { title: string; revision: number };
+    };
+    expect(body.step).toBe(btoa("synthetic-test-bytes"));
+    expect(body.spec.title).toEqual(expect.any(String));
+    expect(body.spec.revision).toEqual(expect.any(Number));
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+      artifacts: { name: string }[];
+    };
+    expect(result.status).toBe("succeeded");
+    expect(result.artifacts.map((a) => a.name).sort()).toEqual(
+      [...core, ...drawings].sort(),
+    );
+    expect(
+      (await env.ARTIFACTS.get(`builds/${jobId}/blueprint.pdf`))?.httpMetadata
+        ?.contentType,
+    ).toBe("application/pdf");
+    const job = await env.DB.prepare(
+      "SELECT status,created_by FROM jobs WHERE id=?",
+    )
+      .bind(drawingId)
+      .first<{ status: string; created_by: string | null }>();
+    expect(job).toEqual({ status: "succeeded", created_by: null });
+  });
+  it("keeps the build and records why when a drawing fails", async () => {
+    const { jobId, drawingId, message } = await drawingJobAfterBuild();
+    const container = drawingRuntime(
+      Response.json({ error: "Drawing failed: bad geometry" }, { status: 400 }),
+    );
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const job = await env.DB.prepare("SELECT status,error FROM jobs WHERE id=?")
+      .bind(drawingId)
+      .first<{ status: string; error: string }>();
+    expect(job).toEqual({
+      status: "failed",
+      error: "Drawing failed: bad geometry",
+    });
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+      artifacts: unknown[];
+    };
+    expect(result.status).toBe("succeeded");
+    expect(result.artifacts).toHaveLength(core.length);
+    expect(
+      await env.ARTIFACTS.get(`builds/${jobId}/model.step`),
+    ).not.toBeNull();
+  });
+  it("keeps the build when the drawing cannot be queued", async () => {
+    const { jobId, message } = await queuedJob();
+    const container = runtime(core);
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      BUILDS: { send: vi.fn(async () => Promise.reject(new Error("down"))) },
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+    };
+    expect(result.status).toBe("succeeded");
+  });
+  it("queues no drawing for a preview", async () => {
+    const { jobId, message } = await queuedJob();
+    await env.DB.prepare("UPDATE jobs SET purpose='view' WHERE id=?")
+      .bind(jobId)
+      .run();
+    const send = vi.fn(async () => {});
+    const container = runtime(["model.glb", "facts.json"]);
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      BUILDS: { send },
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    expect(send).not.toHaveBeenCalled();
   });
   it("removes partial exports when runtime output is invalid", async () => {
     const { jobId, message } = await queuedJob();

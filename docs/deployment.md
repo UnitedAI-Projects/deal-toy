@@ -74,9 +74,9 @@ The owner-approved cutover completed on October 28, 2026. Mantel now handles bro
 - **Deal Toy machine endpoints** — `8522c68a-87a7-403e-941c-618b21e59d80` (former `/health` and `/mcp` exceptions).
 - **Mantel public information** — `03878ed6-cc4b-4215-903a-47ca0c2441ec` (former `/info/*` exception).
 
-Shared Access policies, the Google identity provider, and other applications were left intact. Do not recreate the exceptions: without an outer Access gate, they are unnecessary. Browser APIs require Mantel sessions, and MCP requires API keys; public static pages do not grant access to project data.
+Shared Access policies, the Google identity provider, and other applications were left intact. Do not recreate the exceptions: without an outer Access gate, they are unnecessary. Browser APIs require Mantel sessions, and MCP requires OAuth sign-in; public static pages do not grant access to project data.
 
-After any identity or routing change, verify anonymous `/` returns the Mantel page, `/api/auth/google/start` redirects directly to `accounts.google.com`, and `/api/session` and `/mcp` return 401. Check owner sign-in and sign-out, an existing MCP key, and the public homepage/privacy links. New Google accounts receive the default Demo level; owners grant additional permissions in Settings.
+After any identity or routing change, verify anonymous `/` returns the Mantel page, `/api/auth/google/start` redirects directly to `accounts.google.com`, and `/api/session` and `/mcp` return 401. Check owner sign-in and sign-out, an existing MCP sign-in, and the public homepage/privacy links. New Google accounts receive the default Demo level; owners grant additional permissions in Settings.
 
 Owner sign-in and these routing checks passed during cutover. A second-account signup, live promotion/suspension, and new-key revocation remain separate production acceptance items; automated coverage does not substitute for those live checks.
 

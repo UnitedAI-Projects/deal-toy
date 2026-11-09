@@ -8,7 +8,6 @@ export const PERMISSIONS = [
   "builds.run",
   "exports.download",
   "notes.write",
-  "keys.use",
   "members.manage",
   "settings.manage",
 ] as const;
@@ -20,7 +19,6 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "builds.run": "Run builds",
   "exports.download": "Download exports",
   "notes.write": "Leave notes",
-  "keys.use": "API keys",
   "members.manage": "Manage members",
   "settings.manage": "Configure skills and tools",
 };

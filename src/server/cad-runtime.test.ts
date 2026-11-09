@@ -28,7 +28,7 @@ it("waits for readiness before forwarding once with isolated startup options", a
     instance: "standard-1",
     enableInternet: false,
   });
-  expect(container.setInactivityTimeout).toHaveBeenCalledWith(90_000);
+  expect(container.setInactivityTimeout).toHaveBeenCalledWith(855_000);
   expect(
     fetch.mock.calls.filter(([input]) => input instanceof Request),
   ).toHaveLength(1);
