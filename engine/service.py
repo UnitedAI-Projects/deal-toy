@@ -29,8 +29,9 @@ class HTTPServer(BaseHTTPServer):
 
 PREVIEW_FILES = ("model.glb", "facts.json")
 DRAWING_FILES = {"blueprint.pdf": "application/pdf", "blueprint.dxf": "image/vnd.dxf"}
-# Inside the Worker's 300 s wait for the container (src/server/cad-runtime.ts).
-JOB_SECONDS = 270
+# Inside the Worker's 825 s wait for the container (src/server/cad-runtime.ts). The whole queue
+# invocation, including container start-up and saving the files, must end within Cloudflare's 15 minutes.
+JOB_SECONDS = 810
 
 
 MODULE_KEY = re.compile(r"^[a-z][a-z0-9-]{1,39}@[0-9]{1,6}$")
