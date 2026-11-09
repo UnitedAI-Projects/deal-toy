@@ -59,6 +59,8 @@ claude mcp add --transport http mantel https://YOUR_APP/mcp
 
 Sign in when Claude Code asks: it opens Mantel in your browser, you sign in with Google if needed and select **Allow**. In Claude's web or desktop app, add the same URL as a custom connector. Any MCP client that supports the MCP authorization standard (OAuth 2.1 with dynamic client registration) connects the same way.
 
+The easiest way is **Settings → Connected apps → Set up your AI**: select **Copy instructions** and paste them into your AI app. They tell it how to add the server for its own app (Claude Code, Codex, Cursor, VS Code, or Claude's custom connector), walk you through sign-in, and have it confirm by listing your projects.
+
 A connected app acts as you, with your current access level: a Demo member's app can read the demo but not edit or build. Its sign-in lasts a week and renews itself while you keep using it. See and disconnect your apps in **Settings → Connected apps**; disconnecting stops an app at once, as do suspension and access changes.
 
 `/mcp` accepts only these sign-ins; there are no API keys. Retrieve `skills_list` and follow the `modeling` skill before modeling.

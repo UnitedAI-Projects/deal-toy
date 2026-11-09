@@ -1711,11 +1711,11 @@ function Connect(props: { onSettings: () => void }) {
         />
       </label>
       <p className="muted">
-        Apps you allow are listed in{" "}
+        To have your AI set itself up, copy the instructions in{" "}
         <button className="link" onClick={props.onSettings}>
           Settings → Connected apps
-        </button>
-        .
+        </button>{" "}
+        and paste them into it. Apps you allow are listed there too.
       </p>
       <pre className="code">{`session_start  → your prompt appears here
 session_update → short progress notes
