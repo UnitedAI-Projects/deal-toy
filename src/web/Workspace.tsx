@@ -38,6 +38,7 @@ import { Toolbar, type ToolbarAction } from "./Toolbar";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
 import { changedModel, initialModel } from "./follow";
+import { agentStart, type ConnectedApp } from "./empty";
 import type { ThemeChoice } from "./theme";
 import sample from "../../examples/bridge.py?raw";
 const Viewer = lazy(() =>
@@ -120,6 +121,8 @@ export function Workspace(props: Props) {
     () => !matchMedia("(max-width: 760px)").matches,
   );
   const [error, setError] = useState("");
+  // The member's connected apps, for the empty-project screen; null until known.
+  const [apps, setApps] = useState<ConnectedApp[] | null>(null);
   const refresh = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   async function loadActivity() {
@@ -248,6 +251,24 @@ export function Workspace(props: Props) {
     });
     setDemo(!demo);
   }
+  // An empty project the member owns invites them to connect an agent, unless one already is.
+  const empty = !data.models.length && owns;
+  useEffect(() => {
+    // Reloaded when the connect drawer closes, in case an app was connected meanwhile.
+    if (!empty || drawer) return;
+    let cancelled = false;
+    void request("/api/settings/connected-apps")
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled) setApps(json as ConnectedApp[]);
+      })
+      // Without the list the screen falls back to offering a connection, which is still correct.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [empty, drawer]);
+  const start = empty ? agentStart(apps, data.project.name) : null;
   // The build's exact measurements, for picking faces and measuring between picks.
   useEffect(() => {
     setRecord(null);
@@ -825,17 +846,17 @@ export function Workspace(props: Props) {
         )}
       </div>
 
-      {!data.models.length && owns && (
+      {start && (
         <div className="canvas-empty">
           <span className="mark large" aria-hidden="true" />
-          <h2>Start with your agent</h2>
-          <p>
-            Connect an MCP client to this workspace and prompt it with the
-            project. Its work appears here live.
-          </p>
+          <h2>{start.heading}</h2>
+          <p>{start.body}</p>
           <div className="row">
-            <button onClick={() => setDrawer("connect")}>
-              Connect an agent
+            <button
+              className={apps?.length ? "secondary" : undefined}
+              onClick={() => setDrawer("connect")}
+            >
+              {start.connectLabel}
             </button>
             <button className="secondary" onClick={() => setDrawer("code")}>
               Write the model yourself
@@ -1632,8 +1653,9 @@ function Connect(props: { onSettings: () => void }) {
   return (
     <div className="stack">
       <p>
-        Connect any MCP client that supports Streamable HTTP with a bearer
-        token, such as Claude Code.
+        Add this server URL to your AI app, such as a custom connector in Claude
+        or an HTTP MCP server in Claude Code. When it asks, sign in to Mantel
+        and select <strong>Allow</strong>.
       </p>
       <label>
         Server URL
@@ -1644,12 +1666,13 @@ function Connect(props: { onSettings: () => void }) {
         />
       </label>
       <p className="muted">
-        Create a key in{" "}
+        Apps you allow are listed under Connected apps in{" "}
         <button className="link" onClick={props.onSettings}>
           Settings → API keys
-        </button>{" "}
-        and use it as the <code>Authorization: Bearer</code> header, kept in the
-        client's secret store.
+        </button>
+        . For a client without sign-in, create an API key there and send it as
+        the <code>Authorization: Bearer</code> header, kept in the client's
+        secret store.
       </p>
       <pre className="code">{`session_start  → your prompt appears here
 session_update → short progress notes
