@@ -136,9 +136,8 @@ function assemblyDiagonal(record: InspectRecord) {
 
 /**
  * Each part's explode offset relative to the part it attaches to, for `amount` from 0 to 1.
- * Linear joints pull along their axis; rigid and revolute ones away from their parent's centre
- * of mass. Without any joints, parts move radially from the assembly's centre of mass, in proportion
- * to their distance from it.
+ * Linear and rigid joints pull along their axis; revolute ones away from their parent's centre
+ * of mass. Without any joints, parts stack along Z around the largest part.
  */
 export function explodeOffsets(record: InspectRecord, amount: number): Vec3[] {
   const a = Math.min(1, Math.max(0, Number.isFinite(amount) ? amount : 0));
@@ -148,31 +147,40 @@ export function explodeOffsets(record: InspectRecord, amount: number): Vec3[] {
   const joints = record.joints ?? [];
   const com = (i: number) => record.parts[i].center_of_mass;
   if (!joints.length) {
-    const total =
-      record.parts.reduce((s, p) => s + Math.max(p.volume, 0), 0) || 1;
-    const centre = record.parts.reduce<Vec3>(
-      (s, p) =>
-        [0, 1, 2].map(
-          (k) => s[k] + (p.center_of_mass[k] * Math.max(p.volume, 0)) / total,
-        ) as Vec3,
-      [0, 0, 0],
+    // A stack along Z: the largest part stays. Parts that start at or above its bottom (resting on
+    // it or nested in it, such as ribs in a housing) lift out one step per rank; parts that start
+    // below it drop.
+    const zs = record.parts.map((p) => p.bbox);
+    const height =
+      Math.max(...zs.map((b) => b.max[2])) -
+      Math.min(...zs.map((b) => b.min[2]));
+    const step = a * height;
+    const anchor = record.parts.reduce((best, p) =>
+      p.volume > best.volume ? p : best,
     );
-    // Offsets grow with each part's distance from the centre, so parts on one line still separate.
-    const radii = record.parts.map((p) => sub(p.center_of_mass, centre));
-    const farthest = Math.max(...radii.map(length));
-    radii.forEach((r, i) => {
-      out[i] =
-        farthest > 1e-9 && length(r) > 1e-9
-          ? scale(r, distance / farthest)
-          : [0, 0, distance];
-    });
+    const low = (i: number) => record.parts[i].bbox.min[2];
+    const rank = (x: { index: number }, y: { index: number }) =>
+      low(x.index) - low(y.index) ||
+      com(x.index)[2] - com(y.index)[2] ||
+      x.index - y.index;
+    const others = record.parts.filter((p) => p.index !== anchor.index);
+    const above = others
+      .filter((p) => low(p.index) >= low(anchor.index) - 1e-9)
+      .sort(rank);
+    const below = others
+      .filter((p) => low(p.index) < low(anchor.index) - 1e-9)
+      .sort((x, y) => rank(y, x));
+    above.forEach((p, k) => (out[p.index] = [0, 0, (k + 1) * step]));
+    below.forEach((p, k) => (out[p.index] = [0, 0, -(k + 1) * step]));
     return out;
   }
   for (const j of joints) {
+    // A slide pulls along its axis, and a rigid joint's z points out of the face it mates on; a
+    // hinged part moves away from what it hinges on.
     const direction =
-      j.kind === "linear"
-        ? unit(j.axis)
-        : (unit(sub(com(j.part), com(j.to))) ?? unit(j.axis));
+      j.kind === "revolute"
+        ? (unit(sub(com(j.part), com(j.to))) ?? unit(j.axis))
+        : unit(j.axis);
     out[j.part] = scale(direction ?? [0, 0, 1], distance);
   }
   return out;

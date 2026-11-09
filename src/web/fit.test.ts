@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fitJson from "../../engine/tests/fixtures/display_box_fit.inspect.json";
 import posedJson from "../../engine/tests/fixtures/display_box_fit_posed.inspect.json";
 import boxJson from "../../engine/tests/fixtures/enclosure_inspect.inspect.json";
+import toyJson from "../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
 import type { InspectRecord, JointRecord, Vec3 } from "../shared/inspect-types";
 import {
   angleAround,
@@ -19,6 +20,7 @@ import { pickFace } from "./inspect";
 const fit = fitJson as unknown as InspectRecord;
 const posed = posedJson as unknown as InspectRecord;
 const box = boxJson as unknown as InspectRecord;
+const toy = toyJson as unknown as InspectRecord;
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const label = (record: InspectRecord, name: string) =>
   record.parts.findIndex((p) => p.label === name);
@@ -56,17 +58,37 @@ describe("partTransforms", () => {
       gap(at("Lid"), com("Lid")) - 1e-9,
     );
   });
-  it("explodes a model without joints radially", () => {
-    const moved = partTransforms(box, 1, {});
-    const coms = box.parts.map((p) =>
-      applyPoint(moved[p.index], p.center_of_mass),
+  it("stacks a model without joints along Z, keeping the largest part still", () => {
+    const at = (record: InspectRecord, name: string) => {
+      const i = label(record, name);
+      return (
+        applyPoint(
+          partTransforms(record, 1, {})[i],
+          record.parts[i].center_of_mass,
+        )[2] - record.parts[i].center_of_mass[2]
+      );
+    };
+    expect(at(box, "Housing")).toBe(0);
+    expect(at(box, "Ribs")).toBeGreaterThan(0);
+    expect(at(box, "Cover")).toBeGreaterThan(at(box, "Ribs"));
+    // The ribs come all the way out of the housing at full explode.
+    const ribs = box.parts[label(box, "Ribs")];
+    const housing = box.parts[label(box, "Housing")];
+    expect(ribs.bbox.min[2] + at(box, "Ribs")).toBeGreaterThanOrEqual(
+      housing.bbox.max[2],
     );
-    for (const a of box.parts)
-      for (const b of box.parts)
-        if (a.index < b.index)
-          expect(gap(coms[a.index], coms[b.index])).toBeGreaterThan(
-            gap(a.center_of_mass, b.center_of_mass),
-          );
+    expect(at(toy, "Block")).toBe(0);
+    expect(at(toy, "Base")).toBeLessThan(0);
+    expect(at(toy, "Coin")).toBeGreaterThan(0);
+    for (const m of partTransforms(box, 1, {}))
+      expect([m[12], m[13]]).toEqual([0, 0]);
+  });
+  it("lifts a rigidly fixed part along its joint's axis", () => {
+    const plaque = label(fit, "Plaque");
+    const offset = explodeOffsets(fit, 1)[plaque];
+    expect(offset[0]).toBeCloseTo(0, 9);
+    expect(offset[1]).toBeCloseTo(0, 9);
+    expect(offset[2]).toBeGreaterThan(0);
   });
   it("clamps the explode amount", () => {
     expect(explodeOffsets(fit, 5)).toEqual(explodeOffsets(fit, 1));

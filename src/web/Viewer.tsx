@@ -262,12 +262,19 @@ export function Viewer(props: Props) {
           return;
         }
         const object = gltf.scene;
-        // Each mesh gets its own material so a selection highlight affects only its part.
+        // Each mesh gets its own material so a selection highlight affects only its part. The
+        // export has no materials, and glTF's default is fully metallic, which renders faces turned
+        // away from the lights (an opened lid's underside) black; half as metallic, every face reads.
+        const matte = (m: THREE.Material) => {
+          const copy = m.clone();
+          if (copy instanceof THREE.MeshStandardMaterial) copy.metalness = 0.5;
+          return copy;
+        };
         object.traverse((o) => {
           if (o instanceof THREE.Mesh)
             o.material = Array.isArray(o.material)
-              ? o.material.map((m) => m.clone())
-              : o.material.clone();
+              ? o.material.map(matte)
+              : matte(o.material);
         });
         const box = new THREE.Box3().setFromObject(object);
         const center = box.getCenter(new THREE.Vector3());
@@ -495,11 +502,27 @@ export function Viewer(props: Props) {
       s.controls.enabled = false;
       const local = object.worldToLocal(hit.point.clone());
       const point = toModel([local.x, local.y, local.z], scale);
+      // A turn is measured across the hinge through the grabbed point, so the drag starts exactly
+      // where the person took hold and follows the pointer from there.
+      const length = Math.hypot(...axis) || 1;
+      const along =
+        ((point[0] - origin[0]) * axis[0] +
+          (point[1] - origin[1]) * axis[1] +
+          (point[2] - origin[2]) * axis[2]) /
+        length;
+      const pivot: Vec3 =
+        j.kind === "revolute"
+          ? [
+              origin[0] + (axis[0] / length) * along,
+              origin[1] + (axis[1] / length) * along,
+              origin[2] + (axis[2] / length) * along,
+            ]
+          : origin;
       active = {
         joint,
-        origin,
+        origin: pivot,
         axis,
-        ref: [point[0] - origin[0], point[1] - origin[1], point[2] - origin[2]],
+        ref: [point[0] - pivot[0], point[1] - pivot[1], point[2] - pivot[2]],
         start: 0,
         last: 0,
         total: 0,
