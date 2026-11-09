@@ -1,0 +1,1133 @@
+{
+  "version": 1,
+  "units": "mm",
+  "warnings": [],
+  "parts": [
+    {
+      "index": 0,
+      "label": "Housing",
+      "volume": 29784.720818,
+      "area": 28445.628059,
+      "bbox": {
+        "min": [-40.0, -30.0, 0.0],
+        "max": [40.0, 30.0, 30.0]
+      },
+      "center_of_mass": [-0.0, -0.0, 10.943647]
+    },
+    {
+      "index": 1,
+      "label": "Ribs",
+      "volume": 1920.0,
+      "area": 3004.0,
+      "bbox": {
+        "min": [-32.0, -22.75, 2.0],
+        "max": [32.0, 22.75, 12.0]
+      },
+      "center_of_mass": [0.0, 0.0, 7.0]
+    },
+    {
+      "index": 2,
+      "label": "Cover",
+      "volume": 10750.2,
+      "area": 11693.6,
+      "bbox": {
+        "min": [-40.0, -30.0, 27.0],
+        "max": [40.0, 30.0, 32.0]
+      },
+      "center_of_mass": [-0.0, -0.0, 30.732517]
+    }
+  ],
+  "faces": [
+    {
+      "index": 0,
+      "part": 0,
+      "type": "plane",
+      "area": 1800.0,
+      "center": [-40.0, 0.0, 15.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 0.0],
+        "max": [-40.0, 30.0, 30.0]
+      },
+      "plane": {
+        "origin": [-40.0, 0.0, 15.0],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "sides": ["left"],
+      "thickness": 2.0
+    },
+    {
+      "index": 1,
+      "part": 0,
+      "type": "plane",
+      "area": 2400.0,
+      "center": [0.0, -30.0, 15.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 0.0],
+        "max": [40.0, -30.0, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, -30.0, 15.0],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "sides": ["front"],
+      "thickness": 2.0
+    },
+    {
+      "index": 2,
+      "part": 0,
+      "type": "plane",
+      "area": 544.0,
+      "center": [-0.0, -0.0, 30.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 30.0],
+        "max": [40.0, 30.0, 30.0]
+      },
+      "plane": {
+        "origin": [-0.0, -0.0, 30.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "sides": ["top"],
+      "thickness": 28.0
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "type": "plane",
+      "area": 2400.0,
+      "center": [0.0, 30.0, 15.0],
+      "bbox": {
+        "min": [-40.0, 30.0, 0.0],
+        "max": [40.0, 30.0, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, 30.0, 15.0],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "sides": ["back"],
+      "thickness": 2.0
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "type": "plane",
+      "area": 4800.0,
+      "center": [0.0, -0.0, 0.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 0.0],
+        "max": [40.0, 30.0, 0.0]
+      },
+      "plane": {
+        "origin": [0.0, -0.0, 0.0],
+        "normal": [-0.0, -0.0, -1.0]
+      },
+      "sides": ["bottom"],
+      "thickness": 2.0
+    },
+    {
+      "index": 5,
+      "part": 0,
+      "type": "plane",
+      "area": 1800.0,
+      "center": [40.0, 0.0, 15.0],
+      "bbox": {
+        "min": [40.0, -30.0, 0.0],
+        "max": [40.0, 30.0, 30.0]
+      },
+      "plane": {
+        "origin": [40.0, 0.0, 15.0],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "sides": ["right"],
+      "thickness": 2.0
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "type": "plane",
+      "area": 2128.0,
+      "center": [0.0, -28.0, 16.0],
+      "bbox": {
+        "min": [-38.0, -28.0, 2.0],
+        "max": [38.0, -28.0, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, -28.0, 16.0],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "thickness": 2.0
+    },
+    {
+      "index": 7,
+      "part": 0,
+      "type": "plane",
+      "area": 1568.0,
+      "center": [38.0, 0.0, 16.0],
+      "bbox": {
+        "min": [38.0, -28.0, 2.0],
+        "max": [38.0, 28.0, 30.0]
+      },
+      "plane": {
+        "origin": [38.0, 0.0, 16.0],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "thickness": 2.0
+    },
+    {
+      "index": 8,
+      "part": 0,
+      "type": "plane",
+      "area": 2128.0,
+      "center": [0.0, 28.0, 16.0],
+      "bbox": {
+        "min": [-38.0, 28.0, 2.0],
+        "max": [38.0, 28.0, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, 28.0, 16.0],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "thickness": 2.0
+    },
+    {
+      "index": 9,
+      "part": 0,
+      "type": "plane",
+      "area": 1568.0,
+      "center": [-38.0, 0.0, 16.0],
+      "bbox": {
+        "min": [-38.0, -28.0, 2.0],
+        "max": [-38.0, 28.0, 30.0]
+      },
+      "plane": {
+        "origin": [-38.0, 0.0, 16.0],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "thickness": 2.0
+    },
+    {
+      "index": 10,
+      "part": 0,
+      "type": "plane",
+      "area": 4054.93807,
+      "center": [-0.0, 0.0, 2.0],
+      "bbox": {
+        "min": [-38.0, -28.0, 2.0],
+        "max": [38.0, 28.0, 2.0]
+      },
+      "plane": {
+        "origin": [-0.0, 0.0, 2.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 2.0
+    },
+    {
+      "index": 11,
+      "part": 0,
+      "type": "cylinder",
+      "area": 653.451272,
+      "center": [-36.0, -22.0, 15.0],
+      "bbox": {
+        "min": [-36.0, -26.0, 2.0],
+        "max": [-28.0, -18.0, 28.0]
+      },
+      "cylinder": {
+        "origin": [-32.0, -22.0, 2.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 4.0
+      }
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "type": "cylinder",
+      "area": 653.451272,
+      "center": [28.0, -22.0, 15.0],
+      "bbox": {
+        "min": [28.0, -26.0, 2.0],
+        "max": [36.0, -18.0, 28.0]
+      },
+      "cylinder": {
+        "origin": [32.0, -22.0, 2.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 4.0
+      }
+    },
+    {
+      "index": 13,
+      "part": 0,
+      "type": "cylinder",
+      "area": 653.451272,
+      "center": [-36.0, 22.0, 15.0],
+      "bbox": {
+        "min": [-36.0, 18.0, 2.0],
+        "max": [-28.0, 26.0, 28.0]
+      },
+      "cylinder": {
+        "origin": [-32.0, 22.0, 2.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 4.0
+      }
+    },
+    {
+      "index": 14,
+      "part": 0,
+      "type": "cylinder",
+      "area": 653.451272,
+      "center": [28.0, 22.0, 15.0],
+      "bbox": {
+        "min": [28.0, 18.0, 2.0],
+        "max": [36.0, 26.0, 28.0]
+      },
+      "cylinder": {
+        "origin": [32.0, 22.0, 2.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 4.0
+      }
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "type": "plane",
+      "area": 45.356744,
+      "center": [-32.0, -22.0, 28.0],
+      "bbox": {
+        "min": [-36.0, -26.0, 28.0],
+        "max": [-28.0, -18.0, 28.0]
+      },
+      "plane": {
+        "origin": [-32.0, -22.0, 28.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 16,
+      "part": 0,
+      "type": "plane",
+      "area": 45.356744,
+      "center": [32.0, -22.0, 28.0],
+      "bbox": {
+        "min": [28.0, -26.0, 28.0],
+        "max": [36.0, -18.0, 28.0]
+      },
+      "plane": {
+        "origin": [32.0, -22.0, 28.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 17,
+      "part": 0,
+      "type": "plane",
+      "area": 45.356744,
+      "center": [-32.0, 22.0, 28.0],
+      "bbox": {
+        "min": [-36.0, 18.0, 28.0],
+        "max": [-28.0, 26.0, 28.0]
+      },
+      "plane": {
+        "origin": [-32.0, 22.0, 28.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 18,
+      "part": 0,
+      "type": "plane",
+      "area": 45.356744,
+      "center": [32.0, 22.0, 28.0],
+      "bbox": {
+        "min": [28.0, 18.0, 28.0],
+        "max": [36.0, 26.0, 28.0]
+      },
+      "plane": {
+        "origin": [32.0, 22.0, 28.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 19,
+      "part": 0,
+      "type": "cylinder",
+      "area": 109.955743,
+      "center": [-33.25, -22.0, 21.0],
+      "bbox": {
+        "min": [-33.25, -23.25, 14.0],
+        "max": [-30.75, -20.75, 28.0]
+      },
+      "cylinder": {
+        "origin": [-32.0, -22.0, 14.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 1.25
+      }
+    },
+    {
+      "index": 20,
+      "part": 0,
+      "type": "cylinder",
+      "area": 109.955743,
+      "center": [30.75, -22.0, 21.0],
+      "bbox": {
+        "min": [30.75, -23.25, 14.0],
+        "max": [33.25, -20.75, 28.0]
+      },
+      "cylinder": {
+        "origin": [32.0, -22.0, 14.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 1.25
+      }
+    },
+    {
+      "index": 21,
+      "part": 0,
+      "type": "cylinder",
+      "area": 109.955743,
+      "center": [-33.25, 22.0, 21.0],
+      "bbox": {
+        "min": [-33.25, 20.75, 14.0],
+        "max": [-30.75, 23.25, 28.0]
+      },
+      "cylinder": {
+        "origin": [-32.0, 22.0, 14.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 1.25
+      }
+    },
+    {
+      "index": 22,
+      "part": 0,
+      "type": "cylinder",
+      "area": 109.955743,
+      "center": [30.75, 22.0, 21.0],
+      "bbox": {
+        "min": [30.75, 20.75, 14.0],
+        "max": [33.25, 23.25, 28.0]
+      },
+      "cylinder": {
+        "origin": [32.0, 22.0, 14.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 1.25
+      }
+    },
+    {
+      "index": 23,
+      "part": 0,
+      "type": "plane",
+      "area": 4.908739,
+      "center": [-32.0, -22.0, 14.0],
+      "bbox": {
+        "min": [-33.25, -23.25, 14.0],
+        "max": [-30.75, -20.75, 14.0]
+      },
+      "plane": {
+        "origin": [-32.0, -22.0, 14.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 24,
+      "part": 0,
+      "type": "plane",
+      "area": 4.908739,
+      "center": [32.0, -22.0, 14.0],
+      "bbox": {
+        "min": [30.75, -23.25, 14.0],
+        "max": [33.25, -20.75, 14.0]
+      },
+      "plane": {
+        "origin": [32.0, -22.0, 14.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 25,
+      "part": 0,
+      "type": "plane",
+      "area": 4.908739,
+      "center": [-32.0, 22.0, 14.0],
+      "bbox": {
+        "min": [-33.25, 20.75, 14.0],
+        "max": [-30.75, 23.25, 14.0]
+      },
+      "plane": {
+        "origin": [-32.0, 22.0, 14.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 26,
+      "part": 0,
+      "type": "plane",
+      "area": 4.908739,
+      "center": [32.0, 22.0, 14.0],
+      "bbox": {
+        "min": [30.75, 20.75, 14.0],
+        "max": [33.25, 23.25, 14.0]
+      },
+      "plane": {
+        "origin": [32.0, 22.0, 14.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "thickness": 14.0
+    },
+    {
+      "index": 27,
+      "part": 1,
+      "type": "plane",
+      "area": 15.0,
+      "center": [-32.0, -22.0, 7.0],
+      "bbox": {
+        "min": [-32.0, -22.75, 2.0],
+        "max": [-32.0, -21.25, 12.0]
+      },
+      "plane": {
+        "origin": [-32.0, -22.0, 7.0],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "sides": ["left"],
+      "thickness": 64.0
+    },
+    {
+      "index": 28,
+      "part": 1,
+      "type": "plane",
+      "area": 15.0,
+      "center": [32.0, -22.0, 7.0],
+      "bbox": {
+        "min": [32.0, -22.75, 2.0],
+        "max": [32.0, -21.25, 12.0]
+      },
+      "plane": {
+        "origin": [32.0, -22.0, 7.0],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "sides": ["right"],
+      "thickness": 64.0
+    },
+    {
+      "index": 29,
+      "part": 1,
+      "type": "plane",
+      "area": 640.0,
+      "center": [0.0, -22.75, 7.0],
+      "bbox": {
+        "min": [-32.0, -22.75, 2.0],
+        "max": [32.0, -22.75, 12.0]
+      },
+      "plane": {
+        "origin": [0.0, -22.75, 7.0],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "sides": ["front"],
+      "thickness": 1.5
+    },
+    {
+      "index": 30,
+      "part": 1,
+      "type": "plane",
+      "area": 640.0,
+      "center": [0.0, -21.25, 7.0],
+      "bbox": {
+        "min": [-32.0, -21.25, 2.0],
+        "max": [32.0, -21.25, 12.0]
+      },
+      "plane": {
+        "origin": [0.0, -21.25, 7.0],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 31,
+      "part": 1,
+      "type": "plane",
+      "area": 96.0,
+      "center": [0.0, -22.0, 2.0],
+      "bbox": {
+        "min": [-32.0, -22.75, 2.0],
+        "max": [32.0, -21.25, 2.0]
+      },
+      "plane": {
+        "origin": [0.0, -22.0, 2.0],
+        "normal": [-0.0, -0.0, -1.0]
+      },
+      "sides": ["bottom"],
+      "thickness": 10.0
+    },
+    {
+      "index": 32,
+      "part": 1,
+      "type": "plane",
+      "area": 96.0,
+      "center": [0.0, -22.0, 12.0],
+      "bbox": {
+        "min": [-32.0, -22.75, 12.0],
+        "max": [32.0, -21.25, 12.0]
+      },
+      "plane": {
+        "origin": [0.0, -22.0, 12.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "sides": ["top"],
+      "thickness": 10.0
+    },
+    {
+      "index": 33,
+      "part": 1,
+      "type": "plane",
+      "area": 15.0,
+      "center": [-32.0, 22.0, 7.0],
+      "bbox": {
+        "min": [-32.0, 21.25, 2.0],
+        "max": [-32.0, 22.75, 12.0]
+      },
+      "plane": {
+        "origin": [-32.0, 22.0, 7.0],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "sides": ["left"],
+      "thickness": 64.0
+    },
+    {
+      "index": 34,
+      "part": 1,
+      "type": "plane",
+      "area": 15.0,
+      "center": [32.0, 22.0, 7.0],
+      "bbox": {
+        "min": [32.0, 21.25, 2.0],
+        "max": [32.0, 22.75, 12.0]
+      },
+      "plane": {
+        "origin": [32.0, 22.0, 7.0],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "sides": ["right"],
+      "thickness": 64.0
+    },
+    {
+      "index": 35,
+      "part": 1,
+      "type": "plane",
+      "area": 640.0,
+      "center": [0.0, 21.25, 7.0],
+      "bbox": {
+        "min": [-32.0, 21.25, 2.0],
+        "max": [32.0, 21.25, 12.0]
+      },
+      "plane": {
+        "origin": [0.0, 21.25, 7.0],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 36,
+      "part": 1,
+      "type": "plane",
+      "area": 640.0,
+      "center": [0.0, 22.75, 7.0],
+      "bbox": {
+        "min": [-32.0, 22.75, 2.0],
+        "max": [32.0, 22.75, 12.0]
+      },
+      "plane": {
+        "origin": [0.0, 22.75, 7.0],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "sides": ["back"],
+      "thickness": 1.5
+    },
+    {
+      "index": 37,
+      "part": 1,
+      "type": "plane",
+      "area": 96.0,
+      "center": [0.0, 22.0, 2.0],
+      "bbox": {
+        "min": [-32.0, 21.25, 2.0],
+        "max": [32.0, 22.75, 2.0]
+      },
+      "plane": {
+        "origin": [0.0, 22.0, 2.0],
+        "normal": [-0.0, -0.0, -1.0]
+      },
+      "sides": ["bottom"],
+      "thickness": 10.0
+    },
+    {
+      "index": 38,
+      "part": 1,
+      "type": "plane",
+      "area": 96.0,
+      "center": [0.0, 22.0, 12.0],
+      "bbox": {
+        "min": [-32.0, 21.25, 12.0],
+        "max": [32.0, 22.75, 12.0]
+      },
+      "plane": {
+        "origin": [0.0, 22.0, 12.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "sides": ["top"],
+      "thickness": 10.0
+    },
+    {
+      "index": 39,
+      "part": 2,
+      "type": "plane",
+      "area": 120.0,
+      "center": [-40.0, 0.0, 31.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 30.0],
+        "max": [-40.0, 30.0, 32.0]
+      },
+      "plane": {
+        "origin": [-40.0, 0.0, 31.0],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "sides": ["left"],
+      "thickness": 80.0
+    },
+    {
+      "index": 40,
+      "part": 2,
+      "type": "plane",
+      "area": 160.0,
+      "center": [0.0, -30.0, 31.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 30.0],
+        "max": [40.0, -30.0, 32.0]
+      },
+      "plane": {
+        "origin": [0.0, -30.0, 31.0],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "sides": ["front"],
+      "thickness": 60.0
+    },
+    {
+      "index": 41,
+      "part": 2,
+      "type": "plane",
+      "area": 4800.0,
+      "center": [0.0, -0.0, 32.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 32.0],
+        "max": [40.0, 30.0, 32.0]
+      },
+      "plane": {
+        "origin": [0.0, -0.0, 32.0],
+        "normal": [0.0, 0.0, 1.0]
+      },
+      "sides": ["top"],
+      "thickness": 2.0
+    },
+    {
+      "index": 42,
+      "part": 2,
+      "type": "plane",
+      "area": 160.0,
+      "center": [0.0, 30.0, 31.0],
+      "bbox": {
+        "min": [-40.0, 30.0, 30.0],
+        "max": [40.0, 30.0, 32.0]
+      },
+      "plane": {
+        "origin": [0.0, 30.0, 31.0],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "sides": ["back"],
+      "thickness": 60.0
+    },
+    {
+      "index": 43,
+      "part": 2,
+      "type": "plane",
+      "area": 622.84,
+      "center": [-0.0, 0.0, 30.0],
+      "bbox": {
+        "min": [-40.0, -30.0, 30.0],
+        "max": [40.0, 30.0, 30.0]
+      },
+      "plane": {
+        "origin": [-0.0, 0.0, 30.0],
+        "normal": [-0.0, -0.0, -1.0]
+      },
+      "thickness": 2.0
+    },
+    {
+      "index": 44,
+      "part": 2,
+      "type": "plane",
+      "area": 120.0,
+      "center": [40.0, 0.0, 31.0],
+      "bbox": {
+        "min": [40.0, -30.0, 30.0],
+        "max": [40.0, 30.0, 32.0]
+      },
+      "plane": {
+        "origin": [40.0, 0.0, 31.0],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "sides": ["right"],
+      "thickness": 80.0
+    },
+    {
+      "index": 45,
+      "part": 2,
+      "type": "plane",
+      "area": 166.2,
+      "center": [-37.7, 0.0, 28.5],
+      "bbox": {
+        "min": [-37.7, -27.7, 27.0],
+        "max": [-37.7, 27.7, 30.0]
+      },
+      "plane": {
+        "origin": [-37.7, 0.0, 28.5],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 46,
+      "part": 2,
+      "type": "plane",
+      "area": 226.2,
+      "center": [0.0, -27.7, 28.5],
+      "bbox": {
+        "min": [-37.7, -27.7, 27.0],
+        "max": [37.7, -27.7, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, -27.7, 28.5],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 47,
+      "part": 2,
+      "type": "plane",
+      "area": 166.2,
+      "center": [37.7, 0.0, 28.5],
+      "bbox": {
+        "min": [37.7, -27.7, 27.0],
+        "max": [37.7, 27.7, 30.0]
+      },
+      "plane": {
+        "origin": [37.7, 0.0, 28.5],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 48,
+      "part": 2,
+      "type": "plane",
+      "area": 226.2,
+      "center": [0.0, 27.7, 28.5],
+      "bbox": {
+        "min": [-37.7, 27.7, 27.0],
+        "max": [37.7, 27.7, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, 27.7, 28.5],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 49,
+      "part": 2,
+      "type": "plane",
+      "area": 383.4,
+      "center": [0.0, -0.0, 27.0],
+      "bbox": {
+        "min": [-37.7, -27.7, 27.0],
+        "max": [37.7, 27.7, 27.0]
+      },
+      "plane": {
+        "origin": [0.0, -0.0, 27.0],
+        "normal": [-0.0, -0.0, -1.0]
+      },
+      "sides": ["bottom"],
+      "thickness": 3.0
+    },
+    {
+      "index": 50,
+      "part": 2,
+      "type": "plane",
+      "area": 157.2,
+      "center": [-36.2, 0.0, 28.5],
+      "bbox": {
+        "min": [-36.2, -26.2, 27.0],
+        "max": [-36.2, 26.2, 30.0]
+      },
+      "plane": {
+        "origin": [-36.2, 0.0, 28.5],
+        "normal": [1.0, 0.0, -0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 51,
+      "part": 2,
+      "type": "plane",
+      "area": 217.2,
+      "center": [0.0, -26.2, 28.5],
+      "bbox": {
+        "min": [-36.2, -26.2, 27.0],
+        "max": [36.2, -26.2, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, -26.2, 28.5],
+        "normal": [-0.0, 1.0, 0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 52,
+      "part": 2,
+      "type": "plane",
+      "area": 157.2,
+      "center": [36.2, 0.0, 28.5],
+      "bbox": {
+        "min": [36.2, -26.2, 27.0],
+        "max": [36.2, 26.2, 30.0]
+      },
+      "plane": {
+        "origin": [36.2, 0.0, 28.5],
+        "normal": [-1.0, -0.0, 0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 53,
+      "part": 2,
+      "type": "plane",
+      "area": 217.2,
+      "center": [0.0, 26.2, 28.5],
+      "bbox": {
+        "min": [-36.2, 26.2, 27.0],
+        "max": [36.2, 26.2, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, 26.2, 28.5],
+        "normal": [0.0, -1.0, -0.0]
+      },
+      "thickness": 1.5
+    },
+    {
+      "index": 54,
+      "part": 2,
+      "type": "plane",
+      "area": 3793.76,
+      "center": [0.0, -0.0, 30.0],
+      "bbox": {
+        "min": [-36.2, -26.2, 30.0],
+        "max": [36.2, 26.2, 30.0]
+      },
+      "plane": {
+        "origin": [0.0, -0.0, 30.0],
+        "normal": [-0.0, -0.0, -1.0]
+      },
+      "thickness": 2.0
+    }
+  ],
+  "holes": [
+    {
+      "part": 0,
+      "faces": [19],
+      "diameter": 2.5,
+      "axis": {
+        "origin": [-32.0, -22.0, 14.0],
+        "direction": [0.0, 0.0, 1.0]
+      },
+      "depth": 14.0,
+      "through": false
+    },
+    {
+      "part": 0,
+      "faces": [20],
+      "diameter": 2.5,
+      "axis": {
+        "origin": [32.0, -22.0, 14.0],
+        "direction": [0.0, 0.0, 1.0]
+      },
+      "depth": 14.0,
+      "through": false
+    },
+    {
+      "part": 0,
+      "faces": [21],
+      "diameter": 2.5,
+      "axis": {
+        "origin": [-32.0, 22.0, 14.0],
+        "direction": [0.0, 0.0, 1.0]
+      },
+      "depth": 14.0,
+      "through": false
+    },
+    {
+      "part": 0,
+      "faces": [22],
+      "diameter": 2.5,
+      "axis": {
+        "origin": [32.0, 22.0, 14.0],
+        "direction": [0.0, 0.0, 1.0]
+      },
+      "depth": 14.0,
+      "through": false
+    }
+  ],
+  "faces_truncated": false,
+  "pairs": [
+    {
+      "a": 0,
+      "b": 1,
+      "distance": 0.0,
+      "overlap_volume": 238.586239
+    },
+    {
+      "a": 0,
+      "b": 2,
+      "distance": 0.0,
+      "overlap_volume": 0.0
+    },
+    {
+      "a": 1,
+      "b": 2,
+      "distance": 15.391637,
+      "overlap_volume": 0.0
+    }
+  ],
+  "materials": {},
+  "embeds": [],
+  "dimensions": [
+    {
+      "name": "Wall thickness",
+      "value": 2.0,
+      "faces": [7, 5],
+      "scale": 1.0,
+      "matches_param": true,
+      "moves": 7,
+      "param": "WALL_T"
+    },
+    {
+      "name": "Lip clearance",
+      "value": 0.3,
+      "faces": [7, 47],
+      "scale": 1.0,
+      "matches_param": true,
+      "moves": 47,
+      "param": "LIP_GAP"
+    }
+  ],
+  "stability": {
+    "center_of_mass": [-0.0, -0.0, 15.776126],
+    "uniform_density": true,
+    "footprint": [
+      [-40.0, -30.0],
+      [40.0, -30.0],
+      [40.0, 30.0],
+      [-40.0, 30.0]
+    ],
+    "tip_angle_deg": 62.261426,
+    "tip_direction": [0.0, -1.0]
+  },
+  "draft": [
+    {
+      "part": 0,
+      "pull": [0.0, 0.0, 1.0],
+      "faces": [
+        {
+          "index": 0,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 1,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 3,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 5,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 6,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 7,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 8,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 9,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 11,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 12,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 13,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 14,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 19,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 20,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 21,
+          "angle_deg": 0.0,
+          "sampled": false
+        },
+        {
+          "index": 22,
+          "angle_deg": 0.0,
+          "sampled": false
+        }
+      ]
+    }
+  ]
+}

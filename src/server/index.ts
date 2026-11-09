@@ -222,5 +222,9 @@ export default {
         new Date(Date.now() - 15 * 60 * 1000).toISOString(),
       )
       .run();
+    // Measurements whose job was abandoned can be asked for again.
+    await env.DB.prepare(
+      "DELETE FROM measurements WHERE status='queued' AND job_id IN (SELECT id FROM jobs WHERE status='failed')",
+    ).run();
   },
 } satisfies ExportedHandler<Env>;

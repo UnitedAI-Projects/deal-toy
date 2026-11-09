@@ -161,3 +161,98 @@ def test_faces_carry_created_names_and_sides(tmp_path):
     assert len(bottoms) == 1 and bottoms[0]["plane"]["normal"] == pytest.approx([0, 0, -1])
     free = inspect_record(compound(labelled(bd.Box(1, 1, 1), "A")), None)
     assert all("names" not in f for f in free["faces"])
+
+
+def pulled(shape, label, pull=(0, 0, 1)):
+    from types import SimpleNamespace
+
+    return inspect_record(compound(labelled(shape, label)), SimpleNamespace(PULL={label: pull}))
+
+
+def test_draft_of_box_walls_is_zero():
+    record = pulled(bd.Box(20, 10, 5, align=BOTTOM), "Box")
+    (draft,) = record["draft"]
+    assert draft["part"] == 0 and draft["pull"] == pytest.approx([0, 0, 1])
+    assert len(draft["faces"]) == 4
+    assert all(f["angle_deg"] == pytest.approx(0, abs=1e-9) and f["sampled"] is False for f in draft["faces"])
+
+
+def test_draft_of_tapered_wall():
+    taper = bd.extrude(bd.Rectangle(20, 20), amount=10, taper=2)
+    (draft,) = pulled(taper, "Taper")["draft"]
+    assert len(draft["faces"]) == 4
+    assert all(f["angle_deg"] == pytest.approx(2, abs=1e-6) for f in draft["faces"])
+
+
+def test_draft_on_cone():
+    top = 10 - 10 * math.tan(math.radians(3))
+    (draft,) = pulled(bd.Cone(10, top, 10, align=BOTTOM), "Cone")["draft"]
+    (side,) = [f for f in draft["faces"] if not f["sampled"]]
+    assert side["angle_deg"] == pytest.approx(3, abs=1e-6)
+
+
+def test_draft_unknown_part_warns():
+    from types import SimpleNamespace
+
+    record = inspect_record(compound(labelled(bd.Box(1, 1, 1), "A")),
+                            SimpleNamespace(PULL={"Nope": (0, 0, 1), "A": (0, 0, 0)}))
+    assert record["draft"] == []
+    assert any("Nope" in w for w in record["warnings"]) and any("zero" in w for w in record["warnings"])
+
+
+def test_enclosure_fixture(tmp_path):
+    build(ROOT / "examples/enclosure_inspect.py", tmp_path)
+    record = json.loads((tmp_path / "inspect.json").read_text())
+    labels = [p["label"] for p in record["parts"]]
+    assert labels == ["Housing", "Ribs", "Cover"]
+    pairs = {(p["a"], p["b"]): p for p in record["pairs"]}
+    # Each rib ends at a boss axis: a 1.5 mm strip across half a 4 mm-radius disc, 10 mm tall, four times.
+    half_strip = 0.75 * math.sqrt(16 - 0.75 ** 2) + 16 * math.asin(0.75 / 4)
+    assert pairs[(0, 1)]["overlap_volume"] == pytest.approx(4 * 10 * half_strip, abs=1e-6)
+    assert pairs[(0, 2)]["overlap_volume"] == pytest.approx(0, abs=1e-9)
+    dims = {d["name"]: d for d in record["dimensions"]}
+    assert dims["Lip clearance"]["value"] == pytest.approx(0.3, abs=1e-6)
+    assert dims["Lip clearance"]["matches_param"] and dims["Wall thickness"]["matches_param"]
+    (draft,) = record["draft"]
+    housing = [f for f in record["faces"] if f["part"] == 0]
+    walls = [f["index"] for f in housing if f["type"] == "plane" and abs(f["plane"]["normal"][2]) < 1e-9]
+    angles = {f["index"]: f["angle_deg"] for f in draft["faces"]}
+    assert walls and all(angles[i] == pytest.approx(0, abs=1e-9) for i in walls)
+    assert record["warnings"] == []
+
+
+@pytest.mark.parametrize("example", ["bridge.py", "deal_toy_inspect.py", "deal_toy_steps.py", "enclosure_inspect.py"])
+def test_step_reload_keeps_face_indices(tmp_path, example):
+    build(ROOT / "examples" / example, tmp_path)
+    record = json.loads((tmp_path / "inspect.json").read_text())
+    reloaded = inspect_record(bd.import_step(tmp_path / "model.step"), None)
+    assert [p["label"] for p in reloaded["parts"]] == [p["label"] for p in record["parts"]]
+    assert len(reloaded["faces"]) == len(record["faces"])
+    for a, b in zip(record["faces"], reloaded["faces"], strict=True):
+        assert (a["part"], a["type"]) == (b["part"], b["type"])
+        assert a["area"] == pytest.approx(b["area"], abs=1e-6)
+        assert a["center"] == pytest.approx(b["center"], abs=1e-6)
+
+
+def _close(a, b, path="record"):
+    if isinstance(a, dict):
+        assert isinstance(b, dict) and a.keys() == b.keys(), f"{path}: keys differ"
+        for key in a:
+            _close(a[key], b[key], f"{path}.{key}")
+    elif isinstance(a, list):
+        assert isinstance(b, list) and len(a) == len(b), f"{path}: lengths differ"
+        for k, (x, y) in enumerate(zip(a, b, strict=True)):
+            _close(x, y, f"{path}[{k}]")
+    elif isinstance(a, float) or isinstance(b, float):
+        assert a == pytest.approx(b, abs=1e-5), path
+    else:
+        assert a == b, path
+
+
+@pytest.mark.parametrize("name", ["deal_toy_inspect", "enclosure_inspect"])
+def test_stored_worker_fixtures_are_current(name):
+    sys.path.insert(0, str(ENGINE / "tools"))
+    from gen_fixtures import FIXTURES, record_of
+
+    stored = json.loads((ENGINE / "tests" / "fixtures" / f"{name}.inspect.json").read_text())
+    _close(record_of(FIXTURES[name]), stored)

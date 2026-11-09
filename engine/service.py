@@ -100,6 +100,56 @@ def execute(source: str, timeout=60, stop_after=None, preview=False, modules=Non
         return {"artifacts": artifacts}
 
 
+MAX_STEP_BYTES = 15 * 1024 * 1024
+MAX_MEASURE_REQUEST = 21_000_000
+
+
+def _target_ok(target):
+    return (isinstance(target, dict) and len(target) == 1 and next(iter(target)) in ("face", "part")
+            and isinstance(next(iter(target.values())), int) and not isinstance(next(iter(target.values())), bool)
+            and next(iter(target.values())) >= 0)
+
+
+def execute_measure(step: str, requests, timeout=60):
+    """Measures distances on a STEP file. No model source is accepted or run."""
+    if not isinstance(requests, list) or not 1 <= len(requests) <= 50:
+        raise ValueError("requests must list 1 to 50 measurements")
+    for r in requests:
+        if not (isinstance(r, dict) and isinstance(r.get("key"), str) and 0 < len(r["key"]) <= 80
+                and _target_ok(r.get("a")) and _target_ok(r.get("b"))):
+            raise ValueError("Each request needs a key and a and b, each one face or part index")
+    try:
+        data = base64.b64decode(step, validate=True) if isinstance(step, str) else b""
+    except ValueError:
+        data = b""
+    if not 0 < len(data) <= MAX_STEP_BYTES or b"ISO-10303-21" not in data[:200]:
+        raise ValueError("Expected a STEP file up to 15 MiB")
+    with tempfile.TemporaryDirectory(prefix="measure-") as directory:
+        root = Path(directory)
+        (root / "model.step").write_bytes(data)
+        (root / "requests.json").write_text(json.dumps(requests))
+        with (root / "logs.txt").open("w+") as logs:
+            process = subprocess.Popen(
+                [sys.executable, "-I", str(Path(__file__).with_name("measure.py")),
+                 str(root / "model.step"), str(root / "requests.json"), str(root / "out")],
+                cwd=root, env={"PATH": os.environ.get("PATH", ""), "HOME": str(root),
+                               "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
+                stdout=logs, stderr=logs, start_new_session=True)
+            try:
+                code = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+                raise ValueError("Measurement exceeded its time limit") from None
+            if code:
+                logs.seek(0)
+                raise ValueError("Measurement failed: " + logs.read(2000))
+        path = root / "out" / "measure.json"
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Measurement produced no result")
+        return json.loads(path.read_text())
+
+
 class Handler(BaseHTTPRequestHandler):
     used = False
 
@@ -118,15 +168,18 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200, {"ready": True})
 
     def do_POST(self):
-        if self.path != "/build" or Handler.used:
+        if self.path not in ("/build", "/measure") or Handler.used:
             self.reply(409, {"error": "Container already used or invalid route"})
             return
         Handler.used = True
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 150000:
+            if not 0 < length <= (MAX_MEASURE_REQUEST if self.path == "/measure" else 150000):
                 raise ValueError("Invalid request size")
             payload = json.loads(self.rfile.read(length))
+            if self.path == "/measure":
+                self.reply(200, execute_measure(payload["step"], payload["requests"]))
+                return
             self.reply(200, execute(payload["source"], stop_after=payload.get("stopAfter"),
                                     preview=payload.get("preview", False), modules=payload.get("modules"),
                                     check=payload.get("check")))

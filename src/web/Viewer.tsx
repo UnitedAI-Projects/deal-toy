@@ -3,7 +3,14 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { request } from "./api";
-import { sceneScale, toModel, type InspectRecord, type Vec3 } from "./inspect";
+import { alongAxis } from "./adjust";
+import {
+  sceneScale,
+  toModel,
+  toScene,
+  type InspectRecord,
+  type Vec3,
+} from "./inspect";
 import type { Ghost } from "./ghost";
 import {
   ghostObject,
@@ -32,11 +39,26 @@ type Props = {
   /** The build's exact record; enables face picking, face highlights and sections. */
   record?: InspectRecord | null;
   /** Faces to draw over the model: the person's picks and the agent's highlights. */
-  highlights?: { faces: number[]; tone: "pick" | "agent" }[];
+  highlights?: {
+    faces: number[];
+    tone: "pick" | "agent" | "fail" | "warn";
+  }[];
   /** Cut the model where the model coordinate on `axis` exceeds `offset` (mm). */
   section?: { axis: "x" | "y" | "z"; offset: number } | null;
   /** An approximate preview of an action being filled in. */
   ghost?: Ghost | null;
+  /**
+   * A drag handle on a declared dimension's face (model frame). Dragging reports how far the
+   * pointer has moved along the face normal, in mm; release commits and Escape cancels.
+   */
+  handle?: {
+    key: string;
+    origin: Vec3;
+    direction: Vec3;
+    onMove: (along: number) => void;
+    onRelease: () => void;
+    onCancel: () => void;
+  } | null;
 };
 type Scene = {
   scene: THREE.Scene;
@@ -276,8 +298,15 @@ export function Viewer(props: Props) {
     const group = new THREE.Group();
     group.name = "inspect-overlay";
     for (const h of props.highlights) {
+      // Agent amber, failed-check red, warning orange; picks use the theme's highlight.
       const color =
-        h.tone === "agent" ? 0xf59e0b : palette[props.theme].highlight;
+        h.tone === "agent"
+          ? 0xf59e0b
+          : h.tone === "fail"
+            ? 0xdc2626
+            : h.tone === "warn"
+              ? 0xf97316
+              : palette[props.theme].highlight;
       for (const child of overlayGroup(record, h.faces, scale, color).children)
         group.add(child.clone());
     }
@@ -287,6 +316,95 @@ export function Viewer(props: Props) {
       group.traverse(disposeMesh);
     };
   }, [props.record, props.highlights, props.theme, loaded]);
+
+  // A drag handle for a declared dimension: a cone on the face, pointing along its normal.
+  useEffect(() => {
+    const s = state.current;
+    const object = s?.object;
+    const record = props.record;
+    const h = props.handle;
+    if (!s || !object || !record || !h) return;
+    const scale = sceneScale(record, [s.size.x, s.size.z, s.size.y]);
+    const length = s.size.length() * 0.06;
+    const mesh = new THREE.Mesh(
+      new THREE.ConeGeometry(length * 0.3, length, 20),
+      new THREE.MeshBasicMaterial({
+        color: palette[props.theme].highlight,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.9,
+      }),
+    );
+    mesh.name = "adjust-handle";
+    mesh.renderOrder = 10;
+    const direction = new THREE.Vector3(...toScene(h.direction, 1)).normalize();
+    mesh.position
+      .set(...toScene(h.origin, scale))
+      .addScaledVector(direction, length * 0.8);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+    object.add(mesh);
+    const element = s.renderer.domElement;
+    const rayAt = (e: PointerEvent) => {
+      const rect = element.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(
+        new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1,
+        ),
+        s.camera,
+      );
+      return ray;
+    };
+    // Pointer position along the handle's axis, in model millimetres.
+    const along = (e: PointerEvent) => {
+      const ray = rayAt(e).ray;
+      const from = object.worldToLocal(ray.origin.clone());
+      const to = object.worldToLocal(ray.origin.clone().add(ray.direction));
+      return alongAxis(
+        toModel([from.x, from.y, from.z], scale),
+        toModel([to.x - from.x, to.y - from.y, to.z - from.z], 1),
+        h.origin,
+        h.direction,
+      );
+    };
+    let start: number | null = null;
+    const move = (e: PointerEvent) => {
+      if (start !== null) latest.current.handle?.onMove(along(e) - start);
+    };
+    const finish = (commit: boolean) => {
+      if (start === null) return;
+      start = null;
+      s.controls.enabled = true;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (commit) latest.current.handle?.onRelease();
+      else latest.current.handle?.onCancel();
+    };
+    const up = () => finish(true);
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") finish(false);
+    };
+    const down = (e: PointerEvent) => {
+      if (!rayAt(e).intersectObject(mesh).length) return;
+      // The handle takes the gesture: no orbit, and no click-to-select on release.
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      s.controls.enabled = false;
+      start = along(e);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    };
+    element.addEventListener("pointerdown", down, { capture: true });
+    window.addEventListener("keydown", key);
+    return () => {
+      finish(false);
+      element.removeEventListener("pointerdown", down, { capture: true });
+      window.removeEventListener("keydown", key);
+      mesh.removeFromParent();
+      disposeMesh(mesh);
+    };
+  }, [props.handle?.key, props.record, props.theme, loaded]);
 
   // The preview of an action being filled in, in the model's frame.
   useEffect(() => {

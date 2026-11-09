@@ -323,6 +323,66 @@ def _stability(parts, record):
     return result
 
 
+SQUARE_TO_PULL = math.cos(math.radians(0.5))
+
+
+def _draft_angle(n, d):
+    return math.degrees(math.asin(min(1.0, abs(n.dot(d)))))
+
+
+def _axis_of(face, kind):
+    surface = BRepAdaptor_Surface(face.wrapped)
+    shape = surface.Cylinder() if kind == bd.GeomType.CYLINDER else surface.Cone()
+    return bd.Vector(shape.Axis().Direction())
+
+
+def _parallel(a, b):
+    return abs(abs(a.normalized().dot(b)) - 1) < 1e-9
+
+
+def _draft(parts, module, record):
+    """Each face's angle to a declared pull direction: 0 for a wall parallel to the pull."""
+    declared = getattr(module, "PULL", None) or {}
+    labels = [p.label for p in parts]
+    out = []
+    for label, pull in list(declared.items())[:100] if isinstance(declared, dict) else []:
+        if label not in labels:
+            record["warnings"].append(f"PULL names {label!r}, which is not a part"[:300])
+            continue
+        try:
+            d = bd.Vector(*pull)
+        except (TypeError, ValueError):
+            d = bd.Vector(0, 0, 0)
+        if d.length < 1e-9:
+            record["warnings"].append(f"PULL for {label!r} is a zero vector"[:300])
+            continue
+        d = d.normalized()
+        part_index = labels.index(label)
+        first = sum(len(p.faces()) for p in parts[:part_index])
+        faces = []
+        for k, face in enumerate(parts[part_index].faces()):
+            kind = face.geom_type
+            sampled = False
+            if kind == bd.GeomType.PLANE:
+                n = face.normal_at(face.center())
+                if abs(n.dot(d)) > SQUARE_TO_PULL:
+                    continue
+                angle = _draft_angle(n, d)
+            elif kind in (bd.GeomType.CYLINDER, bd.GeomType.CONE) and _parallel(_axis_of(face, kind), d):
+                surface = BRepAdaptor_Surface(face.wrapped)
+                angle = 0.0 if kind == bd.GeomType.CYLINDER else abs(math.degrees(surface.Cone().SemiAngle()))
+            else:
+                sampled = True
+                samples = [face.normal_at(face.position_at(u / 4, v / 4)) for u in range(5) for v in range(5)]
+                angles = [_draft_angle(n, d) for n in samples if abs(n.dot(d)) <= SQUARE_TO_PULL]
+                if not angles:
+                    continue
+                angle = min(angles)
+            faces.append({"index": first + k, "angle_deg": _r(angle), "sampled": sampled})
+        out.append({"part": part_index, "pull": _v(d), "faces": faces})
+    return out
+
+
 def complete(record, shape, module, faces):
     """Adds the whole-model measurements to a record built by inspect_record."""
     parts = _children(shape)
@@ -334,4 +394,5 @@ def complete(record, shape, module, faces):
     record["embeds"] = _embeds(parts, module, record)
     record["dimensions"] = _dimensions(shape, module, faces, record) if faces is not None else []
     record["stability"] = _stability(parts, record)
+    record["draft"] = _draft(parts, module, record) if faces is not None else []
     return record

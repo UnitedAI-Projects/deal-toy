@@ -69,7 +69,7 @@ export async function saveRevision(
     throw new AppError(409, "Model changed. Reload before saving.");
   return { id: revisionId, number: expectedRevision + 1 };
 }
-export type JobPurpose = "build" | "check" | "view";
+export type JobPurpose = "build" | "check" | "view" | "measure";
 /** Queues a job on a revision. Every purpose counts toward the member's daily build cap. */
 export async function queueBuild(
   c: Context,

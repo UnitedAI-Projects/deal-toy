@@ -17,6 +17,11 @@ import {
 import { ChatPanel } from "./ChatPanel";
 import { Timeline } from "./Timeline";
 import { InspectPanel, type Picked } from "./InspectPanel";
+import { ChecksPanel } from "./ChecksPanel";
+import { overlayTones, type Toggles } from "./checks";
+import { dimensionEdit, dragAxis, dragValue } from "./adjust";
+import type { DimensionRecord } from "../shared/inspect-types";
+import type { Check, CheckResult, Target } from "../shared/checks";
 import { pickFace, type InspectRecord } from "./inspect";
 import catalog from "../../engine/lib/mantel/catalog.json";
 import { ActionForm, type Preset } from "./ActionForm";
@@ -83,6 +88,24 @@ export function Workspace(props: Props) {
     busy: boolean;
   } | null>(null);
   const [savedActions, setSavedActions] = useState<ToolbarAction[]>([]);
+  // The Checks panel, what it colours on the model, and a tick that refetches it on live changes.
+  const [checksOpen, setChecksOpen] = useState(false);
+  const [toggles, setToggles] = useState<Toggles>({
+    overlap: true,
+    clearance: true,
+    draft: true,
+  });
+  const [checkState, setCheckState] = useState<{
+    checks: Check[];
+    results: CheckResult[];
+  }>({ checks: [], results: [] });
+  const [checksTick, setChecksTick] = useState(0);
+  // A dimension being dragged, with its live (preview) value.
+  const [drag, setDrag] = useState<{
+    dim: DimensionRecord;
+    value: number;
+  } | null>(null);
+  const dragRef = useRef<{ dim: DimensionRecord; value: number } | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
   // What the agent is pointing at, until the person clicks.
   const [agentPoint, setAgentPoint] = useState<{
@@ -129,6 +152,7 @@ export function Workspace(props: Props) {
             };
           });
         else {
+          setChecksTick((t) => t + 1);
           clearTimeout(refresh.current);
           refresh.current = setTimeout(
             () => void props.reload().catch(() => {}),
@@ -242,6 +266,38 @@ export function Workspace(props: Props) {
   }, [inspectArtifact?.id]);
   const agentFaces =
     agentPoint && agentPoint.jobId === shownJob?.id ? agentPoint.faces : [];
+  const tones = useMemo(
+    () =>
+      checksOpen && record
+        ? overlayTones(record, checkState.results, checkState.checks, toggles)
+        : { fail: [], warn: [] },
+    [checksOpen, record, checkState, toggles],
+  );
+  const canMeasure = owns && can(me, "builds.run");
+  /** An exact distance from a measure job on the shown build, polling until it settles. */
+  async function measureExactly(a: Target, b: Target): Promise<string> {
+    if (!shownJob) throw new Error("No build to measure");
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const r = await call<{
+        status: string;
+        distance?: number;
+        error?: string;
+        reason?: string;
+        jobId?: string;
+      }>("inspect_measure", { buildId: shownJob.id, a, b });
+      if (r.status === "done") return `${r.distance!.toFixed(2)} mm`;
+      if (r.status === "failed" || r.status === "unknown")
+        throw new Error(r.error ?? r.reason ?? "Measure failed");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    throw new Error("The measure job is taking too long; try again shortly");
+  }
+  async function askAgent(text: string, refs: string) {
+    await call("notes_add", {
+      projectId,
+      message: `${text}\n\nSelection: ${refs}`,
+    });
+  }
   const highlights = useMemo(
     () => [
       {
@@ -251,8 +307,16 @@ export function Workspace(props: Props) {
         tone: "pick" as const,
       },
       { faces: agentFaces, tone: "agent" as const },
+      { faces: tones.fail, tone: "fail" as const },
+      { faces: tones.warn, tone: "warn" as const },
     ],
-    [selection?.face, second?.face, agentFaces.join(",")],
+    [
+      selection?.face,
+      second?.face,
+      agentFaces.join(","),
+      tones.fail.join(","),
+      tones.warn.join(","),
+    ],
   );
   const bounds = useMemo(() => {
     if (!record?.parts.length) return null;
@@ -528,6 +592,74 @@ export function Workspace(props: Props) {
     shown?.id === latest.id &&
     viewed?.id === latest.id &&
     !!shownJob;
+  /** Adjustment A and B: one models_set_parameter call for the dimension's parameter. */
+  async function adjust(dim: DimensionRecord, value: number) {
+    const edit = dimensionEdit(dim, facts?.params ?? {}, value);
+    if ("error" in edit) throw new Error(edit.error);
+    if (!model || !latest) throw new Error("No model to change");
+    await call("models_set_parameter", {
+      modelId: model.id,
+      expectedRevision: latest.number,
+      name: edit.name,
+      value: edit.value,
+    });
+    setFollow(true);
+    await props.reload();
+  }
+  const fine = useMemo(() => matchMedia("(pointer: fine)").matches, []);
+  const dragDim =
+    editable && fine && !asOf && record && selection?.face !== undefined
+      ? record.dimensions?.find(
+          // Either face of a dimension offers the handle; it moves the declared face.
+          (d) => d.faces.includes(selection.face!) && dragAxis(record, d),
+        )
+      : undefined;
+  const dragLine = dragDim && record ? dragAxis(record, dragDim) : null;
+  const dragSpec = dragDim?.param ? facts?.params?.[dragDim.param] : undefined;
+  const handle =
+    dragDim && dragLine && dragSpec && shownJob
+      ? {
+          key: `${shownJob.id}-${dragDim.name}`,
+          origin: dragLine.origin,
+          direction: dragLine.direction,
+          onMove: (along: number) => {
+            dragRef.current = {
+              dim: dragDim,
+              value: dragValue(dragDim, dragSpec, along, dragLine.sign),
+            };
+            setDrag(dragRef.current);
+          },
+          onRelease: () => {
+            // One commit per release, read from the ref rather than inside a state update.
+            const released = dragRef.current;
+            dragRef.current = null;
+            setDrag(null);
+            if (released && released.value !== released.dim.value)
+              void adjust(released.dim, released.value).catch((e: Error) =>
+                setError(e.message),
+              );
+          },
+          onCancel: () => {
+            dragRef.current = null;
+            setDrag(null);
+          },
+        }
+      : null;
+  const dragGhost =
+    drag && dragLine && record
+      ? {
+          kind: "plane" as const,
+          origin: dragLine.origin.map(
+            (v, k) =>
+              v +
+              dragLine.direction[k] *
+                (drag.value - drag.dim.value) *
+                dragLine.sign,
+          ) as [number, number, number],
+          normal: dragLine.direction,
+          size: Math.sqrt(record.faces[drag.dim.moves!]?.area ?? 1),
+        }
+      : null;
 
   function viewRevision(r: Revision) {
     setFollow(r.id === latest?.id);
@@ -557,7 +689,8 @@ export function Workspace(props: Props) {
           record={asOf ? null : record}
           highlights={highlights}
           section={asOf ? null : section}
-          ghost={asOf ? null : ghost}
+          ghost={asOf ? null : (dragGhost ?? ghost)}
+          handle={handle}
           onSelect={(label, point, hit, additive) => {
             setAgentPoint(null);
             if (label && pickIntoForm(label, hit)) return;
@@ -612,6 +745,15 @@ export function Workspace(props: Props) {
           )}
         </div>
         <div className="topbar-right">
+          {model && (
+            <button
+              className={`chip checks-chip wide-only ${checksOpen ? "on" : ""}`}
+              aria-pressed={checksOpen}
+              onClick={() => setChecksOpen(!checksOpen)}
+            >
+              Checks
+            </button>
+          )}
           <Toolbar
             actions={[...builtins, ...savedActions]}
             disabledReason={toolbarReason()}
@@ -743,6 +885,14 @@ export function Workspace(props: Props) {
 
       {record && bounds && !asOf && (
         <div className="inspect-tools" role="group" aria-label="Section">
+          {/* On phones the top bar has no room; Checks sits with the section tools. */}
+          <button
+            className={`chip checks-chip narrow-only ${checksOpen ? "on" : ""}`}
+            aria-pressed={checksOpen}
+            onClick={() => setChecksOpen(!checksOpen)}
+          >
+            Checks
+          </button>
           {(["x", "y", "z"] as const).map((axis) => (
             <button
               key={axis}
@@ -778,8 +928,29 @@ export function Workspace(props: Props) {
         </div>
       )}
 
+      {checksOpen && model && shown && (
+        <ChecksPanel
+          modelId={model.id}
+          revision={shown.number}
+          record={asOf ? null : record}
+          picks={[selection, second]
+            .filter((p): p is Picked => !!p)
+            .map((p) => ({ label: p.label, face: p.face }))}
+          canEdit={canEdit}
+          canMeasure={canMeasure}
+          refresh={`${checksTick}-${shownJob?.id}`}
+          toggles={toggles}
+          onToggles={setToggles}
+          onResults={(checks, results) => setCheckState({ checks, results })}
+          onClose={() => setChecksOpen(false)}
+        />
+      )}
+
       {selection && record && (selection.face !== undefined || second) && (
         <InspectPanel
+          onMeasure={canMeasure ? measureExactly : undefined}
+          onAdjust={editable ? adjust : undefined}
+          onAsk={owns && can(me, "notes.write") ? askAgent : undefined}
           key={`${selection.label}-${selection.face}-${second?.label}-${second?.face}-${shown?.id}`}
           record={record}
           first={selection}
@@ -1024,6 +1195,13 @@ export function Workspace(props: Props) {
             )}
           </div>
         </aside>
+      )}
+
+      {drag && (
+        <div className="drag-value chip" role="status">
+          {drag.dim.name} {drag.value.toFixed(2)} mm · preview · release to
+          save, Esc to cancel
+        </div>
       )}
 
       {error && (

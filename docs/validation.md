@@ -204,3 +204,19 @@ Branch `feat/actions-interface`, stacked on `feat/inspect-core`. Local evidence;
   - Timeline: "Edit" changed the hole's diameter to 8 in revision 4, and dragging the Hole chip onto the plane's chip moved it after the plane in revision 5.
   - A click stored the owner's selection for the agent's summary.
   - At 390 px the page did not scroll sideways, and the action menu and form fit the screen.
+
+## Inspect checks — 2026-11-09
+
+Branch `feat/inspect-checks`, implementing `docs/superpowers/plans/2026-11-09-inspect-checks.md`. Local evidence; not deployed.
+
+- Engine tests compare draft with analytic values (vertical walls 0°, a 2° taper and a 3° cone to 1e-6), check the enclosure fixture's rib–boss overlap against the analytic volume and its 0.30 mm lip, and confirm that reloading each example's STEP keeps every face's index. Measure mode gives 8.0 mm from a 4 mm pin to a wall 10 mm from its axis, and 0.30 mm between the enclosure's lip faces addressed by record index. It runs no model code. The suite passed inside the CAD image (`ci/engine-tests-in-image.sh`), and the container smoke test now calls `/measure`.
+- Migration 0008 rebuilds `jobs` (to allow the `measure` purpose) together with `artifacts`, its only child. Dropping only `jobs` failed at commit with a foreign key error in SQLite, even with deferred foreign keys. The rebuild was tested on populated data in SQLite, in workerd's D1 (`src/server/migration-0008.test.ts`) and with `wrangler d1 migrations apply --local` on an existing local database (13 jobs, 55 artifacts, no orphans, empty `foreign_key_check`).
+- In the app (local `wrangler dev` with the CAD container):
+  - On `deal_toy_inspect.py`, the "Acrylic embedment" preset added three checks with limits marked TBD. Setting the coin wall to 2.00 mm failed it at 1.50 mm (`docs/images/workspace-checks.png`).
+  - On `enclosure_inspect.py`, the "Moulded part" preset failed draft at 0.0° and no overlap at 238.59 mm³. A face-to-face lip check was added by index (as an agent would), and "Measure" ran a real measure job that returned 0.30 mm.
+  - Typing 2.5 on the wall thickness saved revision 2. Its build queued the lip measurement by itself, and the overlap row read "238.59 mm³ in rev 1 → 243.49 mm³ in rev 2". The thicker wall also produced a real new overlap between a boss and the cover's lip, which is now coloured (`docs/images/workspace-checks-enclosure.png`).
+  - Dragging the wall's handle showed the preview plane and a live value clamped to `WALL_T`'s 4.00 mm maximum, and release saved revision 3 (`docs/images/workspace-drag.png`).
+  - Over MCP with an API key, `checks_results` returned the same results with the summary line `Checks: 0 pass · 3 fail (Housing draft 0.0° < 1.0°; No overlaps 298.45 mm³; Lip gap 0.30 mm < 0.50 mm)`.
+  - Checked in light and dark themes and at 390 px (no horizontal scroll; `docs/images/workspace-checks-mobile.png`).
+- Costs, measured in the CAD image: inspection takes 0.06 s on the enclosure (55 faces, 16.2 KiB record) and 0.02 s on the deal toy (23 faces, 7.3 KiB), and one measure job takes 1.0–1.3 s.
+- Known limits: failure colours on a part fully inside another (the coin in its block) are hidden by the host and by section caps, as pick highlights already are. The check row still names the failure. The drag preview is a square of the face's area, not its outline.

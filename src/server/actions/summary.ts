@@ -1,6 +1,7 @@
 import type { Context } from "../core";
 import { modelAccess } from "../core";
 import { AppError } from "../core";
+import { checksLine, evaluateModel } from "../check-tools";
 import type { StepLog } from "./catalog";
 import { pyValue, readSteps, type Step, type StepValue } from "./script";
 
@@ -129,10 +130,25 @@ export async function modelContext(
       new Date(Date.now() - 30 * 60_000).toISOString(),
     )
     .first<{ refs: string }>();
-  if (!selection) return summary;
-  const refs = (JSON.parse(selection.refs) as StepValue[])
-    .map(pyValue)
-    .join(" · ");
-  const line = `Selected: ${refs}`.slice(0, 400);
-  return `${summary.slice(0, SUMMARY_LIMIT - line.length - 1)}\n${line}`;
+  const lines: string[] = [];
+  if (selection)
+    lines.push(
+      `Selected: ${(JSON.parse(selection.refs) as StepValue[]).map(pyValue).join(" · ")}`.slice(
+        0,
+        400,
+      ),
+    );
+  // Saved checks: how many pass and fail on the latest build, failures named.
+  const listed = await c.env.DB.prepare(
+    "SELECT 1 FROM check_lists WHERE model_id=?",
+  )
+    .bind(modelId)
+    .first();
+  if (listed) {
+    const line = checksLine(await evaluateModel(c, modelId));
+    if (line) lines.push(line);
+  }
+  if (!lines.length) return summary;
+  const tail = lines.join("\n");
+  return `${summary.slice(0, SUMMARY_LIMIT - tail.length - 1)}\n${tail}`;
 }

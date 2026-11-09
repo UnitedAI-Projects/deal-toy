@@ -30,6 +30,10 @@ uv run --project engine python engine/runner.py examples/deal_toy_steps.py work/
 
 [deal_toy_inspect.py](deal_toy_inspect.py) is a synthetic deal toy with deliberate faults for the inspection tests. A brass coin sits off-centre in an acrylic block only 1.5 mm behind its front face, the block is tall for its base, and the engraving is 0.3 mm deep against a declared 0.5 mm. It declares `MATERIALS`, `EMBEDS` and a `dimensions()` function, so its build reports stability, the embed wall and the engraving depth.
 
+## Enclosure fixture
+
+[enclosure_inspect.py](enclosure_inspect.py) reproduces the injection-moulded enclosure faults from the published copilot test, as synthetic geometry. Its ribs run into the screw bosses, no wall has draft along `PULL = {"Housing": (0, 0, 1)}`, and the cover's lip sits 0.30 mm from the housing wall. `dimensions()` declares the wall thickness (`WALL_T`) and the lip clearance (`LIP_GAP`), so both can be typed or dragged in the viewer. The engine and Worker tests use its stored record, `engine/tests/fixtures/enclosure_inspect.inspect.json`; regenerate it with `engine/tools/gen_fixtures.py`.
+
 ## Saved action
 
 [saved_actions/finger_notch.py](saved_actions/finger_notch.py) is a reference custom action. Its `@mt.action` decorator describes it the same way the built-in catalog describes its actions: summary, described inputs, created names and an example. Save it through the `actions_save` tool; Mantel builds the model with the example appended and lists the action once the example step is `ok`.

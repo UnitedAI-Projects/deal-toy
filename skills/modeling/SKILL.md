@@ -20,9 +20,10 @@ description: Create or revise a build123d model in a Deal Toy project while the 
 6. Declare what inspection needs to measure the model the way the team thinks about it:
    - a top-level `dimensions(shape)` returning `{"name", "param", "between": (face, face), "moves": face}` for every `PARAMS` entry that is a distance, thickness, diameter or depth;
    - `MATERIALS = {"<part>": {"name": ..., "density_g_cm3": ...}}` for every part, so stability uses real masses;
-   - `EMBEDS = [{"part": "<embedded part>", "in": "<host>"}]` for objects cast or set into another part.
+   - `EMBEDS = [{"part": "<embedded part>", "in": "<host>"}]` for objects cast or set into another part;
+   - `PULL = {"<part>": (x, y, z)}` for moulded or cast parts: the direction the part leaves its mould, so draft is measured on every wall.
 
-   `examples/deal_toy_inspect.py` shows all three. After a build, follow the inspecting skill.
+   `examples/deal_toy_inspect.py` shows the first three and `examples/enclosure_inspect.py` shows `PULL`. A declared dimension whose `moves` face is a plane can be dragged in the viewer, so name the face that should move. After a build, follow the inspecting skill.
 
 7. Use the standard steps layout so the team can see and edit each feature as a step: `import mantel as mt`, a `base()` function for free Python that returns the starting parts (or `None`), and a `build()` that runs one modeling action per line between the markers. `examples/deal_toy_steps.py` is the reference:
 

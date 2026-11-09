@@ -5,7 +5,8 @@ import { loadIdentity, PERMISSIONS } from "./access";
 import { hash } from "./core";
 import { member } from "./test-helpers";
 
-const before = env.TEST_MIGRATIONS.filter((m) => !m.name.startsWith("0003"));
+// Production ran 0001 and 0002 before the accounts migration; later ones depend on its columns.
+const before = env.TEST_MIGRATIONS.filter((m) => m.name < "0003");
 beforeAll(async () => {
   // Members and a token as they exist in production before the accounts migration.
   await applyD1Migrations(env.DB, before);
