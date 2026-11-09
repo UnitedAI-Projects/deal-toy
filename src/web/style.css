@@ -1419,6 +1419,14 @@ textarea.code.editor.short {
 .fact-row {
   display: contents;
 }
+.materials {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.materials p {
+  margin: 0;
+}
 .doc {
   border: 1px solid var(--line);
   border-radius: 12px;

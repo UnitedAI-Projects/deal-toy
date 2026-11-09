@@ -26,6 +26,33 @@ export type {
   InspectRecord,
 };
 
+export type MaterialUse = { name: string; parts: string[]; mass_g: number };
+
+/** The materials a build declares, heaviest first, and the parts that declare none. */
+export function materialsUsed(record: InspectRecord) {
+  const byName = new Map<string, MaterialUse>();
+  const undeclared: string[] = [];
+  for (const part of record.parts) {
+    const label = part.label || "Unlabelled part";
+    const material = record.materials?.[part.label];
+    if (!material) {
+      undeclared.push(label);
+      continue;
+    }
+    const name = material.name.trim() || "Unnamed material";
+    const use = byName.get(name) ?? { name, parts: [], mass_g: 0 };
+    use.parts.push(label);
+    use.mass_g += (part.volume / 1000) * material.density_g_cm3;
+    byName.set(name, use);
+  }
+  const used = [...byName.values()].sort((a, b) => b.mass_g - a.mass_g);
+  return {
+    used,
+    undeclared,
+    total_g: used.reduce((sum, use) => sum + use.mass_g, 0),
+  };
+}
+
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const length = (a: Vec3) => Math.hypot(a[0], a[1], a[2]);

@@ -19,7 +19,7 @@ export class CadContainer extends DurableObject<Env> {
     const container = this.ctx.container;
     if (!container) throw new Error("CAD container binding is missing");
     // Persistent backstop if a request or queue consumer disappears mid-build.
-    await this.ctx.storage.setAlarm(Date.now() + 420_000);
+    await this.ctx.storage.setAlarm(Date.now() + 945_000);
     return fetchCad(container, request);
   }
   async destroy() {
@@ -199,7 +199,7 @@ export async function consume(message: Message<unknown>, env: Env) {
     return;
   }
   // Duplicate deliveries never start a second execution. The scheduled sweep marks
-  // abandoned claims failed after fifteen minutes so an explicit rebuild is possible.
+  // abandoned claims failed after twenty minutes so an explicit rebuild is possible.
   if (job.status === "running") {
     message.ack();
     return;

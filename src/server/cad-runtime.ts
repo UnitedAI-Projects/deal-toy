@@ -1,5 +1,8 @@
-/** The service stops a job at 270 s (engine/service.py), inside this wait. */
-const JOB_WAIT_MS = 300_000;
+/**
+ * The service stops a job at 810 s (engine/service.py), inside this wait. Start-up (up to 60 s)
+ * plus this wait must leave time to save the files within the queue consumer's 15 minutes.
+ */
+const JOB_WAIT_MS = 825_000;
 
 /** Start the version-pinned CAD image and submit a build exactly once. */
 export async function fetchCad(container: Container, request: Request) {

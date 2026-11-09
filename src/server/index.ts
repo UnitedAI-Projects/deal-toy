@@ -214,13 +214,14 @@ export default {
     for (const message of batch.messages) await consume(message, env);
   },
   async scheduled(_event, env) {
+    // A running job outlives no queue invocation (15 minutes). A queued one may wait behind
+    // several full-length builds at two at a time, so it gets longer before it counts as lost.
+    const ago = (minutes: number) =>
+      new Date(Date.now() - minutes * 60_000).toISOString();
     await env.DB.prepare(
-      "UPDATE jobs SET status='failed',error='Build timed out or delivery was interrupted; submit a new build',updated_at=? WHERE status IN ('queued','running') AND updated_at<?",
+      "UPDATE jobs SET status='failed',error='Build timed out or delivery was interrupted; submit a new build',updated_at=? WHERE (status='running' AND updated_at<?) OR (status='queued' AND updated_at<?)",
     )
-      .bind(
-        new Date().toISOString(),
-        new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-      )
+      .bind(new Date().toISOString(), ago(20), ago(60))
       .run();
     // Measurements whose job was abandoned can be asked for again.
     await env.DB.prepare(
