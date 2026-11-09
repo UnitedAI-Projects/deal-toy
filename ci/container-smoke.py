@@ -37,6 +37,10 @@ with HTTPServer(("0.0.0.0", 0), Handler) as server:
         (measured,) = execute_measure(step, [{"key": "f0-f1", "a": {"face": 0}, "b": {"face": 1}}])["results"]
         assert "distance" in measured and measured["distance"] >= 0, measured
         print(f"Measure mode reads the STEP ({measured['distance']:.2f} mm between faces 0 and 1)")
+        # A drawing runs after the exports, on a read-only image, from the STEP alone.
+        drawn = execute(Path("/examples/bridge.py").read_text(), drawing={"title": "Bridge", "revision": 1})
+        assert {"blueprint.pdf", "blueprint.dxf"} <= {a["name"] for a in drawn["artifacts"]}, "no blueprint"
+        print("Blueprint PDF and DXF generated")
         # Text in the default font (Arial) must come out in an outline font with Arial's
         # metrics, not OCCT's single-line fallback or a monospace face. The listener takes one
         # job per container, so this runs the same sandboxed runner directly.

@@ -37,13 +37,17 @@ const artifact = z.object({
     "model.glb",
     "facts.json",
     "inspect.json",
+    "blueprint.pdf",
+    "blueprint.dxf",
   ]),
   mediaType: z.string(),
   base64: z.string().max(22_000_000),
 });
-const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(5) });
+const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(7) });
 /** A view-as-of preview exports only the viewer mesh and facts. */
 const PREVIEW = ["model.glb", "facts.json"];
+/** Drawn after the exports when it fits the job's time; a build without them is still a good build. */
+const DRAWINGS = ["blueprint.pdf", "blueprint.dxf"];
 const target = z.union([
   z.object({ face: z.number().int().nonnegative() }).strict(),
   z.object({ part: z.number().int().nonnegative() }).strict(),
@@ -142,6 +146,8 @@ const media: Record<string, string> = {
   "model.glb": "model/gltf-binary",
   "facts.json": "application/json",
   "inspect.json": "application/json",
+  "blueprint.pdf": "application/pdf",
+  "blueprint.dxf": "image/vnd.dxf",
 };
 /** The exact-measurement record; items are checked by the reader, the outline here. */
 export const inspectSchema = z
@@ -210,7 +216,17 @@ export async function consume(message: Message<unknown>, env: Env) {
   const payload: Record<string, unknown> = { source: job.source };
   if (preview)
     Object.assign(payload, { stopAfter: options.stopAfter, preview });
-  const expected: string[] = preview ? PREVIEW : Object.keys(media);
+  const expected: string[] = preview
+    ? PREVIEW
+    : Object.keys(media).filter((n) => !DRAWINGS.includes(n));
+  if (job.purpose === "build") {
+    const titled = await env.DB.prepare(
+      "SELECT m.name AS title,r.number AS revision FROM revisions r JOIN models m ON m.id=r.model_id WHERE r.id=?",
+    )
+      .bind(job.revision_id)
+      .first<{ title: string; revision: number }>();
+    payload.drawing = titled ?? {};
+  }
   const container = env.CAD.getByName(jobId);
   const keys: string[] = [];
   const checking =
@@ -283,8 +299,12 @@ export async function consume(message: Message<unknown>, env: Env) {
     const names: string[] = result.artifacts.map((a) => a.name);
     if (
       new Set(names).size !== names.length ||
-      names.length !== expected.length ||
-      !expected.every((n) => names.includes(n))
+      !expected.every((n) => names.includes(n)) ||
+      names.some(
+        (n) =>
+          !expected.includes(n) &&
+          !(job.purpose === "build" && DRAWINGS.includes(n)),
+      )
     )
       throw new Error("Duplicate or missing exports");
     let total = 0;

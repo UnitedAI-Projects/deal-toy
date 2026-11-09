@@ -28,7 +28,11 @@ export const PERMISSIONS = [
   ["projects.create", "Create projects", "Start their own projects"],
   ["models.edit", "Edit models", "Change source and dimensions"],
   ["builds.run", "Run builds", "Queue CAD builds (uses compute)"],
-  ["exports.download", "Download exports", "STEP, STL and source code"],
+  [
+    "exports.download",
+    "Download exports",
+    "STEP, STL, blueprints and source code",
+  ],
   ["notes.write", "Leave notes", "Send notes to agents"],
   ["members.manage", "Manage members", "Change levels and suspend people"],
   [

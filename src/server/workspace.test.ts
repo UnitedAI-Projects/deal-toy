@@ -323,6 +323,101 @@ describe("Build lifecycle", () => {
       ).status,
     ).toBe(200);
   });
+  function runtime(names: string[]) {
+    const facts = {
+      units: "mm",
+      bounds: [1, 2, 3],
+      volume_mm3: 6,
+      solids: 1,
+      valid: true,
+      manufacturing_approval: "not_reviewed",
+    };
+    const artifacts = names.map((name) => ({
+      name,
+      mediaType: "ignored",
+      base64: btoa(
+        name === "facts.json"
+          ? JSON.stringify(facts)
+          : name === "inspect.json"
+            ? '{"version":1,"units":"mm","warnings":[],"parts":[],"faces":[],"holes":[],"faces_truncated":false}'
+            : "synthetic-test-bytes",
+      ),
+    }));
+    return {
+      fetch: vi.fn(
+        async (_request: Request) => Response.json({ artifacts }) as Response,
+      ),
+      destroy: vi.fn(async () => {}),
+    };
+  }
+  const core = [
+    "model.step",
+    "model.stl",
+    "model.glb",
+    "facts.json",
+    "inspect.json",
+  ];
+  const drawings = ["blueprint.pdf", "blueprint.dxf"];
+  it("asks for a blueprint and keeps it beside the exports", async () => {
+    const { jobId, message } = await queuedJob();
+    const container = runtime([...core, ...drawings]);
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const request = container.fetch.mock.calls[0][0];
+    const body = (await request.clone().json()) as {
+      drawing: { title: string; revision: number };
+    };
+    expect(body.drawing.title).toEqual(expect.any(String));
+    expect(body.drawing.revision).toEqual(expect.any(Number));
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+      artifacts: { name: string; media_type?: string; mediaType?: string }[];
+    };
+    expect(result.status).toBe("succeeded");
+    expect(result.artifacts.map((a) => a.name).sort()).toEqual(
+      [...core, ...drawings].sort(),
+    );
+    expect(
+      (await env.ARTIFACTS.get(`builds/${jobId}/blueprint.pdf`))?.httpMetadata
+        ?.contentType,
+    ).toBe("application/pdf");
+  });
+  it("accepts a build whose blueprint could not be drawn", async () => {
+    const { jobId, message } = await queuedJob();
+    const container = runtime(core);
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const result = (await execute(alice, "builds_get", { jobId })) as {
+      status: string;
+    };
+    expect(result.status).toBe("succeeded");
+  });
+  it("neither requests nor accepts a blueprint on a preview", async () => {
+    const { jobId, message } = await queuedJob();
+    await env.DB.prepare("UPDATE jobs SET purpose='view' WHERE id=?")
+      .bind(jobId)
+      .run();
+    const container = runtime(["model.glb", "facts.json", ...drawings]);
+    await consume(message, {
+      DB: env.DB,
+      ARTIFACTS: env.ARTIFACTS,
+      CAD: { getByName: () => container },
+    } as unknown as Env);
+    const body = (await container.fetch.mock.calls[0][0]
+      .clone()
+      .json()) as Record<string, unknown>;
+    expect(body.drawing).toBeUndefined();
+    const job = await env.DB.prepare("SELECT status FROM jobs WHERE id=?")
+      .bind(jobId)
+      .first<{ status: string }>();
+    expect(job?.status).toBe("failed");
+  });
   it("removes partial exports when runtime output is invalid", async () => {
     const { jobId, message } = await queuedJob();
     const artifacts = [
