@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 
 import build123d
-from service import Handler, HTTPServer, execute
+from service import Handler, HTTPServer, execute, execute_measure
 
 # The image is read-only at run time, so bytecode exists only if the image build compiled it.
 for module in (build123d, json):
@@ -32,6 +32,11 @@ with HTTPServer(("0.0.0.0", 0), Handler) as server:
         record = json.loads(base64.b64decode(next(a for a in result["artifacts"] if a["name"] == "inspect.json")["base64"]))
         assert record["version"] == 1 and record["parts"] and record["faces"], "inspection record is empty"
         print("CAD HTTP startup and STEP/STL/GLB/facts/inspection exports verified")
+        # A measure job reads the build's STEP only; face indices are the record's.
+        step = next(a for a in result["artifacts"] if a["name"] == "model.step")["base64"]
+        (measured,) = execute_measure(step, [{"key": "f0-f1", "a": {"face": 0}, "b": {"face": 1}}])["results"]
+        assert "distance" in measured and measured["distance"] >= 0, measured
+        print(f"Measure mode reads the STEP ({measured['distance']:.2f} mm between faces 0 and 1)")
         # Text in the default font (Arial) must come out in an outline font with Arial's
         # metrics, not OCCT's single-line fallback or a monospace face. The listener takes one
         # job per container, so this runs the same sandboxed runner directly.
