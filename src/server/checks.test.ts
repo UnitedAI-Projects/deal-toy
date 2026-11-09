@@ -1,14 +1,14 @@
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import bridge from "../../examples/bridge.py";
 import toyJson from "../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
 import boxJson from "../../engine/tests/fixtures/enclosure_inspect.inspect.json";
 import type { Check, CheckResult } from "../shared/checks";
-import { consume } from "./builds";
 import type { Context } from "./core";
 import { dispatch, execute } from "./tools";
 import { member } from "./test-helpers";
+import { finish } from "./test-builds";
 
 let carol: Context;
 let dave: Context;
@@ -19,53 +19,6 @@ beforeAll(async () => {
   dave = await member("dave-checks@example.test", { level: "Maker" });
   viewer = await member("viewer-checks@example.test", { level: "Demo" });
 });
-const facts = {
-  units: "mm",
-  bounds: [1, 2, 3],
-  volume_mm3: 6,
-  solids: 1,
-  valid: true,
-  manufacturing_approval: "not_reviewed",
-};
-
-/** Runs a queued job through the consumer with a mock container reply. */
-export async function finish(jobId: string, record: unknown) {
-  const artifacts = [
-    "model.step",
-    "model.stl",
-    "model.glb",
-    "facts.json",
-    "inspect.json",
-  ].map((name) => ({
-    name,
-    mediaType: "ignored",
-    base64: btoa(
-      name === "facts.json"
-        ? JSON.stringify(facts)
-        : name === "inspect.json"
-          ? JSON.stringify(record)
-          : "ISO-10303-21; bytes",
-    ),
-  }));
-  const container = {
-    fetch: vi.fn(async () => Response.json({ artifacts })),
-    destroy: vi.fn(async () => {}),
-  };
-  await consume(
-    {
-      body: { jobId },
-      ack: vi.fn(),
-      retry: vi.fn(),
-    } as unknown as Message<unknown>,
-    {
-      DB: env.DB,
-      ARTIFACTS: env.ARTIFACTS,
-      BUILDS: env.BUILDS,
-      DAILY_BUILD_LIMIT: env.DAILY_BUILD_LIMIT,
-      CAD: { getByName: () => container },
-    } as unknown as Env,
-  );
-}
 
 async function model(record: unknown = toyJson) {
   const p = (await execute(carol, "projects_create", { name: "Checks" })) as {

@@ -6,11 +6,21 @@ import {
   type CheckResult,
   type FaceTarget,
   type Measurement,
+  type Target,
+  measureKey,
 } from "../shared/checks";
 import type { InspectRecord } from "../shared/inspect-types";
 import { evaluateChecks, signatureOf } from "./checks/evaluate";
 import { presetsFor } from "./checks/presets";
-import { AppError, id, modelAccess, type Context } from "./core";
+import { requirePermission } from "./access";
+import {
+  AppError,
+  id,
+  modelAccess,
+  revisionAccess,
+  type Context,
+} from "./core";
+import { queueMeasures } from "./measure";
 import { define, now, type Tool } from "./tool-kit";
 
 const finite = z.number().finite();
@@ -383,6 +393,89 @@ export const checkTools: Tool[] = [
         results: now.results,
         previous,
       };
+    },
+  ),
+  define(
+    "inspect_measure",
+    "Measure the exact minimum distance between two faces or parts of a build, by inspect_get index: {face: n} or {part: n}. Part pairs are answered from the record at once. Anything else runs a measure job on the build's STEP (queued once per pair, counted toward the daily build limit; poll builds_get with jobId, then call again). Results feed clearance checks.",
+    {
+      buildId: id,
+      a: z.union([
+        z.object({ face: z.number().int().nonnegative() }).strict(),
+        z.object({ part: z.number().int().nonnegative() }).strict(),
+      ]),
+      b: z.union([
+        z.object({ face: z.number().int().nonnegative() }).strict(),
+        z.object({ part: z.number().int().nonnegative() }).strict(),
+      ]),
+    },
+    false,
+    async (c, i) => {
+      const job = await c.env.DB.prepare(
+        "SELECT revision_id,purpose FROM jobs WHERE id=?",
+      )
+        .bind(i.buildId)
+        .first<{ revision_id: string; purpose: string }>();
+      if (!job) throw new AppError(404, "Build not found");
+      await revisionAccess(c, job.revision_id, "read");
+      const record =
+        job.purpose === "build" ? await recordOf(c.env, i.buildId) : null;
+      if (!record)
+        return {
+          status: "unknown",
+          reason: "This build has no inspection record",
+        };
+      const a = i.a as Target;
+      const b = i.b as Target;
+      for (const t of [a, b]) {
+        if ("face" in t && record.faces_truncated)
+          return {
+            status: "unknown",
+            reason: "Not measured: the model has over 20,000 faces",
+          };
+        if ("face" in t && !record.faces.some((f) => f.index === t.face))
+          throw new AppError(400, `No face ${t.face} in this build`);
+        if ("part" in t && !record.parts.some((p) => p.index === t.part))
+          throw new AppError(400, `No part ${t.part} in this build`);
+      }
+      const key = measureKey(a, b);
+      if ("part" in a && "part" in b) {
+        const [lo, hi] = [a.part, b.part].sort((x, y) => x - y);
+        const pair = record.pairs?.find((p) => p.a === lo && p.b === hi);
+        if (pair)
+          return {
+            status: "done",
+            key,
+            distance: pair.distance,
+            source: "record",
+          };
+      }
+      const stored = await c.env.DB.prepare(
+        "SELECT value,job_id,status FROM measurements WHERE build_id=? AND key=?",
+      )
+        .bind(i.buildId, key)
+        .first<{
+          value: string | null;
+          job_id: string | null;
+          status: string;
+        }>();
+      if (stored) {
+        const value = stored.value
+          ? (JSON.parse(stored.value) as Record<string, unknown>)
+          : {};
+        if (stored.status === "done")
+          return { status: "done", key, ...value, source: "measure" };
+        if (stored.status === "failed")
+          return { status: "failed", key, error: value.error };
+        return { status: "queued", key, jobId: stored.job_id };
+      }
+      // Only someone who may build this project spends a measure job on it.
+      requirePermission(c, "builds.run");
+      await revisionAccess(c, job.revision_id);
+      const jobs = await queueMeasures(c, i.buildId, job.revision_id, [
+        { key, a, b },
+      ]);
+      return { status: "queued", key, jobId: jobs[key] };
     },
   ),
 ];

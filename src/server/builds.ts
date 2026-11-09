@@ -3,6 +3,11 @@ import { z } from "zod";
 import { boundedText, hash } from "./core";
 import { fetchCad } from "./cad-runtime";
 import { notify } from "./activity";
+import { loadIdentity } from "./access";
+import type { Check } from "../shared/checks";
+import type { InspectRecord } from "../shared/inspect-types";
+import { evaluateChecks } from "./checks/evaluate";
+import { queueMeasures, type MeasureRequest } from "./measure";
 import {
   checkSchema,
   checkVerdict,
@@ -39,12 +44,43 @@ const artifact = z.object({
 const resultSchema = z.object({ artifacts: z.array(artifact).min(2).max(5) });
 /** A view-as-of preview exports only the viewer mesh and facts. */
 const PREVIEW = ["model.glb", "facts.json"];
+const target = z.union([
+  z.object({ face: z.number().int().nonnegative() }).strict(),
+  z.object({ part: z.number().int().nonnegative() }).strict(),
+]);
 const jobOptions = z
   .object({
     stopAfter: z.number().int().min(1).max(300).optional(),
     check: z.string().max(48).optional(),
+    build: z.string().uuid().optional(),
+    requests: z
+      .array(
+        z.object({ key: z.string().max(80), a: target, b: target }).strict(),
+      )
+      .max(50)
+      .optional(),
   })
   .strict();
+const measureResult = z.object({
+  results: z
+    .array(
+      z.object({
+        key: z.string(),
+        distance: z.number().finite().nonnegative().optional(),
+        points: z.array(z.array(z.number().finite()).length(3)).optional(),
+        error: z.string().max(300).optional(),
+      }),
+    )
+    .max(50),
+});
+
+/** Base64 for binaries too large for one String.fromCharCode spread. */
+function toBase64(bytes: Uint8Array) {
+  let text = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
 const paramSpec = z
   .object({
     value: z.number().finite(),
@@ -129,14 +165,17 @@ const INSPECT_LIMIT = 4 * 1024 * 1024;
 export async function consume(message: Message<unknown>, env: Env) {
   const { jobId } = z.object({ jobId: z.string().uuid() }).parse(message.body);
   const job = await env.DB.prepare(
-    "SELECT jobs.*,revisions.source,models.project_id FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE jobs.id=?",
+    "SELECT jobs.*,revisions.source,revisions.model_id,models.project_id FROM jobs JOIN revisions ON revisions.id=jobs.revision_id JOIN models ON models.id=revisions.model_id WHERE jobs.id=?",
   )
     .bind(jobId)
     .first<{
       status: string;
+      revision_id: string;
       source: string;
       project_id: string;
-      purpose: "build" | "check" | "view";
+      model_id: string;
+      created_by: string | null;
+      purpose: "build" | "check" | "view" | "measure";
       options: string | null;
     }>();
   if (!job || job.status === "succeeded" || job.status === "failed") {
@@ -193,6 +232,12 @@ export async function consume(message: Message<unknown>, env: Env) {
       Number(checking?.[2] ?? 0),
     );
   try {
+    if (job.purpose === "measure") {
+      await measure(env, jobId, options, container);
+      message.ack();
+      await notify(env, job.project_id, { type: "workspace" });
+      return;
+    }
     // Saved actions the script pins travel with it; a check build also carries its candidate.
     const modules = await sourcesFor(env, job.project_id, job.source);
     if (checking) {
@@ -244,6 +289,7 @@ export async function consume(message: Message<unknown>, env: Env) {
       throw new Error("Duplicate or missing exports");
     let total = 0;
     let facts = "{}";
+    let inspected: unknown = null;
     const statements: D1PreparedStatement[] = [];
     for (const artifact of result.artifacts) {
       const binary = Uint8Array.from(atob(artifact.base64), (c) =>
@@ -256,10 +302,8 @@ export async function consume(message: Message<unknown>, env: Env) {
       if (artifact.name === "inspect.json") {
         if (binary.length > INSPECT_LIMIT)
           throw new Error("inspect.json exceeds its 4 MiB limit");
-        if (
-          !inspectSchema.safeParse(JSON.parse(new TextDecoder().decode(binary)))
-            .success
-        )
+        inspected = JSON.parse(new TextDecoder().decode(binary));
+        if (!inspectSchema.safeParse(inspected).success)
           throw new Error("inspect.json is not a valid inspection record");
       }
       if (artifact.name === "facts.json") {
@@ -299,6 +343,14 @@ export async function consume(message: Message<unknown>, env: Env) {
     await env.DB.batch(statements);
     message.ack();
     await notify(env, job.project_id, { type: "workspace" });
+    if (job.purpose === "build" && inspected && job.created_by)
+      await measureForChecks(env, {
+        buildId: jobId,
+        revisionId: job.revision_id,
+        modelId: job.model_id,
+        member: job.created_by,
+        record: inspected as InspectRecord,
+      });
   } catch (error) {
     if (keys.length) await env.ARTIFACTS.delete(keys);
     const detail = error instanceof Error ? error.message : "Build failed";
@@ -307,6 +359,12 @@ export async function consume(message: Message<unknown>, env: Env) {
     )
       .bind(detail.slice(0, 4000), new Date().toISOString(), jobId)
       .run();
+    if (job.purpose === "measure")
+      await env.DB.prepare(
+        "UPDATE measurements SET status='failed',value=? WHERE job_id=? AND status='queued'",
+      )
+        .bind(JSON.stringify({ error: detail.slice(0, 300) }), jobId)
+        .run();
     if (checking)
       await settle(
         "rejected",
@@ -323,5 +381,111 @@ export async function consume(message: Message<unknown>, env: Env) {
         JSON.stringify({ event: "container_cleanup_failed", jobId }),
       );
     }
+  }
+}
+
+/** A measure job: the build's STEP goes to the container, which runs no model code. */
+async function measure(
+  env: Env,
+  jobId: string,
+  options: z.infer<typeof jobOptions>,
+  container: { fetch: (request: Request) => Promise<Response> },
+) {
+  if (!options.build || !options.requests?.length)
+    throw new Error("A measure job needs a build and requests");
+  const step = await env.DB.prepare(
+    "SELECT object_key FROM artifacts WHERE job_id=? AND name='model.step'",
+  )
+    .bind(options.build)
+    .first<{ object_key: string }>();
+  const object = step ? await env.ARTIFACTS.get(step.object_key) : null;
+  if (!object) throw new Error("The build's STEP is gone");
+  const response = await container.fetch(
+    new Request("http://cad/measure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        step: toBase64(new Uint8Array(await object.arrayBuffer())),
+        requests: options.requests,
+      }),
+    }),
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = z.object({ error: z.string() }).safeParse(body);
+    throw new Error(detail.success ? detail.data.error : "Measurement failed");
+  }
+  const { results } = measureResult.parse(body);
+  const byKey = new Map(results.map((r) => [r.key, r]));
+  await env.DB.batch([
+    ...options.requests.map((r) => {
+      const result = byKey.get(r.key);
+      const done = result?.distance !== undefined;
+      return env.DB.prepare(
+        "UPDATE measurements SET status=?,value=? WHERE build_id=? AND key=? AND job_id=?",
+      ).bind(
+        done ? "done" : "failed",
+        JSON.stringify(
+          done
+            ? { distance: result!.distance, points: result!.points }
+            : { error: result?.error ?? "No result" },
+        ),
+        options.build,
+        r.key,
+        jobId,
+      );
+    }),
+    env.DB.prepare(
+      "UPDATE jobs SET status='succeeded',facts=?,updated_at=? WHERE id=? AND status='running'",
+    ).bind(
+      JSON.stringify({ measured: results.length }),
+      new Date().toISOString(),
+      jobId,
+    ),
+  ]);
+}
+
+/**
+ * After a build, queues one measure job for the exact measurements its checks need. It runs as
+ * the member who queued the build and counts toward their daily limit; a failure to queue never
+ * fails the build.
+ */
+async function measureForChecks(
+  env: Env,
+  build: {
+    buildId: string;
+    revisionId: string;
+    modelId: string;
+    member: string;
+    record: InspectRecord;
+  },
+) {
+  try {
+    const list = await env.DB.prepare(
+      "SELECT checks FROM check_lists WHERE model_id=?",
+    )
+      .bind(build.modelId)
+      .first<{ checks: string }>();
+    if (!list) return;
+    const needed = new Map<string, MeasureRequest>();
+    for (const r of evaluateChecks(
+      build.record,
+      JSON.parse(list.checks) as Check[],
+      {},
+    ))
+      if (r.measure) needed.set(r.measure.key, r.measure);
+    if (!needed.size) return;
+    const c = { env, identity: await loadIdentity(env, build.member) };
+    await queueMeasures(c, build.buildId, build.revisionId, [
+      ...needed.values(),
+    ]);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "measure_queue_failed",
+        buildId: build.buildId,
+        error: error instanceof Error ? error.message : "unknown",
+      }),
+    );
   }
 }
