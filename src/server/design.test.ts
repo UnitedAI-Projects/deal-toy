@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "./core";
 import { recordEvent } from "./activity";
 import { openPlan } from "./design/plans";
 import { dispatch, execute } from "./tools";
 import { member } from "./test-helpers";
+import bridge from "../../examples/bridge.py";
 
 let carol: Context;
 let dave: Context;
@@ -15,6 +16,12 @@ beforeAll(async () => {
   carol = await member("carol-design@example.test", { level: "Maker" });
   dave = await member("dave-design@example.test", { level: "Maker" });
   viewer = await member("viewer-design@example.test", { level: "Demo" });
+});
+// Builds are queued but never run here; clear them so the shared queue cap is not reached.
+beforeEach(async () => {
+  await env.DB.prepare(
+    "UPDATE jobs SET status='failed' WHERE status IN ('queued','running')",
+  ).run();
 });
 
 const agent = (name: string, input: unknown, c = carol) =>
@@ -114,7 +121,7 @@ describe("design tables", () => {
     expect(change?.kind).toBe("change");
   });
 
-  it("keeps saving revisions", async () => {
+  it("keeps saving revisions, each with the change that made it", async () => {
     const { modelId } = await newModel();
     const saved = (await execute(carol, "models_save", {
       modelId,
@@ -123,11 +130,11 @@ describe("design tables", () => {
     })) as { id: string; number: number };
     expect(saved.number).toBe(1);
     const row = await env.DB.prepare(
-      "SELECT change_id FROM revisions WHERE id=?",
+      "SELECT p.by_kind FROM revisions r JOIN change_plans p ON p.id=r.change_id WHERE r.id=?",
     )
       .bind(saved.id)
-      .first<{ change_id: string | null }>();
-    expect(row!.change_id).toBeNull();
+      .first<{ by_kind: string }>();
+    expect(row!.by_kind).toBe("person");
   });
 });
 
@@ -501,5 +508,425 @@ describe("change plans", () => {
       { name: "Rim", value: "oval 86 x 72", source: "answered" },
       CUP.sections[2],
     ]);
+  });
+});
+
+const person = (name: string, input: unknown, c = carol) =>
+  dispatch(c, name, input, "http").then((r) => r.value);
+const CUP_PARAMS =
+  '{"CUP_HEIGHT": {"value": 95.0, "unit": "mm", "part": "Cup wall", "min": 50, "max": 150}}';
+const box = (k: number) => ({ shape: "box", size: [10, 10, k] });
+async function latest(modelId: string) {
+  return (await env.DB.prepare(
+    "SELECT r.id,r.number,r.source,r.change_id FROM revisions r JOIN models m ON m.id=r.model_id AND m.revision=r.number WHERE m.id=?",
+  )
+    .bind(modelId)
+    .first<{
+      id: string;
+      number: number;
+      source: string;
+      change_id: string | null;
+    }>())!;
+}
+/** A succeeded build of the latest revision, so parameter edits know the built PARAMS. */
+async function seedFacts(modelId: string) {
+  const r = await latest(modelId);
+  const facts = {
+    parts: [],
+    steps: [],
+    params: { CUP_HEIGHT: { value: 95, unit: "mm", min: 50, max: 150 } },
+  };
+  await env.DB.prepare(
+    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at) VALUES (?,?,'succeeded',NULL,?,?,?)",
+  )
+    .bind(crypto.randomUUID(), r.id, JSON.stringify(facts), stamp(), stamp())
+    .run();
+}
+/** The cup framework built by an agent through MCP: skeleton, then one layer at a time. */
+async function agentBuilt(c = carol) {
+  const model = await designed(c);
+  await agent(
+    "models_save",
+    {
+      modelId: model.modelId,
+      expectedRevision: 0,
+      source: stepsSource([], CUP_PARAMS),
+    },
+    c,
+  );
+  const names = CUP.framework.map((l) => l.name);
+  for (const [k, name] of names.entries()) {
+    await agent(
+      "change_progress",
+      { planId: model.frameworkPlan, layer: name },
+      c,
+    );
+    await agent(
+      "steps_add",
+      {
+        modelId: model.modelId,
+        expectedRevision: k + 1,
+        action: "body",
+        name,
+        inputs: box(k + 1),
+      },
+      c,
+    );
+  }
+  await agent(
+    "change_finish",
+    { planId: model.frameworkPlan, summary: "Framework built." },
+    c,
+  );
+  return { ...model, revision: names.length + 1 };
+}
+async function begin(modelId: string, layers: Record<string, unknown>) {
+  return (
+    (await agent("change_begin", { modelId, request: "test", ...layers })) as {
+      planId: string;
+    }
+  ).planId;
+}
+
+describe("guard", () => {
+  it("refuses agent geometry without a design sheet", async () => {
+    const { modelId } = await newModel();
+    await expect(
+      agent("models_save", {
+        modelId,
+        expectedRevision: 0,
+        source: stepsSource(["Cup wall"]),
+      }),
+    ).rejects.toThrow(
+      "This model has no design sheet. Question the person about every section, then call design_start before saving geometry.",
+    );
+  });
+
+  it("refuses agent writes with no open plan", async () => {
+    const { modelId, revision } = await agentBuilt();
+    await expect(
+      agent("steps_edit", {
+        modelId,
+        expectedRevision: revision,
+        name: "Rim",
+        inputs: box(9),
+      }),
+    ).rejects.toThrow(
+      "No change plan is open for this model. Call change_begin with the layers you will add, edit or remove.",
+    );
+  });
+
+  it("says when the plan stopped for inactivity", async () => {
+    const { modelId, revision } = await agentBuilt();
+    const planId = await begin(modelId, { edit: ["Rim"] });
+    await env.DB.prepare("UPDATE change_plans SET updated_at=? WHERE id=?")
+      .bind(new Date(Date.now() - 31 * 60_000).toISOString(), planId)
+      .run();
+    await expect(
+      agent("steps_edit", {
+        modelId,
+        expectedRevision: revision,
+        name: "Rim",
+        inputs: box(9),
+      }),
+    ).rejects.toThrow(
+      "No change plan is open for this model. Call change_begin with the layers you will add, edit or remove. It stopped after 30 minutes without activity.",
+    );
+  });
+
+  it("refuses free-form source for the framework", async () => {
+    const { modelId } = await designed();
+    await expect(
+      agent("models_save", { modelId, expectedRevision: 0, source: bridge }),
+    ).rejects.toThrow(
+      "Use the steps layout: import mantel as mt, base() returning None, and one action per line between the mantel:steps markers.",
+    );
+  });
+
+  it("refuses code in base()", async () => {
+    const { modelId } = await designed();
+    const source = stepsSource([]).replace(
+      "return None",
+      "return bd.Box(1, 1, 1)",
+    );
+    await expect(
+      agent("models_save", { modelId, expectedRevision: 0, source }),
+    ).rejects.toThrow("base() must return None; put geometry in layers.");
+  });
+
+  it("refuses layers outside the framework", async () => {
+    const { modelId } = await designed();
+    await expect(
+      agent("models_save", {
+        modelId,
+        expectedRevision: 0,
+        source: stepsSource(["Cup wall", "Saucer"]),
+      }),
+    ).rejects.toThrow(
+      "Layers must come from the design sheet's framework, in order: Saucer is not in the framework.",
+    );
+    await expect(
+      agent("models_save", {
+        modelId,
+        expectedRevision: 0,
+        source: stepsSource(["Rim", "Cup wall"]),
+      }),
+    ).rejects.toThrow(
+      "Layers must come from the design sheet's framework, in order: Cup wall must come before Rim.",
+    );
+  });
+
+  it("builds the framework one layer at a time", async () => {
+    const { modelId, frameworkPlan } = await agentBuilt();
+    const { results } = await env.DB.prepare(
+      "SELECT number,change_id FROM revisions WHERE model_id=? ORDER BY number",
+    )
+      .bind(modelId)
+      .all<{ number: number; change_id: string }>();
+    expect(results).toHaveLength(4);
+    expect(results.every((r) => r.change_id === frameworkPlan)).toBe(true);
+  });
+
+  it("refuses undeclared layer edits", async () => {
+    const { modelId, revision } = await agentBuilt();
+    await begin(modelId, { edit: ["Rim"] });
+    await expect(
+      agent("steps_edit", {
+        modelId,
+        expectedRevision: revision,
+        name: "Handle",
+        inputs: box(9),
+      }),
+    ).rejects.toThrow(
+      "This write changes layers the plan does not declare: Handle. Start a new plan that includes them.",
+    );
+    const edited = (await agent("steps_edit", {
+      modelId,
+      expectedRevision: revision,
+      name: "Rim",
+      inputs: box(9),
+    })) as { revision: { number: number } };
+    expect(edited.revision.number).toBe(revision + 1);
+  });
+
+  it("refuses PARAMS changes without Framework", async () => {
+    const { modelId, revision } = await agentBuilt();
+    await seedFacts(modelId);
+    await begin(modelId, { edit: ["Rim"] });
+    await expect(
+      agent("models_set_parameter", {
+        modelId,
+        expectedRevision: revision,
+        name: "CUP_HEIGHT",
+        value: 110,
+      }),
+    ).rejects.toThrow(
+      "This write changes PARAMS; declare the Framework layer in the plan's edit list.",
+    );
+  });
+
+  it("refuses undeclared shared code", async () => {
+    const { modelId, revision } = await agentBuilt();
+    await begin(modelId, { edit: ["Rim"] });
+    const source = (await latest(modelId)).source.replace(
+      "\n\ndef base():",
+      "\n\ndef helper():\n    return 1\n\n\ndef base():",
+    );
+    await expect(
+      agent("models_save", { modelId, expectedRevision: revision, source }),
+    ).rejects.toThrow(
+      "This write changes shared code (imports, helpers or module constants). Declare shared: true in the plan.",
+    );
+  });
+
+  it("refuses base code on a built model", async () => {
+    const { modelId, revision } = await agentBuilt();
+    await begin(modelId, { edit: ["Rim"], shared: true });
+    const source = (await latest(modelId)).source.replace(
+      "return None",
+      "return bd.Box(1, 1, 1)",
+    );
+    await expect(
+      agent("models_save", { modelId, expectedRevision: revision, source }),
+    ).rejects.toThrow("base() must return None; put geometry in layers.");
+  });
+
+  it("accepts declared renames and moves", async () => {
+    const { modelId, revision } = await agentBuilt();
+    const rename = await begin(modelId, {
+      rename: [{ from: "Rim", to: "Lip" }],
+    });
+    await agent("steps_rename", {
+      modelId,
+      expectedRevision: revision,
+      name: "Rim",
+      newName: "Lip",
+    });
+    await agent("change_finish", { planId: rename, summary: "Renamed." });
+    await begin(modelId, { edit: ["Handle"] });
+    await agent("steps_move", {
+      modelId,
+      expectedRevision: revision + 1,
+      name: "Handle",
+      after: "Cup wall",
+    });
+    await expect(
+      agent("steps_move", {
+        modelId,
+        expectedRevision: revision + 2,
+        name: "Lip",
+        after: null,
+      }),
+    ).rejects.toThrow(
+      "This write changes layers the plan does not declare: Lip.",
+    );
+  });
+
+  it("accepts agent writes without a sessionId from the plan's member", async () => {
+    const { projectId, modelId, revision } = await agentBuilt();
+    const { sessionId } = (await agent("session_start", {
+      projectId,
+      prompt: "Change the rim",
+    })) as { sessionId: string };
+    await agent("change_begin", {
+      sessionId,
+      modelId,
+      request: "Change the rim",
+      edit: ["Rim"],
+    });
+    await agent("steps_edit", {
+      modelId,
+      expectedRevision: revision,
+      name: "Rim",
+      inputs: box(9),
+    });
+    const { sessionId: other } = (await agent("session_start", {
+      projectId,
+      prompt: "Something else",
+    })) as { sessionId: string };
+    await expect(
+      agent("steps_edit", {
+        sessionId: other,
+        modelId,
+        expectedRevision: revision + 1,
+        name: "Rim",
+        inputs: box(8),
+      }),
+    ).rejects.toThrow(
+      /^Another change plan is open for this model \(started .+ by carol-design@example\.test\)\.$/,
+    );
+  });
+
+  it("records people's edits as person changes", async () => {
+    const { modelId } = await newModel();
+    await execute(carol, "models_save", {
+      modelId,
+      expectedRevision: 0,
+      source: stepsSource(["Cup wall"], CUP_PARAMS),
+    });
+    await seedFacts(modelId);
+    await person("models_set_parameter", {
+      modelId,
+      expectedRevision: 1,
+      name: "CUP_HEIGHT",
+      value: 110,
+    });
+    const r = await latest(modelId);
+    expect(r.number).toBe(2);
+    const plan = await env.DB.prepare("SELECT * FROM change_plans WHERE id=?")
+      .bind(r.change_id)
+      .first<{
+        by_kind: string;
+        status: string;
+        layers: string;
+        request: string;
+      }>();
+    expect(plan).toMatchObject({ by_kind: "person", status: "finished" });
+    expect(JSON.parse(plan!.layers).edit).toContain("Framework");
+    expect(plan!.request).toBe("Changed CUP_HEIGHT to 110");
+  });
+
+  it("a person's save during an agent plan is its own change", async () => {
+    const { modelId, revision } = await agentBuilt();
+    const planId = await begin(modelId, { edit: ["Rim"] });
+    await person("steps_edit", {
+      modelId,
+      expectedRevision: revision,
+      name: "Handle",
+      inputs: box(7),
+    });
+    const r = await latest(modelId);
+    expect(r.change_id).not.toBe(planId);
+    expect((await planRow(r.change_id!)).status).toBe("finished");
+    expect((await planRow(planId)).status).toBe("open");
+    await expect(
+      agent("steps_edit", {
+        modelId,
+        expectedRevision: revision,
+        name: "Rim",
+        inputs: box(9),
+      }),
+    ).rejects.toThrow("Model changed. Reload before saving.");
+  });
+
+  it("a refused or conflicting save leaves no person change", async () => {
+    const { modelId } = await newModel();
+    await execute(carol, "models_save", {
+      modelId,
+      expectedRevision: 0,
+      source: stepsSource(["Cup wall"]),
+    });
+    const before = await env.DB.prepare(
+      "SELECT count(*) AS n FROM change_plans WHERE model_id=?",
+    )
+      .bind(modelId)
+      .first<{ n: number }>();
+    await expect(
+      person("models_save", {
+        modelId,
+        expectedRevision: 0,
+        source: stepsSource(["Cup wall", "Rim"]),
+      }),
+    ).rejects.toThrow("Model changed. Reload before saving.");
+    const after = await env.DB.prepare(
+      "SELECT count(*) AS n FROM change_plans WHERE model_id=?",
+    )
+      .bind(modelId)
+      .first<{ n: number }>();
+    expect(after!.n).toBe(before!.n);
+  });
+
+  it("legacy free-form models still take people's parameter edits", async () => {
+    const { modelId } = await newModel();
+    await execute(carol, "models_save", {
+      modelId,
+      expectedRevision: 0,
+      source: bridge,
+    });
+    const r = await latest(modelId);
+    await env.DB.prepare(
+      "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at) VALUES (?,?,'succeeded',NULL,?,?,?)",
+    )
+      .bind(
+        crypto.randomUUID(),
+        r.id,
+        JSON.stringify({
+          parts: [],
+          params: { BASE_L: { value: 100, unit: "mm", min: 60, max: 200 } },
+        }),
+        stamp(),
+        stamp(),
+      )
+      .run();
+    await person("models_set_parameter", {
+      modelId,
+      expectedRevision: 1,
+      name: "BASE_L",
+      value: 120,
+    });
+    expect((await latest(modelId)).number).toBe(2);
+    await expect(
+      agent("models_save", { modelId, expectedRevision: 2, source: bridge }),
+    ).rejects.toThrow("This model has no design sheet.");
   });
 });

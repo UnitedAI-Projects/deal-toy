@@ -15,7 +15,8 @@ import {
 export const STALE_MS = 30 * 60_000;
 export const STALE_NOTE = " It stopped after 30 minutes without activity.";
 export type PlanLayers = {
-  add: { name: string; kind: LayerKind; region: Region }[];
+  /** region is null on person changes, which declare none. */
+  add: { name: string; kind: LayerKind; region: Region | null }[];
   edit: string[];
   remove: string[];
   rename: { from: string; to: string }[];

@@ -24,7 +24,14 @@ import {
   type Note,
 } from "./activity";
 import { setParameter } from "./params";
-import { define, now, queueBuild, saveRevision, type Tool } from "./tool-kit";
+import {
+  define,
+  now,
+  PLAN_NOTE,
+  queueBuild,
+  saveRevision,
+  type Tool,
+} from "./tool-kit";
 import { STEP_WRITES, stepTools } from "./step-tools";
 import { savedTools } from "./saved-tools";
 import { inspectTools } from "./inspect-tools";
@@ -181,14 +188,19 @@ export const tools: Tool[] = [
   ),
   define(
     "models_save",
-    "Save an immutable build123d Python revision. Define build() returning a solid Shape; millimetres, Z up. Supply expectedRevision to prevent overwriting newer work.",
+    "Save an immutable build123d Python revision. Define build() returning a solid Shape; millimetres, Z up. Supply expectedRevision to prevent overwriting newer work. Prefer the steps_* tools for changes inside the steps section." +
+      PLAN_NOTE,
     {
       modelId: id,
       expectedRevision: z.number().int().nonnegative(),
       source: z.string().min(1).max(100000),
     },
     false,
-    async (c, i) => saveRevision(c, i.modelId, i.expectedRevision, i.source),
+    async (c, i) =>
+      saveRevision(c, i.modelId, i.expectedRevision, i.source, {
+        sessionId: i.sessionId,
+        request: "Saved a new revision",
+      }),
     "models.edit",
   ),
   define(
@@ -434,7 +446,8 @@ export const tools: Tool[] = [
   ),
   define(
     "models_set_parameter",
-    "Change one declared PARAMS value of the latest revision, save it as a new revision and queue its build. Only the value literal changes; the edit is refused if it cannot be located exactly once or is out of range.",
+    "Change one declared PARAMS value of the latest revision, save it as a new revision and queue its build. Only the value literal changes; the edit is refused if it cannot be located exactly once or is out of range. Agents declare Framework in the change plan's edit list first." +
+      PLAN_NOTE,
     {
       modelId: id,
       expectedRevision: z.number().int().positive(),
@@ -484,6 +497,7 @@ export const tools: Tool[] = [
         i.modelId,
         i.expectedRevision,
         source,
+        { sessionId: i.sessionId, request: `Changed ${i.name} to ${i.value}` },
       );
       const build = await queueBuild(c, saved.id);
       const unit = spec.unit ? ` ${spec.unit}` : "";

@@ -9,7 +9,7 @@ import type { Context } from "./core";
 import type { ProjectEvent } from "./activity";
 import { readSteps, writeSteps } from "./actions/script";
 import { dispatch, execute } from "./tools";
-import { member } from "./test-helpers";
+import { agentPlan, member } from "./test-helpers";
 
 let carol: Context;
 let viewer: Context;
@@ -296,6 +296,9 @@ describe("action and step tools", () => {
 describe("agent context", () => {
   it("MCP results carry the model context", async () => {
     const { m } = await seeded();
+    await agentPlan(carol, m.id, {
+      add: [{ name: "Hole 3", kind: "modify", region: null }],
+    });
     const viaMcp = await dispatch(
       carol,
       "steps_list",
