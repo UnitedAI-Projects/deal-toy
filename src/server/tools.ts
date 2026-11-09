@@ -29,6 +29,7 @@ import { STEP_WRITES, stepTools } from "./step-tools";
 import { savedTools } from "./saved-tools";
 import { inspectTools } from "./inspect-tools";
 import { checkTools } from "./check-tools";
+import { DESIGN_WRITES, designTools } from "./design-tools";
 import { catalogIndex } from "./actions/catalog";
 import {
   catalogNews,
@@ -572,6 +573,7 @@ export const tools: Tool[] = [
   ...savedTools,
   ...inspectTools,
   ...checkTools,
+  ...designTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -598,6 +600,7 @@ const SELF_RECORDING = new Set([
   "projects_activity",
   "models_set_parameter",
   ...STEP_WRITES,
+  ...DESIGN_WRITES,
   // A viewer's selection changes with every click; it is state, not activity.
   "selection_set",
 ]);
@@ -641,6 +644,8 @@ function summarize(name: string, input: unknown, value: unknown) {
       return `Read the ${i.id} action`;
     case "steps_list":
       return "Read the model's steps";
+    case "design_get":
+      return "Read the design sheet";
     case "actions_save":
       return `Saved action ${v.key} for checking`;
     case "actions_status":
