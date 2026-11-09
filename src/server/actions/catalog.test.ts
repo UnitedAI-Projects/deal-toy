@@ -32,6 +32,7 @@ describe("action catalog", () => {
       "loft",
       "sweep",
       "shell",
+      "appearance",
       "custom",
     ]);
   });
@@ -77,7 +78,7 @@ describe("action catalog", () => {
   });
   it("indexes the catalog", () => {
     const lines = catalogIndex().split("\n");
-    expect(lines).toHaveLength(14);
+    expect(lines).toHaveLength(15);
     expect(lines[3]).toBe(`hole@1: ${getAction("hole").summary}`);
   });
   it("refuses unknown actions", () => {

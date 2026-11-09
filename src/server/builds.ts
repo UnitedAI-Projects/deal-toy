@@ -121,6 +121,9 @@ export const factsSchema = z.object({
       z.object({
         label: z.string().max(120),
         volume_mm3: z.number().finite().nonnegative(),
+        /** Set by an appearance step: red, green and blue from 0 to 1. */
+        color: z.array(z.number().min(0).max(1)).length(3).optional(),
+        finish: z.enum(["matte", "satin", "gloss", "metallic"]).optional(),
       }),
     )
     .max(500)

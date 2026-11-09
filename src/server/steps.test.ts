@@ -175,8 +175,9 @@ describe("action and step tools", () => {
       "fillet",
       "chamfer",
       "shell",
+      "appearance",
     ]);
-    expect(catalog.index.split("\n")).toHaveLength(14);
+    expect(catalog.index.split("\n")).toHaveLength(15);
     expect(catalog.states).toHaveLength(6);
     const searched = (await call("actions_list", { query: "engrave" })) as {
       actions: { id: string }[];
@@ -289,6 +290,29 @@ describe("action and step tools", () => {
       factsSchema.parse({
         ...facts,
         steps: [{ ...facts.steps[0], state: "pending" }],
+      }),
+    ).toThrow();
+  });
+  it("facts accept part colour and finish", () => {
+    const coloured = {
+      ...facts,
+      parts: [
+        {
+          label: "Cup",
+          volume_mm3: 10,
+          color: [0.85, 0.65, 0.13],
+          finish: "gloss",
+        },
+      ],
+    };
+    expect(factsSchema.parse(coloured).parts?.[0]).toMatchObject({
+      color: [0.85, 0.65, 0.13],
+      finish: "gloss",
+    });
+    expect(() =>
+      factsSchema.parse({
+        ...coloured,
+        parts: [{ ...coloured.parts[0], color: [2, 0, 0] }],
       }),
     ).toThrow();
   });

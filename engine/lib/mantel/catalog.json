@@ -2156,6 +2156,77 @@
       "example": "m.shell(\"Hollow\", target=m.part(\"Cup body\"), thickness=3, open=[m.face(\"Cup body\", \"top\")])"
     },
     {
+      "id": "appearance",
+      "version": 1,
+      "title": "Appearance",
+      "category": "Modify",
+      "summary": "Give a whole part a colour and a finish: matte, satin, gloss or metallic.",
+      "description": "Use for glazes, paints and metal finishes the person asked for. The colour applies to the whole part and stays through later cuts and joins on it. To colour one area differently, such as a gold rim on a white cup, make that area its own part first. Adds and removes no material.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "x-ref": "part",
+            "description": "The part to colour"
+          },
+          "color": {
+            "type": "array",
+            "description": "Red, green and blue, each from 0 to 1",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One colour channel",
+              "unit": "fraction",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "finish": {
+            "type": "string",
+            "enum": ["matte", "satin", "gloss", "metallic"],
+            "description": "How the surface reflects light",
+            "default": "satin"
+          }
+        },
+        "required": ["target", "color"],
+        "additionalProperties": false
+      },
+      "selections": [
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 1,
+          "max": 1
+        }
+      ],
+      "creates": {},
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "none",
+      "example": "m.appearance(\"Glaze\", target=m.part(\"Cup wall\"), color=(0.96, 0.95, 0.92), finish=\"gloss\")"
+    },
+    {
       "id": "custom",
       "version": 1,
       "title": "Custom step",

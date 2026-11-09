@@ -342,6 +342,20 @@ actions = [
         "example": 'm.shell("Hollow", target=m.part("Cup body"), thickness=3, open=[m.face("Cup body", "top")])',
     },
     {
+        "id": "appearance", "title": "Appearance", "category": "Modify", "preview": "none",
+        "summary": "Give a whole part a colour and a finish: matte, satin, gloss or metallic.",
+        "description": "Use for glazes, paints and metal finishes the person asked for. The colour applies to the whole part and stays through later cuts and joins on it. To colour one area differently, such as a gold rim on a white cup, make that area its own part first. Adds and removes no material.",
+        "inputs": obj({
+            "target": ref("part", "The part to colour"),
+            "color": {"type": "array", "description": "Red, green and blue, each from 0 to 1", "minItems": 3, "maxItems": 3,
+                      "items": num("One colour channel", "fraction", 0, 1)},
+            "finish": enum(["matte", "satin", "gloss", "metallic"], "How the surface reflects light", default="satin"),
+        }, ["target", "color"]),
+        "creates": {},
+        "failures": failures("part_not_found"),
+        "example": 'm.appearance("Glaze", target=m.part("Cup wall"), color=(0.96, 0.95, 0.92), finish="gloss")',
+    },
+    {
         "id": "custom", "title": "Custom step", "category": "Custom", "preview": "none",
         "summary": "Run a saved custom action, or a Python function from this script, for anything the other actions do not cover.",
         "description": "Give exactly one of action= (a saved action as id@version, listed by actions_list; its own inputs follow) or fn= (a top-level function in this script, defined outside the steps section as def name(m, **inputs), returning a dict of created names to faces). Every other keyword argument is passed on. Prefer a saved action; save a function you need twice with actions_save.",

@@ -99,3 +99,26 @@ def test_shell_open_face_must_belong_to_the_target(tmp_path):
         'm.shell("Hollow", target=m.part("Cup"), thickness=3, open=[m.face("Other", "top")])',
     ]))
     assert step(facts, "Hollow")["code"] == "face_not_found"
+
+
+def test_appearance_survives_later_cuts(tmp_path):
+    facts = run(tmp_path, script([
+        'm.body("Cup", shape="cylinder", diameter=60, height=60)',
+        'm.appearance("Glaze", target=m.part("Cup"), color=(0.85, 0.65, 0.13), finish="gloss")',
+        'm.hole("Drain", on=m.face("Cup", "bottom"), diameter=4, extent="through")',
+    ]))
+    assert states(facts) == {"Cup": "ok", "Glaze": "ok", "Drain": "ok"}
+    cup = part(facts, "Cup")
+    assert cup["color"] == [0.85, 0.65, 0.13]
+    assert cup["finish"] == "gloss"
+    assert (tmp_path / "model-out" / "model.glb").stat().st_size > 0
+
+
+def test_parts_without_appearance_have_no_colour(tmp_path):
+    facts = run(tmp_path, script(['m.body("Cup", shape="cylinder", diameter=60, height=60)']))
+    assert "color" not in part(facts, "Cup") and "finish" not in part(facts, "Cup")
+
+
+def test_appearance_unknown_part_fails(tmp_path):
+    facts = run(tmp_path, script([SPARE, 'm.appearance("Glaze", target=m.part("Cup"), color=(1, 1, 1))']))
+    assert step(facts, "Glaze")["code"] == "part_not_found"

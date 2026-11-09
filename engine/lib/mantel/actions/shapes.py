@@ -1,4 +1,5 @@
-"""The revolve, loft, sweep and shell actions: round bodies, blended outlines, handles and vessels."""
+"""The revolve, loft, sweep, shell and appearance actions: round bodies, blended outlines, handles,
+vessels and part colours."""
 from itertools import pairwise
 
 import build123d as bd
@@ -117,3 +118,10 @@ def shell(m, name, target, thickness, open=None, inward=True):
         raise StepError("invalid_geometry", "The part could not be hollowed at this thickness")
     m.parts[label] = after
     return {"inside": (label, _new_faces(before, after))}
+
+
+@builtin("appearance")
+def appearance(m, name, target, color, finish="satin"):
+    label = m.resolve_part(target)
+    m.looks[label] = (tuple(float(c) for c in color), finish)
+    return {}

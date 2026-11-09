@@ -208,7 +208,7 @@ def test_fixture_builds_every_step_ok(tmp_path):
 EXAMPLE_BASE = ("bd.Compound(children=[_label(bd.Box(100, 40, 10, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)), 'Base'), "
                 "_label(bd.Pos(0, 0, 3) * bd.Cylinder(8, 3, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)), 'Coin')])")
 LABEL = "def _label(shape, label):\n    shape.label = label\n    return shape\n"
-# The sweep and shell examples work on a tea cup.
+# The sweep, shell and appearance examples work on a tea cup.
 CUP_BASE = ("bd.Compound(children=[_label(bd.Cylinder(40, 95, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)), 'Cup wall'), "
             "_label(bd.Pos(200, 0, 0) * bd.Cylinder(40, 95, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)), 'Cup body')])")
 
@@ -217,7 +217,7 @@ CUP_BASE = ("bd.Compound(children=[_label(bd.Cylinder(40, 95, align=(bd.Align.CE
 def test_each_catalog_example_builds(tmp_path, action):
     if action["id"] == "text" and not has_font():
         pytest.skip("Liberation Sans is installed in the build image and CI only")
-    base = CUP_BASE if action["id"] in ("sweep", "shell") else EXAMPLE_BASE
+    base = CUP_BASE if action["id"] in ("sweep", "shell", "appearance") else EXAMPLE_BASE
     facts = run(tmp_path, script([action["example"]], base=base, extra=LABEL))
     entry = facts["steps"][0]
     assert entry["state"] == "ok", entry
