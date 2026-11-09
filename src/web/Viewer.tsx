@@ -32,7 +32,10 @@ type Props = {
   /** The build's exact record; enables face picking, face highlights and sections. */
   record?: InspectRecord | null;
   /** Faces to draw over the model: the person's picks and the agent's highlights. */
-  highlights?: { faces: number[]; tone: "pick" | "agent" }[];
+  highlights?: {
+    faces: number[];
+    tone: "pick" | "agent" | "fail" | "warn";
+  }[];
   /** Cut the model where the model coordinate on `axis` exceeds `offset` (mm). */
   section?: { axis: "x" | "y" | "z"; offset: number } | null;
   /** An approximate preview of an action being filled in. */
@@ -276,8 +279,15 @@ export function Viewer(props: Props) {
     const group = new THREE.Group();
     group.name = "inspect-overlay";
     for (const h of props.highlights) {
+      // Agent amber, failed-check red, warning orange; picks use the theme's highlight.
       const color =
-        h.tone === "agent" ? 0xf59e0b : palette[props.theme].highlight;
+        h.tone === "agent"
+          ? 0xf59e0b
+          : h.tone === "fail"
+            ? 0xdc2626
+            : h.tone === "warn"
+              ? 0xf97316
+              : palette[props.theme].highlight;
       for (const child of overlayGroup(record, h.faces, scale, color).children)
         group.add(child.clone());
     }

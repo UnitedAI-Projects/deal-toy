@@ -1,3 +1,7 @@
+import { useState } from "react";
+import type { Target } from "../shared/checks";
+import { refText } from "./ActionForm";
+import { refFromPick } from "./refs";
 import {
   faceSummary,
   measureBetween,
@@ -56,8 +60,27 @@ export function InspectPanel(props: {
   second: Picked | null;
   onShowPart: () => void;
   onClose: () => void;
+  /** Runs an exact measure job between the two picks; absent when the member cannot build. */
+  onMeasure?: (a: Target, b: Target) => Promise<string>;
+  /** Sends the agent a note about the selection; absent for viewers. */
+  onAsk?: (text: string, refs: string) => Promise<void>;
 }) {
   const { record, first, second } = props;
+  const [exact, setExact] = useState<string | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const target = (p: Picked): Target => {
+    const s = asSelection(record, p);
+    return s.kind === "face" ? { face: s.index } : { part: s.index };
+  };
+  const refs = [first, second]
+    .filter((p): p is Picked => !!p)
+    .map((p) =>
+      p.face !== undefined
+        ? refText(refFromPick(record, p.face))
+        : `part("${p.label}")`,
+    )
+    .join(" · ");
   const summary =
     first.face !== undefined
       ? faceSummary(record, first.face)
@@ -123,9 +146,31 @@ export function InspectPanel(props: {
           <span className="muted small">{between.label}</span>
           {"value" in between ? (
             <strong>{between.value}</strong>
+          ) : exact ? (
+            <strong>{exact}</strong>
           ) : (
             <span className="muted small">{between.unavailable}</span>
           )}
+          {!("value" in between) &&
+            !exact &&
+            props.onMeasure &&
+            between.unavailable === "Needs an exact measure" && (
+              <button
+                className="link small"
+                disabled={status === "Measuring…"}
+                onClick={() => {
+                  setStatus("Measuring…");
+                  props.onMeasure!(target(first), target(second!))
+                    .then((v) => {
+                      setExact(v);
+                      setStatus("");
+                    })
+                    .catch((e: Error) => setStatus(e.message));
+                }}
+              >
+                Measure exactly
+              </button>
+            )}
         </div>
       )}
       {!second && (
@@ -133,6 +178,47 @@ export function InspectPanel(props: {
           Shift-click another face or part to measure between them.
         </p>
       )}
+      {status && <p className="muted small">{status}</p>}
+      {props.onAsk &&
+        (asking === null ? (
+          <button className="link small" onClick={() => setAsking("")}>
+            Ask the agent…
+          </button>
+        ) : (
+          <form
+            className="ask-agent"
+            onSubmit={(e) => {
+              e.preventDefault();
+              props.onAsk!(asking.trim(), refs)
+                .then(() => {
+                  setAsking(null);
+                  setStatus("Sent to the agent as a team note.");
+                })
+                .catch((err: Error) => setStatus(err.message));
+            }}
+          >
+            <textarea
+              aria-label="Ask the agent"
+              placeholder="Make this wall 2 mm thicker…"
+              value={asking}
+              maxLength={3500}
+              onChange={(e) => setAsking(e.target.value)}
+            />
+            <p className="faint small">Includes: {refs}</p>
+            <div className="row">
+              <button type="submit" disabled={!asking.trim()}>
+                Send
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setAsking(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ))}
     </div>
   );
 }

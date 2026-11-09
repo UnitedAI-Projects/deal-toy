@@ -176,7 +176,7 @@ describe("faceSummary and measureBetween", () => {
       ),
     ).toEqual({
       label: "Between these faces",
-      unavailable: "Needs an exact measure, which comes with checks",
+      unavailable: "Needs an exact measure",
     });
   });
   it("reports overlap between parts", () => {

@@ -1,4 +1,5 @@
-import type { FaceTarget } from "../../shared/checks";
+import { directionOf, type FaceTarget } from "../../shared/checks";
+export { directionOf };
 import type {
   FaceRecord,
   InspectRecord,
@@ -8,13 +9,6 @@ import type {
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const distance = (a: Vec3, b: Vec3) =>
   Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-
-/** A face's direction for matching: plane normal, cylinder or cone axis, else zeros. */
-export function directionOf(face: FaceRecord): Vec3 {
-  return (
-    face.plane?.normal ?? face.cylinder?.axis ?? face.cone?.axis ?? [0, 0, 0]
-  );
-}
 
 /** Same direction within 1°. Axes match either way round; plane normals must agree in sign. */
 function sameDirection(face: FaceRecord, want: Vec3): boolean {

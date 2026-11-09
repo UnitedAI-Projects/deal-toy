@@ -1,5 +1,5 @@
 /** Saved checks and their results, shared by the Worker (which evaluates them) and the viewer. */
-import type { Vec3 } from "./inspect-types";
+import type { FaceRecord, InspectRecord, Vec3 } from "./inspect-types";
 
 /** A record face or part, by its index in a build's inspection record. */
 export type Target = { face: number } | { part: number };
@@ -89,4 +89,32 @@ export type Measurement = {
 export function measureKey(a: Target, b: Target): string {
   const name = (t: Target) => ("face" in t ? `f${t.face}` : `p${t.part}`);
   return [name(a), name(b)].sort().join("-");
+}
+
+/** A face's direction for matching: plane normal, cylinder or cone axis, else zeros. */
+export function directionOf(face: FaceRecord): Vec3 {
+  return (
+    face.plane?.normal ?? face.cylinder?.axis ?? face.cone?.axis ?? [0, 0, 0]
+  );
+}
+
+/** The signature (and step reference, when there is one) a check stores for a picked face. */
+export function signatureOf(record: InspectRecord, index: number): FaceTarget {
+  const face = record.faces.find((f) => f.index === index);
+  if (!face) throw new Error(`No face ${index} in this build`);
+  const label = record.parts[face.part]?.label ?? "";
+  const target: FaceTarget = {
+    signature: {
+      part: label,
+      type: face.type,
+      direction: directionOf(face),
+      center: face.center,
+      area: face.area,
+    },
+  };
+  const name = face.names?.[0];
+  if (name) target.ref = { ref: "face", of: name.of, name: name.name };
+  else if (face.sides?.length)
+    target.ref = { ref: "face", of: label, name: face.sides[0] };
+  return target;
 }

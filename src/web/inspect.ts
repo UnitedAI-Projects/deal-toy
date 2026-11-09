@@ -215,6 +215,6 @@ export function measureBetween(
   }
   return {
     label: "Between these faces",
-    unavailable: "Needs an exact measure, which comes with checks",
+    unavailable: "Needs an exact measure",
   };
 }
