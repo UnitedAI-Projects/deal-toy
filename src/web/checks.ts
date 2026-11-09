@@ -127,7 +127,8 @@ export type Toggles = { overlap: boolean; clearance: boolean; draft: boolean };
 
 /**
  * Faces to colour for failed checks: overlaps red; clearances, embed walls and draft amber.
- * A part-level failure colours every face of the part.
+ * A part-level failure colours every face of the part, except the largest part of an overlap and
+ * the host of an embed, which would hide the part that matters.
  */
 export function overlayTones(
   record: InspectRecord,
@@ -144,12 +145,21 @@ export function overlayTones(
       .filter((f) => r.parts?.includes(f.part))
       .map((f) => f.index),
   ];
-  for (const r of results) {
+  for (let r of results) {
     if (r.status !== "fail") continue;
     const k = kind.get(r.id);
     const overlap =
       k === "no_overlap" ||
       (k === "clearance" && r.reason === "The parts overlap");
+    // An embed wall colours the embedded part only; its host would hide it.
+    if (k === "embed_wall" && r.parts) r = { ...r, parts: r.parts.slice(0, 1) };
+    // An overlap colours the intruding parts; the largest part would hide them.
+    if (overlap && r.parts && r.parts.length > 1) {
+      const largest = r.parts.reduce((a, b) =>
+        (record.parts[b]?.volume ?? 0) > (record.parts[a]?.volume ?? 0) ? b : a,
+      );
+      r = { ...r, parts: r.parts.filter((p) => p !== largest) };
+    }
     if (overlap && toggles.overlap) facesOf(r).forEach((f) => fail.add(f));
     else if (
       !overlap &&

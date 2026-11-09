@@ -93,10 +93,10 @@ describe("overlayTones", () => {
     check("stability"),
   ];
   const all = { overlap: true, clearance: true, draft: true };
-  it("colours overlaps red and clearance or draft failures amber", () => {
+  it("colours the intruding part of an overlap red, and clearance or draft failures amber", () => {
     const tones = overlayTones(box, results, checks, all);
-    const housing = box.faces.filter((f) => f.part === 0).map((f) => f.index);
-    expect(tones.fail).toEqual(expect.arrayContaining(housing));
+    const ribs = box.faces.filter((f) => f.part === 1).map((f) => f.index);
+    expect(tones.fail).toEqual(ribs);
     expect(tones.warn).toEqual([5, 6, 7, 47]);
   });
   it("turns each colour off with its switch", () => {
@@ -108,6 +108,17 @@ describe("overlayTones", () => {
     expect(tones.fail).toEqual([]);
     expect(tones.warn).toEqual([7, 47]);
   });
+});
+
+it("colours a failed embed wall on the embed, not its host", () => {
+  const tones = overlayTones(
+    toy,
+    [{ id: "embed_wall", status: "fail", parts: [2, 1], value: 1.5 }],
+    [check("embed_wall")],
+    { overlap: true, clearance: true, draft: true },
+  );
+  const coin = toy.faces.filter((f) => f.part === 2).map((f) => f.index);
+  expect(tones.warn).toEqual(coin);
 });
 
 describe("resultText and limitText", () => {

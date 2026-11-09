@@ -273,7 +273,9 @@ export function ChecksPanel(props: {
                   {limitText(check)}
                 </span>
               </div>
-              {r?.reason && <p className="small reason">{r.reason}</p>}
+              {r?.reason && !r.reason.startsWith("Limit not set") && (
+                <p className="small reason">{r.reason}</p>
+              )}
               {text.change && <p className="small muted">{text.change}</p>}
               <p className="small faint">
                 Last changed by {check.edited_by.email}

@@ -199,7 +199,9 @@ export async function evaluateModel(
 const num = (v: number | undefined, unit?: string) =>
   v === undefined
     ? ""
-    : `${v.toFixed(unit === "deg" ? 1 : 2)} ${unit ?? ""}`.trim();
+    : unit === "deg"
+      ? `${v.toFixed(1)}°`
+      : `${v.toFixed(2)} ${unit ?? ""}`.trim();
 
 /** One line for the agent's model summary: counts, failures first. */
 export function checksLine(evaluation: Evaluation): string | null {

@@ -237,6 +237,7 @@ describe("check lists", () => {
           target: {},
           limit: { min: 10 },
         },
+        { name: "Tall", kind: "stability", target: {}, limit: { min: 20 } },
       ],
     });
     const { context } = await dispatch(
@@ -246,7 +247,7 @@ describe("check lists", () => {
       "mcp",
     );
     expect(context).toContain(
-      "Checks: 1 pass · 1 fail (Coin wall 1.50 mm < 2.00 mm)",
+      "Checks: 1 pass · 2 fail (Coin wall 1.50 mm < 2.00 mm; Tall 17.1° < 20.0°)",
     );
   });
 

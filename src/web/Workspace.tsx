@@ -609,7 +609,8 @@ export function Workspace(props: Props) {
   const dragDim =
     editable && fine && !asOf && record && selection?.face !== undefined
       ? record.dimensions?.find(
-          (d) => d.moves === selection.face && dragAxis(record, d),
+          // Either face of a dimension offers the handle; it moves the declared face.
+          (d) => d.faces.includes(selection.face!) && dragAxis(record, d),
         )
       : undefined;
   const dragLine = dragDim && record ? dragAxis(record, dragDim) : null;
@@ -739,7 +740,7 @@ export function Workspace(props: Props) {
         <div className="topbar-right">
           {model && (
             <button
-              className={`chip ${checksOpen ? "on" : ""}`}
+              className={`chip checks-chip wide-only ${checksOpen ? "on" : ""}`}
               aria-pressed={checksOpen}
               onClick={() => setChecksOpen(!checksOpen)}
             >
@@ -877,6 +878,14 @@ export function Workspace(props: Props) {
 
       {record && bounds && !asOf && (
         <div className="inspect-tools" role="group" aria-label="Section">
+          {/* On phones the top bar has no room; Checks sits with the section tools. */}
+          <button
+            className={`chip checks-chip narrow-only ${checksOpen ? "on" : ""}`}
+            aria-pressed={checksOpen}
+            onClick={() => setChecksOpen(!checksOpen)}
+          >
+            Checks
+          </button>
           {(["x", "y", "z"] as const).map((axis) => (
             <button
               key={axis}

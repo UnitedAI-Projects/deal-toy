@@ -1995,3 +1995,21 @@ tr.selected {
 .dim-edit input {
   width: 76px;
 }
+.tone-toggles label,
+.check-row .row label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+.narrow-only {
+  display: none;
+}
+@media (max-width: 760px) {
+  .wide-only {
+    display: none;
+  }
+  .narrow-only {
+    display: inline-flex;
+  }
+}

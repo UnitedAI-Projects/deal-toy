@@ -615,6 +615,16 @@ function summarize(name: string, input: unknown, value: unknown) {
   switch (name) {
     case "models_save":
       return `Saved revision ${v.number}`;
+    case "checks_save":
+      return `Saved ${(i.checks as unknown[] | undefined)?.length ?? 0} checks (list v${v.version})`;
+    case "checks_results":
+      return "Read the check results";
+    case "checks_list":
+      return "Read the checks";
+    case "inspect_measure":
+      return v.status === "done"
+        ? `Measured ${v.key}: ${Number(v.distance).toFixed(2)} mm`
+        : `Measure ${v.key}: ${v.status}`;
     case "models_build":
       return "Queued a build";
     case "builds_get":
