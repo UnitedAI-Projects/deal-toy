@@ -30,6 +30,10 @@ uv run --project engine python engine/runner.py examples/deal_toy_steps.py work/
 
 [deal_toy_inspect.py](deal_toy_inspect.py) is a synthetic deal toy with deliberate faults for the inspection tests. A brass coin sits off-centre in an acrylic block only 1.5 mm behind its front face, the block is tall for its base, and the engraving is 0.3 mm deep against a declared 0.5 mm. It declares `MATERIALS`, `EMBEDS` and a `dimensions()` function, so its build reports stability, the embed wall and the engraving depth.
 
+## Presentation-box fixture
+
+[display_box_fit.py](display_box_fit.py) is a synthetic presentation box for a deal toy, used to test joints. The lid turns on a `RevoluteJoint` along the back top edge (`LID_ANGLE`, 0–110°), the drawer slides out on a `LinearJoint` (`DRAWER_OUT`, 0–40 mm), and a plaque is fixed to the lid with a `RigidJoint`, so it moves with the lid. Every boolean comes before the joints, and `connect_to` reads its angle and position from `PARAMS`. `dimensions()` declares both as placements (`{"name", "param", "joint"}`), so they can be typed or dragged in the viewer. Its stored records, `engine/tests/fixtures/display_box_fit.inspect.json` and `display_box_fit_posed.inspect.json` (lid at 60°, drawer out 25 mm), let the viewer's joint math be checked against build123d's.
+
 ## Enclosure fixture
 
 [enclosure_inspect.py](enclosure_inspect.py) reproduces the injection-moulded enclosure faults from the published copilot test, as synthetic geometry. Its ribs run into the screw bosses, no wall has draft along `PULL = {"Housing": (0, 0, 1)}`, and the cover's lip sits 0.30 mm from the housing wall. `dimensions()` declares the wall thickness (`WALL_T`) and the lip clearance (`LIP_GAP`), so both can be typed or dragged in the viewer. The engine and Worker tests use its stored record, `engine/tests/fixtures/enclosure_inspect.inspect.json`; regenerate it with `engine/tools/gen_fixtures.py`.
