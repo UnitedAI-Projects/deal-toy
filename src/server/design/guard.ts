@@ -5,6 +5,7 @@ import { compareSources, layerNames, type SourceChange } from "./ownership";
 import {
   declared,
   declaresFramework,
+  finishHint,
   otherPlanMessage,
   planState,
   STALE_NOTE,
@@ -200,7 +201,7 @@ export async function guardWrite(
     )
       throw new AppError(
         409,
-        `Another change plan is open for this model (${otherPlanMessage(open)}).`,
+        `Another change plan is open for this model (${otherPlanMessage(open)}).${finishHint(c, open)}`,
       );
     checkAgentWrite(open, sheet, before, source);
     return {

@@ -201,6 +201,14 @@ export async function touchPlan(c: Context, planId: string): Promise<void> {
 export const otherPlanMessage = (
   plan: Pick<ChangePlan, "startedAt" | "member">,
 ) => `started ${plan.startedAt} by ${plan.member}`;
+/** How the caller can close a plan of their own, for instance one left by a crashed session. */
+export const finishHint = (
+  c: Context,
+  plan: Pick<ChangePlan, "id" | "member">,
+) =>
+  plan.member === c.identity.email
+    ? ` If it is yours from an earlier session, call change_finish with planId ${plan.id}.`
+    : "";
 
 /** The caller's plan, open and not stale, or a refusal saying what happened to it. */
 export async function ownOpenPlan(

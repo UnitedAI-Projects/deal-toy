@@ -393,7 +393,7 @@ describe("change plans", () => {
     await expect(
       agent("change_begin", { modelId, request: "y", edit: ["Handle"] }),
     ).rejects.toThrow(
-      /^A change plan is already open for this model \(started .+ by carol-design@example\.test\)\. Finish it with change_finish\.$/,
+      /^A change plan is already open for this model \(started .+ by carol-design@example\.test\)\. Finish it with change_finish\. If it is yours from an earlier session, call change_finish with planId [0-9a-f-]{36}\.$/,
     );
   });
 
@@ -820,7 +820,7 @@ describe("guard", () => {
         inputs: box(8),
       }),
     ).rejects.toThrow(
-      /^Another change plan is open for this model \(started .+ by carol-design@example\.test\)\.$/,
+      /^Another change plan is open for this model \(started .+ by carol-design@example\.test\)\. If it is yours from an earlier session, call change_finish with planId [0-9a-f-]{36}\.$/,
     );
   });
 
@@ -935,6 +935,58 @@ describe("guard", () => {
     await expect(
       agent("models_save", { modelId, expectedRevision: 2, source: bridge }),
     ).rejects.toThrow("This model has no design sheet.");
+  });
+});
+
+describe("review fixes", () => {
+  it("a restarted agent can find and finish its own open plan", async () => {
+    const { projectId, modelId } = await built();
+    const { sessionId: first } = (await agent("session_start", {
+      projectId,
+      prompt: "Change the rim",
+    })) as { sessionId: string };
+    const { planId } = (await agent("change_begin", {
+      sessionId: first,
+      modelId,
+      request: "Change the rim",
+      edit: ["Rim"],
+    })) as { planId: string };
+    // The client crashed; its session never ended. A new session starts.
+    const { sessionId: second } = (await agent("session_start", {
+      projectId,
+      prompt: "Change the rim",
+    })) as { sessionId: string };
+    await expect(
+      agent("change_begin", {
+        sessionId: second,
+        modelId,
+        request: "Change the rim",
+        edit: ["Rim"],
+      }),
+    ).rejects.toThrow(`change_finish with planId ${planId}`);
+    await agent("change_finish", {
+      sessionId: second,
+      planId,
+      summary: "Left over from a crashed session.",
+    });
+    expect((await planRow(planId)).status).toBe("finished");
+  });
+
+  it("refuses plan calls with a session from another project", async () => {
+    const { modelId } = await built();
+    const other = await newModel();
+    const { sessionId } = (await agent("session_start", {
+      projectId: other.projectId,
+      prompt: "Elsewhere",
+    })) as { sessionId: string };
+    const { planId } = (await agent("change_begin", {
+      modelId,
+      request: "x",
+      edit: ["Rim"],
+    })) as { planId: string };
+    await expect(
+      agent("change_progress", { sessionId, planId, layer: "Rim" }),
+    ).rejects.toThrow("Session belongs to another project");
   });
 });
 

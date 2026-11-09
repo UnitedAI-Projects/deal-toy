@@ -3,9 +3,11 @@ import { recordEvent } from "./activity";
 import { AppError, id, modelAccess, type Context } from "./core";
 import {
   declared,
+  finishHint,
   otherPlanMessage,
   ownOpenPlan,
   planState,
+  type ChangePlan,
   type PlanLayers,
 } from "./design/plans";
 import { layerNames } from "./design/ownership";
@@ -188,10 +190,10 @@ export const designTools: Tool[] = [
           "A plan must add, edit, remove or rename at least one layer.",
         );
       const { open } = await planState(c, i.modelId);
-      const busy = (plan: { startedAt: string; member: string }) =>
+      const busy = (plan: ChangePlan) =>
         new AppError(
           409,
-          `A change plan is already open for this model (${otherPlanMessage(plan)}). Finish it with change_finish.`,
+          `A change plan is already open for this model (${otherPlanMessage(plan)}). Finish it with change_finish.${finishHint(c, plan)}`,
         );
       if (open) throw busy(open);
       const layers: PlanLayers = {
