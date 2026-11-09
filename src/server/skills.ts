@@ -4,7 +4,7 @@ import inspecting from "../../skills/inspecting/SKILL.md";
 export const builtinSkills = [
   {
     id: "modeling",
-    version: 4,
+    version: 5,
     title: "Model and verify",
     description:
       "Build123d modeling, revision handling and geometry validation.",
@@ -12,7 +12,7 @@ export const builtinSkills = [
   },
   {
     id: "inspecting",
-    version: 1,
+    version: 2,
     title: "Inspect and check",
     description:
       "Read a build's exact measurements, set up and report the model's checks, and point at faces.",

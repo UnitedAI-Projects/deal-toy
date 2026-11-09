@@ -21,9 +21,10 @@ description: Create or revise a build123d model in a Deal Toy project while the 
    - a top-level `dimensions(shape)` returning `{"name", "param", "between": (face, face), "moves": face}` for every `PARAMS` entry that is a distance, thickness, diameter or depth;
    - `MATERIALS = {"<part>": {"name": ..., "density_g_cm3": ...}}` for every part, so stability uses real masses;
    - `EMBEDS = [{"part": "<embedded part>", "in": "<host>"}]` for objects cast or set into another part;
-   - `PULL = {"<part>": (x, y, z)}` for moulded or cast parts: the direction the part leaves its mould, so draft is measured on every wall.
+   - `PULL = {"<part>": (x, y, z)}` for moulded or cast parts: the direction the part leaves its mould, so draft is measured on every wall;
+   - build123d joints for parts that attach to each other, so the team can explode the assembly and move a part along its joint. Finish every boolean on a part first, because a boolean makes a new object without the joints. Then put a `bd.RevoluteJoint` (hinge) or `bd.LinearJoint` (slide) on the part that stays put and a `bd.RigidJoint` on the part that moves, and call `connect_to` from the fixed part's joint with `angle=` or `position=` read from a `PARAMS` entry. Fix parts that do not move with two `RigidJoint`s. Declare each driven joint as a placement in `dimensions()`: `{"name": ..., "param": ..., "joint": <the fixed part's joint>}`.
 
-   `examples/deal_toy_inspect.py` shows the first three and `examples/enclosure_inspect.py` shows `PULL`. A declared dimension whose `moves` face is a plane can be dragged in the viewer, so name the face that should move. After a build, follow the inspecting skill.
+   `examples/deal_toy_inspect.py` shows the first three, `examples/enclosure_inspect.py` shows `PULL` and `examples/display_box_fit.py` shows joints and placements. A declared dimension whose `moves` face is a plane can be dragged in the viewer, so name the face that should move. A placement can be typed or dragged too. After a build, follow the inspecting skill.
 
 7. Use the standard steps layout so the team can see and edit each feature as a step: `import mantel as mt`, a `base()` function for free Python that returns the starting parts (or `None`), and a `build()` that runs one modeling action per line between the markers. `examples/deal_toy_steps.py` is the reference:
 
