@@ -1666,13 +1666,11 @@ function Connect(props: { onSettings: () => void }) {
         />
       </label>
       <p className="muted">
-        Apps you allow are listed under Connected apps in{" "}
+        Apps you allow are listed in{" "}
         <button className="link" onClick={props.onSettings}>
-          Settings → API keys
+          Settings → Connected apps
         </button>
-        . For a client without sign-in, create an API key there and send it as
-        the <code>Authorization: Bearer</code> header, kept in the client's
-        secret store.
+        .
       </p>
       <pre className="code">{`session_start  → your prompt appears here
 session_update → short progress notes

@@ -51,21 +51,23 @@ describe("Accounts migration", () => {
         status: "suspended",
       },
     ]);
-    const keys = (
-      await env.DB.prepare("SELECT email,name,prefix,hash FROM api_keys").all()
-    ).results;
-    expect(keys).toEqual([
-      {
-        email: "a@x.test",
-        name: "laptop",
-        prefix: "legacy",
-        hash: await hash("legacy-token-with-more-than-thirty-two-chars"),
-      },
-    ]);
     const tokens = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE name='tokens'",
     ).first();
     expect(tokens).toBeNull();
+  });
+});
+
+describe("API key removal migration", () => {
+  it("drops API keys and the permission that allowed them", async () => {
+    const table = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE name='api_keys'",
+    ).first();
+    expect(table).toBeNull();
+    const granted = await env.DB.prepare(
+      "SELECT count(*) AS n FROM level_permissions WHERE permission='keys.use'",
+    ).first<{ n: number }>();
+    expect(granted?.n).toBe(0);
   });
 });
 
@@ -89,7 +91,7 @@ describe("Effective permissions", () => {
     const c = await member("owner@x.test", {
       owner: true,
       level: "Demo",
-      revoke: ["keys.use"],
+      revoke: ["members.manage"],
     });
     expect(c.identity.owner).toBe(true);
     expect([...c.identity.permissions].sort()).toEqual([...PERMISSIONS].sort());

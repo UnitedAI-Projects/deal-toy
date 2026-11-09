@@ -3,7 +3,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createLink, createSession } from "./auth";
 import { hash } from "./core";
-import { member } from "./test-helpers";
+import { mcpToken, member } from "./test-helpers";
 
 const origin = "https://example.test";
 beforeAll(async () => {
@@ -15,23 +15,6 @@ async function signedIn(email: string) {
 }
 function api(path: string, init: RequestInit = {}) {
   return exports.default.fetch(`${origin}${path}`, init);
-}
-async function key(email: string) {
-  const value = `mtl_${crypto.randomUUID()}${crypto.randomUUID()}`;
-  await env.DB.prepare(
-    "INSERT INTO api_keys (id,email,name,prefix,hash,created_at,expires_at) VALUES (?,?,?,?,?,?,?)",
-  )
-    .bind(
-      crypto.randomUUID(),
-      email,
-      "test",
-      value.slice(0, 8),
-      await hash(value),
-      new Date().toISOString(),
-      "2099-01-01T00:00:00.000Z",
-    )
-    .run();
-  return value;
 }
 const mcpList = (headers: Record<string, string>) =>
   api("/mcp", {
@@ -122,10 +105,12 @@ describe("Sessions", () => {
     for (const cookie of [b, c])
       expect((await session(cookie)).status).toBe(401);
   });
-  it("suspension ends existing sessions and keys", async () => {
+  it("suspension ends existing sessions and connected apps", async () => {
     await member("bye@x.test", { level: "Maker" });
     const cookie = await signedIn("bye@x.test");
-    const bearer = { Authorization: `Bearer ${await key("bye@x.test")}` };
+    const bearer = {
+      Authorization: `Bearer ${await mcpToken("bye@x.test")}`,
+    };
     expect((await session(cookie)).status).toBe(200);
     expect((await mcpList(bearer)).status).toBe(200);
     await env.DB.prepare("UPDATE members SET status='suspended' WHERE email=?")
@@ -151,14 +136,14 @@ describe("Sessions", () => {
     expect((await write({ Origin: "https://evil.test" })).status).toBe(403);
     expect((await write({ Origin: origin })).status).toBe(200);
   });
-  it("accept keys only on /mcp and cookies only on /api", async () => {
+  it("accept OAuth tokens only on /mcp and cookies only on /api", async () => {
     await member("split@x.test");
     const cookie = await signedIn("split@x.test");
-    const bearer = await key("split@x.test");
-    const viaKey = await api("/api/session", {
+    const bearer = await mcpToken("split@x.test");
+    const viaToken = await api("/api/session", {
       headers: { Authorization: `Bearer ${bearer}` },
     });
-    expect(viaKey.status).toBe(401);
+    expect(viaToken.status).toBe(401);
     expect((await mcpList({ Cookie: cookie })).status).toBe(401);
     expect((await session()).status).toBe(401);
   });

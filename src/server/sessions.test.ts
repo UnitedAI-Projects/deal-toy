@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { dispatch, execute } from "./tools";
 import type { Context } from "./core";
 import type { ProjectEvent } from "./activity";
-import { apiKey, cookieFor, member } from "./test-helpers";
+import { cookieFor, mcpToken, member } from "./test-helpers";
 let carol: Context;
 let dave: Context;
 let token: string;
@@ -14,7 +14,7 @@ beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
   carol = await member("carol@example.test", { level: "Maker" });
   dave = await member("dave@example.test", { level: "Maker" });
-  token = await apiKey("carol@example.test");
+  token = await mcpToken("carol@example.test");
   carolCookie = await cookieFor("carol@example.test");
   daveCookie = await cookieFor("dave@example.test");
 });

@@ -1,5 +1,4 @@
 import {
-  ExternalTokenError,
   getOAuthApi,
   GrantType,
   OAuthProvider,
@@ -8,7 +7,6 @@ import {
   type OAuthProviderOptions,
 } from "@cloudflare/workers-oauth-provider";
 import { loadIdentity } from "./access";
-import { authenticateKey } from "./auth";
 import { AppError, boundedText, failure, hash, secure } from "./core";
 import { mcp } from "./mcp";
 
@@ -26,12 +24,12 @@ export const SCOPE = "mantel";
 export async function grantUser(email: string) {
   return (await hash(`mantel-oauth-user:${email}`)).slice(0, 32);
 }
-/** What a grant (OAuth) or an API key carries to the /mcp handler. */
-export type GrantProps = { email: string; keyId?: string };
+/** What a grant carries to the /mcp handler. */
+export type GrantProps = { email: string };
 
 const resourceFor = (env: Env) => `${env.APP_ORIGIN}/mcp`;
 
-/** Serves /mcp to an authenticated member, whichever way they signed in. */
+/** Serves /mcp to a member signed in through OAuth. */
 const mcpHandler = {
   async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url);
@@ -55,37 +53,6 @@ const mcpHandler = {
     }
   },
 } satisfies ExportedHandler<Env>;
-
-/** Accepts Mantel API keys (mtl_…) on /mcp alongside OAuth tokens. */
-async function resolveKey({
-  token,
-  request,
-  env,
-}: {
-  token: string;
-  request: Request;
-  env: Env;
-}) {
-  if (!token.startsWith("mtl_")) return null;
-  const headers = new Headers(request.headers);
-  headers.set("Authorization", `Bearer ${token}`);
-  try {
-    const identity = await authenticateKey(
-      new Request(request.url, { headers }),
-      env,
-    );
-    const props: GrantProps = { email: identity.email, keyId: identity.keyId };
-    return { props, audience: resourceFor(env) };
-  } catch (error) {
-    if (error instanceof AppError && error.status === 403)
-      throw new ExternalTokenError("insufficient_scope", {
-        statusCode: 403,
-        description: error.message,
-      });
-    if (error instanceof AppError && error.status === 401) return null;
-    throw error;
-  }
-}
 
 /** Every grant (approved app) the user id has, across pages. */
 export async function listGrants(helpers: OAuthHelpers, userId: string) {
@@ -175,7 +142,6 @@ function options(env: Env, app: ExportedHandler<Env>) {
       authorization_servers: [env.APP_ORIGIN],
       resource_name: "Mantel",
     },
-    resolveExternalToken: resolveKey,
     async tokenExchangeCallback(exchange) {
       if (exchange.grantType === GrantType.AUTHORIZATION_CODE)
         await finishConnect(getOAuthApi(config, exchange.env), exchange.env, {
