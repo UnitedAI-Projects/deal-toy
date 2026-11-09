@@ -19,6 +19,8 @@ import { Timeline } from "./Timeline";
 import { InspectPanel, type Picked } from "./InspectPanel";
 import { ChecksPanel } from "./ChecksPanel";
 import { overlayTones, type Toggles } from "./checks";
+import { dimensionEdit, dragAxis, dragValue } from "./adjust";
+import type { DimensionRecord } from "../shared/inspect-types";
 import type { Check, CheckResult, Target } from "../shared/checks";
 import { pickFace, type InspectRecord } from "./inspect";
 import catalog from "../../engine/lib/mantel/catalog.json";
@@ -98,6 +100,11 @@ export function Workspace(props: Props) {
     results: CheckResult[];
   }>({ checks: [], results: [] });
   const [checksTick, setChecksTick] = useState(0);
+  // A dimension being dragged, with its live (preview) value.
+  const [drag, setDrag] = useState<{
+    dim: DimensionRecord;
+    value: number;
+  } | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
   // What the agent is pointing at, until the person clicks.
   const [agentPoint, setAgentPoint] = useState<{
@@ -584,6 +591,67 @@ export function Workspace(props: Props) {
     shown?.id === latest.id &&
     viewed?.id === latest.id &&
     !!shownJob;
+  /** Adjustment A and B: one models_set_parameter call for the dimension's parameter. */
+  async function adjust(dim: DimensionRecord, value: number) {
+    const edit = dimensionEdit(dim, facts?.params ?? {}, value);
+    if ("error" in edit) throw new Error(edit.error);
+    if (!model || !latest) throw new Error("No model to change");
+    await call("models_set_parameter", {
+      modelId: model.id,
+      expectedRevision: latest.number,
+      name: edit.name,
+      value: edit.value,
+    });
+    setFollow(true);
+    await props.reload();
+  }
+  const fine = useMemo(() => matchMedia("(pointer: fine)").matches, []);
+  const dragDim =
+    editable && fine && !asOf && record && selection?.face !== undefined
+      ? record.dimensions?.find(
+          (d) => d.moves === selection.face && dragAxis(record, d),
+        )
+      : undefined;
+  const dragLine = dragDim && record ? dragAxis(record, dragDim) : null;
+  const dragSpec = dragDim?.param ? facts?.params?.[dragDim.param] : undefined;
+  const handle =
+    dragDim && dragLine && dragSpec && shownJob
+      ? {
+          key: `${shownJob.id}-${dragDim.name}`,
+          origin: dragLine.origin,
+          direction: dragLine.direction,
+          onMove: (along: number) =>
+            setDrag({
+              dim: dragDim,
+              value: dragValue(dragDim, dragSpec, along, dragLine.sign),
+            }),
+          onRelease: () => {
+            setDrag((current) => {
+              if (current && current.value !== current.dim.value)
+                void adjust(current.dim, current.value).catch((e: Error) =>
+                  setError(e.message),
+                );
+              return null;
+            });
+          },
+          onCancel: () => setDrag(null),
+        }
+      : null;
+  const dragGhost =
+    drag && dragLine && record
+      ? {
+          kind: "plane" as const,
+          origin: dragLine.origin.map(
+            (v, k) =>
+              v +
+              dragLine.direction[k] *
+                (drag.value - drag.dim.value) *
+                dragLine.sign,
+          ) as [number, number, number],
+          normal: dragLine.direction,
+          size: Math.sqrt(record.faces[drag.dim.moves!]?.area ?? 1),
+        }
+      : null;
 
   function viewRevision(r: Revision) {
     setFollow(r.id === latest?.id);
@@ -613,7 +681,8 @@ export function Workspace(props: Props) {
           record={asOf ? null : record}
           highlights={highlights}
           section={asOf ? null : section}
-          ghost={asOf ? null : ghost}
+          ghost={asOf ? null : (dragGhost ?? ghost)}
+          handle={handle}
           onSelect={(label, point, hit, additive) => {
             setAgentPoint(null);
             if (label && pickIntoForm(label, hit)) return;
@@ -864,6 +933,7 @@ export function Workspace(props: Props) {
       {selection && record && (selection.face !== undefined || second) && (
         <InspectPanel
           onMeasure={canMeasure ? measureExactly : undefined}
+          onAdjust={editable ? adjust : undefined}
           onAsk={owns && can(me, "notes.write") ? askAgent : undefined}
           key={`${selection.label}-${selection.face}-${second?.label}-${second?.face}-${shown?.id}`}
           record={record}
@@ -1109,6 +1179,13 @@ export function Workspace(props: Props) {
             )}
           </div>
         </aside>
+      )}
+
+      {drag && (
+        <div className="drag-value chip" role="status">
+          {drag.dim.name} {drag.value.toFixed(2)} mm · preview · release to
+          save, Esc to cancel
+        </div>
       )}
 
       {error && (

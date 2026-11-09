@@ -1984,3 +1984,14 @@ tr.selected {
     max-height: calc(100% - 180px);
   }
 }
+.drag-value {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 14;
+  font-family: var(--mono);
+}
+.dim-edit input {
+  width: 76px;
+}

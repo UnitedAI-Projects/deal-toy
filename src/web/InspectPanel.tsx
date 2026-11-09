@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Target } from "../shared/checks";
+import type { DimensionRecord } from "../shared/inspect-types";
 import { refText } from "./ActionForm";
 import { refFromPick } from "./refs";
 import {
@@ -64,7 +65,10 @@ export function InspectPanel(props: {
   onMeasure?: (a: Target, b: Target) => Promise<string>;
   /** Sends the agent a note about the selection; absent for viewers. */
   onAsk?: (text: string, refs: string) => Promise<void>;
+  /** Saves a new value for a declared dimension (one parameter edit); absent when read-only. */
+  onAdjust?: (dim: DimensionRecord, value: number) => Promise<void>;
 }) {
+  const [typed, setTyped] = useState<Record<string, string>>({});
   const { record, first, second } = props;
   const [exact, setExact] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
@@ -133,9 +137,49 @@ export function InspectPanel(props: {
           <div key={d.name}>
             <dt>{d.name}</dt>
             <dd>
-              {d.value.toFixed(2)} mm
-              {d.param && !d.matches_param && (
-                <span className="warn-text"> · differs from {d.param}</span>
+              {props.onAdjust && d.param && d.matches_param ? (
+                <form
+                  className="dim-edit"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const value = Number(typed[d.name] ?? d.value);
+                    setStatus("Saving a new revision…");
+                    props.onAdjust!(d, value)
+                      .then(() => setStatus("Saved; rebuilding."))
+                      .catch((err: Error) => setStatus(err.message));
+                  }}
+                >
+                  <input
+                    type="number"
+                    step="0.1"
+                    aria-label={`${d.name} (mm)`}
+                    value={typed[d.name] ?? d.value.toString()}
+                    onChange={(e) =>
+                      setTyped({ ...typed, [d.name]: e.target.value })
+                    }
+                  />{" "}
+                  mm{" "}
+                  <button
+                    type="submit"
+                    disabled={
+                      typed[d.name] === undefined ||
+                      Number(typed[d.name]) === d.value
+                    }
+                  >
+                    Save
+                  </button>
+                </form>
+              ) : (
+                <>
+                  {d.value.toFixed(2)} mm
+                  {d.param && !d.matches_param && (
+                    <span className="warn-text">
+                      {" "}
+                      · differs from {d.param}; ask the agent to fix the
+                      declaration
+                    </span>
+                  )}
+                </>
               )}
             </dd>
           </div>
