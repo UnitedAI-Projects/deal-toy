@@ -1172,6 +1172,15 @@ export function Workspace(props: Props) {
                     </button>
                   ))}
                 </div>
+                {canDownload &&
+                  artifacts.length > 0 &&
+                  !artifacts.some((a) => a.name === "blueprint.pdf") && (
+                    <p className="muted">
+                      This build has no blueprint. Builds from before blueprints
+                      existed, and models too slow to draw, have none. Rebuild
+                      to try again.
+                    </p>
+                  )}
                 {facts && (
                   <dl className="facts">
                     <dt>Size</dt>

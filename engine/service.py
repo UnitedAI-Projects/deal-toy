@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer as BaseHTTPServer
 from pathlib import Path
@@ -28,12 +29,51 @@ class HTTPServer(BaseHTTPServer):
 
 
 PREVIEW_FILES = ("model.glb", "facts.json")
+DRAWING_FILES = {"blueprint.pdf": "application/pdf", "blueprint.dxf": "image/vnd.dxf"}
+DRAW_SECONDS = 25
+DRAW_MIN_SECONDS = 8
+DRAW_DEADLINE = 75  # seconds after a build starts; the Worker abandons the request at 90
 
 
 MODULE_KEY = re.compile(r"^[a-z][a-z0-9-]{1,39}@[0-9]{1,6}$")
 
 
-def execute(source: str, timeout=60, stop_after=None, preview=False, modules=None, check=None):
+def draw(root: Path, spec: dict, started: float) -> dict:
+    """Blueprint files for a finished build, or nothing: a drawing that fails or overruns never
+    costs the build its exports. Reads only the STEP; no model code runs here."""
+    budget = min(DRAW_SECONDS, DRAW_DEADLINE - (time.monotonic() - started))
+    if budget < DRAW_MIN_SECONDS:
+        return {}
+    out = root / "drawing"
+    try:
+        out.mkdir()  # must be new: anything already here was left by the model script
+        (out / "spec.json").write_text(json.dumps(spec))
+    except OSError:
+        return {}
+    process = subprocess.Popen(
+        [sys.executable, "-I", str(Path(__file__).with_name("drawing.py")),
+         str(root / "out" / "model.step"), str(out / "spec.json"), str(out)],
+        cwd=root, env={"PATH": os.environ.get("PATH", ""), "HOME": str(root),
+                       "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        code = process.wait(timeout=budget)
+    except subprocess.TimeoutExpired:
+        code = -1
+    finally:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
+    paths = {name: out / name for name in DRAWING_FILES}
+    if code or any(p.is_symlink() or not p.is_file() for p in paths.values()):
+        return {}
+    return paths
+
+
+def execute(source: str, timeout=60, stop_after=None, preview=False, modules=None, check=None, drawing=None):
+    started = time.monotonic()
     if not isinstance(source, str) or not 0 < len(source.encode()) <= 100000:
         raise ValueError("Expected Python source up to 100 KB")
     if stop_after is not None and (isinstance(stop_after, bool) or not isinstance(stop_after, int)
@@ -48,6 +88,8 @@ def execute(source: str, timeout=60, stop_after=None, preview=False, modules=Non
         raise ValueError("modules must map up to 20 saved action keys (id@version) to sources up to 100 KB")
     if check is not None and check not in modules:
         raise ValueError("check must name one of the modules")
+    if drawing is not None and not isinstance(drawing, dict):
+        raise ValueError("drawing must be an object")
     options = (["--stop-after", str(stop_after)] if stop_after is not None else []) + (["--preview"] if preview else [])
     if check is not None:
         options += ["--check", check]
@@ -97,6 +139,10 @@ def execute(source: str, timeout=60, stop_after=None, preview=False, modules=Non
                 raise ValueError("Build artifacts exceed 15 MiB")
             artifacts.append({"name": name, "mediaType": media,
                               "base64": base64.b64encode(path.read_bytes()).decode()})
+        drawn = draw(root, drawing, started) if drawing is not None and not preview else {}
+        if size + sum(p.stat().st_size for p in drawn.values()) <= MAX_ARTIFACT_BYTES:
+            artifacts += [{"name": name, "mediaType": DRAWING_FILES[name],
+                           "base64": base64.b64encode(path.read_bytes()).decode()} for name, path in drawn.items()]
         return {"artifacts": artifacts}
 
 
@@ -182,7 +228,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.reply(200, execute(payload["source"], stop_after=payload.get("stopAfter"),
                                     preview=payload.get("preview", False), modules=payload.get("modules"),
-                                    check=payload.get("check")))
+                                    check=payload.get("check"), drawing=payload.get("drawing")))
         except (ValueError, KeyError) as error:
             self.reply(400, {"error": str(error)[:4000]})
         except (OSError, subprocess.SubprocessError, TypeError):

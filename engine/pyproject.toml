@@ -2,6 +2,10 @@
 name = "deal-toy-engine"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["build123d==0.13.0"]
+dependencies = [
+    "build123d==0.13.0",
+    "ezdxf==1.4.5",
+    "matplotlib==3.11.2",
+]
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
