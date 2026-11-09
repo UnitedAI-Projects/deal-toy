@@ -6,6 +6,7 @@ import { notify } from "./activity";
 import { loadIdentity } from "./access";
 import type { Check } from "../shared/checks";
 import type { InspectRecord } from "../shared/inspect-types";
+import { drawingDetails } from "./drawing-spec";
 import { evaluateChecks } from "./checks/evaluate";
 import { queueMeasures, type MeasureRequest } from "./measure";
 import {
@@ -452,17 +453,18 @@ async function draw(
   if (!options.build) throw new Error("A drawing job needs a build");
   const object = await stepOf(env, options.build);
   const spec = await env.DB.prepare(
-    "SELECT m.name AS title,r.number AS revision FROM revisions r JOIN models m ON m.id=r.model_id WHERE r.id=?",
+    "SELECT m.name AS title,r.number AS revision,p.name AS project FROM revisions r JOIN models m ON m.id=r.model_id JOIN projects p ON p.id=m.project_id WHERE r.id=?",
   )
     .bind(revisionId)
-    .first<{ title: string; revision: number }>();
+    .first<{ title: string; revision: number; project: string }>();
+  const details = await inspectionDetails(env, options.build);
   const response = await container.fetch(
     new Request("http://cad/drawing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         step: toBase64(new Uint8Array(await object.arrayBuffer())),
-        spec: spec ?? {},
+        spec: { ...spec, ...details },
       }),
     }),
   );
@@ -506,6 +508,31 @@ async function draw(
     ),
   );
   await env.DB.batch(statements);
+}
+/** The measured rows for the sheet. Without them it still draws, with only its views. */
+async function inspectionDetails(env: Env, buildId: string) {
+  try {
+    const row = await env.DB.prepare(
+      "SELECT object_key FROM artifacts WHERE job_id=? AND name='inspect.json'",
+    )
+      .bind(buildId)
+      .first<{ object_key: string }>();
+    const object = row && (await env.ARTIFACTS.get(row.object_key));
+    if (!object) return {};
+    const parsed = inspectSchema.safeParse(await object.json());
+    return parsed.success
+      ? drawingDetails(parsed.data as unknown as InspectRecord)
+      : {};
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "drawing_details_failed",
+        buildId,
+        error: error instanceof Error ? error.message : "unknown",
+      }),
+    );
+    return {};
+  }
 }
 async function stepOf(env: Env, buildId: string) {
   const step = await env.DB.prepare(

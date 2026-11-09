@@ -1,10 +1,13 @@
 """Dimensioned drawing of a build's persisted STEP: blueprint.dxf + blueprint.pdf.
 
 Runs in the job container and imports no model code. Views, dimension values and hole callouts are
-read from the solid, so the sheet cannot disagree with the STEP. It is a draft for review; tolerances
-and material come from the manufacturing brief and are stated as open here.
+read from the solid, so the sheet cannot disagree with the STEP. The panel beside the views prints
+what the build's inspection measured, passed in the spec. It is a draft for review; tolerances come
+from the manufacturing brief and are stated as open here.
 """
+import itertools
 import json
+import math
 import re
 import sys
 from datetime import UTC, datetime
@@ -41,6 +44,11 @@ DIM_OFFSET = 12.0
 MAX_HIDDEN_EDGES = 6000
 MAX_CENTER_MARKS = 60
 MAX_CIRCLE_SIZES = 6
+PANEL_WIDTH = 130.0
+PANEL_ROW = 4.4
+MIN_BAND = 8.0  # paper mm; a narrower step dimension has no room for its number
+MAX_BAND_EDGES = 8  # more distinct extents than this is lettering or detail, not a stack of parts
+MIN_PICTORIAL = 0.3  # smallest fraction of sheet scale at which the isometric view is still useful
 FAR = 100000.0
 FONT = "MANTEL"
 LAYERS = {  # name: (ACI color, linetype, lineweight in 1/100 mm)
@@ -51,18 +59,20 @@ LAYERS = {  # name: (ACI color, linetype, lineweight in 1/100 mm)
     "TEXT": (7, "Continuous", 25),
     "TITLEBLOCK": (7, "Continuous", 35),
     "VIEWPORTS": (8, "Continuous", 13),
+    "PICTORIAL": (7, "Continuous", 18),
 }
 VIEWS = {  # third-angle: camera, up, and the world axes that become (u, v), with the view axis
     "front": ((0, -FAR, 0), (0, 0, 1), (0, 2), 1),
     "top": ((0, 0, FAR), (0, 1, 0), (0, 1), 2),
     "right": ((FAR, 0, 0), (0, 0, 1), (1, 2), 0),
+    "iso": ((FAR, -FAR, FAR), (0, 0, 1), None, None),  # pictorial only: never dimensioned
 }
 
 
-def choose_enlargement(width: float, depth: float, height: float) -> float:
-    """Largest standard scale at which the three views and their dimensions fit the sheet."""
+def choose_enlargement(width: float, depth: float, height: float, panel: float = 0.0) -> float:
+    """Largest standard scale at which the three views and their dimensions fit beside the panel."""
     _, paper_w, paper_h = PAPER
-    room_w = paper_w - 2 * BORDER - VIEW_GAP - 2 * VIEW_MARGIN
+    room_w = paper_w - 2 * BORDER - VIEW_GAP - 2 * VIEW_MARGIN - panel
     room_h = paper_h - 2 * BORDER - TITLE_HEIGHT - VIEW_GAP - 2 * VIEW_MARGIN
     for factor in ENLARGEMENTS:
         if (width + depth) * factor <= room_w and (height + depth) * factor <= room_h:
@@ -78,6 +88,60 @@ def clean(value, limit: int, fallback: str) -> str:
     """Title-block text comes from project names: printable, one line, bounded."""
     text = re.sub(r"[^\x20-\x7e]", " ", str(value)).strip() if value is not None else ""
     return text[:limit] or fallback
+
+
+def mm(value) -> str:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("not a measurement")
+    return f"{number:.2f}"
+
+
+def span(box: dict, axis: int) -> str:
+    return f"{mm(box['min'][axis])} to {mm(box['max'][axis])}"
+
+
+def _rows(items, make) -> list:
+    """A row that cannot be read is left off: the sheet prints only what was measured."""
+    rows = []
+    for item in items if isinstance(items, list) else []:
+        try:
+            rows.append(make(item))
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            continue
+    return rows
+
+
+def panel_sections(spec: dict) -> list:
+    """Tables for the panel, as (title, ((heading, x in paper mm), ...), rows). Empty ones are left out."""
+    def material(item):
+        volume = f"{float(mm(item['volume'])):,.0f}" if "volume" in item else "-"
+        return (clean(item["part"], 20, "-"), clean(item["name"], 44, "-"), volume,
+                mm(item["mass"]) if "mass" in item else "-")
+
+    materials = _rows(spec.get("materials"), material)
+    if len(materials) > 1 and all(row[3] != "-" for row in materials):
+        materials.append(("TOTAL", "", "", mm(sum(float(row[3]) for row in materials))))
+
+    def dimension(item):
+        return clean(item["name"], 70, "-"), mm(item["value"]) + ("" if item.get("matches", True) else " CHECK")
+
+    def hole(item):
+        at = ", ".join(mm(v) for v in item["at"][:3])
+        return (clean(item["part"], 16, "-"), mm(item["diameter"]),
+                mm(item["depth"]) + (" BLIND" if item.get("blind") else ""), at)
+
+    def extent(item):
+        return (clean(item["name"], 26, "-"), span(item["bbox"], 0), span(item["bbox"], 1), span(item["bbox"], 2))
+
+    holes = [(f"H{i + 1}", *row) for i, row in enumerate(_rows(spec.get("holes"), hole))]
+    sections = (
+        ("MATERIALS", (("PART", 0), ("MATERIAL", 28), ("VOL MM3", 88), ("MASS G", 110)), materials),
+        ("FEATURE DIMENSIONS", (("NAME", 0), ("MM", 100)), _rows(spec.get("dimensions"), dimension)),
+        ("HOLES", (("ID", 0), ("PART", 9), ("DIA", 36), ("DEPTH", 50), ("START X, Y, Z", 76)), holes),
+        ("TEXT EXTENTS", (("TEXT", 0), ("X", 40), ("Y", 70), ("Z", 98)), _rows(spec.get("text"), extent)),
+    )
+    return [section for section in sections if section[2]]
 
 
 def _edges(compound) -> list:
@@ -130,12 +194,23 @@ def holes(shape, view: str) -> list:
     return sorted(((u, v, r) for (u, v), r in largest.items()), key=lambda h: -h[2])
 
 
+def bands(extents: list, smallest: float) -> list:
+    """Spans between the solids' distinct extents along one axis, for a stack of parts. Each is a
+    separate span, so one row never overlaps itself; those too narrow to label are left off."""
+    edges = sorted({round(value, 3) for pair in extents for value in pair})
+    if not 3 <= len(edges) <= MAX_BAND_EDGES:
+        return []
+    return [(low, high) for low, high in itertools.pairwise(edges) if high - low >= smallest]
+
+
 def draw(step: Path, spec: dict, destination: Path) -> dict:
     shape = bd.import_step(step)
     box = shape.bounding_box()
     lows, size = tuple(box.min), tuple(box.size)
     width, depth, height = size
-    factor = choose_enlargement(width, depth, height)
+    sections = panel_sections(spec)
+    panel = PANEL_WIDTH if sections else 0.0
+    factor = choose_enlargement(width, depth, height, panel)
     scale = 1 / factor
     gap = VIEW_GAP * scale
     offset = DIM_OFFSET * scale
@@ -180,9 +255,21 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
         msp.add_text(text, height=3.5 * scale, dxfattribs={"layer": "TEXT", "style": FONT}).set_placement(
             (x, y), align=TextEntityAlignment.MIDDLE_CENTER)
 
+    # Steps between the parts, read from each solid's extents, sit inside the overall dimensions.
+    boxes = [s.bounding_box() for s in shape.solids()]
+    x_steps, y_steps, z_steps = (bands([(tuple(b.min)[axis], tuple(b.max)[axis]) for b in boxes], MIN_BAND * scale)
+                                 for axis in range(3))
+    top_y = placed["top"][1]
+    for low, high in z_steps:
+        linear((0, low - lows[2]), (0, high - lows[2]), (-offset, 0), 90)
+    for low, high in x_steps:
+        linear((low - lows[0], top_y), (high - lows[0], top_y), (0, top_y - offset), 0)
+    for low, high in y_steps:
+        linear((width, top_y + low - lows[1]), (width, top_y + high - lows[1]), (width + offset, 0), 90)
+
     # Overall dimensions are measured between the extreme points of the drawn geometry.
     linear(extreme("front", 0, min), extreme("front", 0, max), (0, -offset), 0)
-    linear(extreme("front", 1, min), extreme("front", 1, max), (-offset, 0), 90)
+    linear(extreme("front", 1, min), extreme("front", 1, max), (-offset * (2 if z_steps else 1), 0), 90)
     right_x = placed["right"][0]
     linear(extreme("right", 0, min), extreme("right", 0, max), (right_x, -offset), 0)
     label("FRONT", width / 2, -offset * 2)
@@ -205,11 +292,28 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
     paper, paper_w, paper_h = PAPER
     sheet = doc.layouts.new(paper)
     sheet.page_setup(size=(paper_w, paper_h), margins=(0, 0, 0, 0), units="mm", scale=1)
-    area = (BORDER, BORDER + TITLE_HEIGHT, paper_w - BORDER, paper_h - BORDER)
+    area = (BORDER, BORDER + TITLE_HEIGHT, paper_w - BORDER - panel, paper_h - BORDER)
     area_w, area_h = area[2] - area[0], area[3] - area[1]
+    view_center = ((width + gap + depth) / 2, (height + gap + depth) / 2)
     sheet.add_viewport(center=((area[0] + area[2]) / 2, (area[1] + area[3]) / 2), size=(area_w, area_h),
-                       view_center_point=((width + gap + depth) / 2, (height + gap + depth) / 2),
-                       view_height=area_h * scale, dxfattribs={"layer": "VIEWPORTS"})
+                       view_center_point=view_center, view_height=area_h * scale, dxfattribs={"layer": "VIEWPORTS"})
+
+    # The isometric takes the free corner above the right view, reduced if it has to be.
+    iso, _ = project(shape, "iso", deflection)
+    us, vs = [u for line in iso for u, _ in line], [v for line in iso for _, v in line]
+    left, floor_y = width + 0.7 * gap, height + 0.6 * gap + offset
+    room_u = view_center[0] + (area_w / 2 - 6) * scale - left
+    room_v = view_center[1] + (area_h / 2 - 6) * scale - floor_y
+    pictorial = False
+    if us and room_u > 0 and room_v > 0:
+        fit = min(room_u / max(max(us) - min(us), 1e-6), room_v / max(max(vs) - min(vs), 1e-6), 1.0)
+        pictorial = fit >= MIN_PICTORIAL
+    if pictorial:
+        cu = left + room_u / 2 - fit * (min(us) + max(us)) / 2
+        cv = floor_y + room_v / 2 - fit * (min(vs) + max(vs)) / 2
+        for line in iso:
+            msp.add_lwpolyline([(cu + fit * u, cv + fit * v) for u, v in line], dxfattribs={"layer": "PICTORIAL"})
+        label("ISOMETRIC, REFERENCE ONLY", left + room_u / 2, floor_y - offset / 2)
 
     def text(value, x, y, h=2.5, layer="TEXT"):
         sheet.add_text(value, height=h, dxfattribs={"layer": layer, "style": FONT}).set_placement(
@@ -225,7 +329,7 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
     rule((BORDER, BORDER + TITLE_HEIGHT), (paper_w - BORDER, BORDER + TITLE_HEIGHT))
     block_x = paper_w - BORDER - 150
     rule((block_x, BORDER), (block_x, BORDER + TITLE_HEIGHT))
-    rows = [("TITLE", title), ("REVISION", revision), ("DATE", date),
+    rows = [("TITLE", title), ("PROJECT", clean(spec.get("project"), 60, "-")), ("REVISION", revision), ("DATE", date),
             ("SCALE", f"{scale_label(factor)} ON {paper}"),
             ("UNITS", "MM - DO NOT SCALE DRAWING"), ("PROJECTION", "THIRD ANGLE")]
     row_h = TITLE_HEIGHT / len(rows)
@@ -236,9 +340,37 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
             rule((block_x, y + row_h), (paper_w - BORDER, y + row_h))
         text(key, block_x + 2, y + 2.2, 2.2, "TITLEBLOCK")
         text(value, block_x + 28, y + 2.2, 2.5, "TITLEBLOCK")
+    if sections:
+        panel_x = paper_w - BORDER - panel
+        rule((panel_x, BORDER + TITLE_HEIGHT), (panel_x, paper_h - BORDER))
+        y = paper_h - BORDER - 6
+        floor = BORDER + TITLE_HEIGHT + 2 * PANEL_ROW
+        text("ALL VALUES IN MM, MEASURED FROM THE BUILD", panel_x + 3, y, 2.4)
+        y -= 1.5 * PANEL_ROW
+        omitted = 0
+        for heading, columns, table in sections:
+            room = int((y - floor) / PANEL_ROW) - 2
+            shown = table[:max(room, 0)]
+            omitted += len(table) - len(shown)
+            if not shown:
+                continue
+            text(heading, panel_x + 3, y, 2.8)
+            y -= PANEL_ROW
+            for name, column in columns:
+                text(name, panel_x + 3 + column, y, 2.0, "TITLEBLOCK")
+            y -= PANEL_ROW
+            for row in shown:
+                for value, (_, column) in zip(row, columns, strict=True):
+                    text(value, panel_x + 3 + column, y, 2.2)
+                y -= PANEL_ROW
+            y -= 0.5 * PANEL_ROW
+        if omitted:
+            text(f"{omitted} MORE ROWS DO NOT FIT. SEE INSPECT.JSON.", panel_x + 3, floor - PANEL_ROW, 2.4)
+    listed_materials = any(section[0] == "MATERIALS" for section in sections)
     notes = [
         "NOTES",
         f"1. OVERALL {width:.2f} W x {depth:.2f} D x {height:.2f} H MM, MEASURED FROM THE SOLID.",
+        "2. TOLERANCES NOT SPECIFIED. SEE THE MANUFACTURING BRIEF." if listed_materials else
         "2. TOLERANCES AND MATERIAL NOT SPECIFIED. SEE THE MANUFACTURING BRIEF.",
         "3. DRAFT DERIVED FROM THE MODEL. NOT REVIEWED OR APPROVED FOR MANUFACTURE.",
     ]
@@ -247,6 +379,8 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
         more = " AND SMALLER" if len(sizes) > MAX_CIRCLE_SIZES else ""
         listed = ", ".join(f"DIA {2 * r:g} x{n}" for r, n in largest)
         notes.append(f"{len(notes)}. CIRCULAR FEATURES AS MARKED: {listed}{more}.")
+    if x_steps or y_steps or z_steps:
+        notes.append(f"{len(notes)}. INNER DIMENSIONS ARE STEPS BETWEEN THE EXTENTS OF THE SOLIDS.")
     if hidden_omitted:
         notes.append(f"{len(notes)}. HIDDEN LINES OMITTED: THIS MODEL HAS TOO MANY FOR A LEGIBLE SHEET.")
     for i, note in enumerate(notes):
@@ -272,7 +406,7 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
         figure.savefig(destination / "blueprint.png", dpi=150)
     plt.close(figure)
     return {"scale": scale_label(factor), "paper": paper, "circle_sizes": len(sizes),
-            "hidden_omitted": hidden_omitted, "bounds": size}
+            "hidden_omitted": hidden_omitted, "bounds": size, "pictorial": pictorial}
 
 
 if __name__ == "__main__":
