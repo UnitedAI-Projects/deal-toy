@@ -220,3 +220,11 @@ Branch `feat/inspect-checks`, implementing `docs/superpowers/plans/2026-11-09-in
   - Checked in light and dark themes and at 390 px (no horizontal scroll; `docs/images/workspace-checks-mobile.png`).
 - Costs, measured in the CAD image: inspection takes 0.06 s on the enclosure (55 faces, 16.2 KiB record) and 0.02 s on the deal toy (23 faces, 7.3 KiB), and one measure job takes 1.0–1.3 s.
 - Known limits: failure colours on a part fully inside another (the coin in its block) are hidden by the host and by section caps, as pick highlights already are. The check row still names the failure. The drag preview is a square of the face's area, not its outline.
+
+## Empty project with a connected agent — 2026-11-09
+
+A teammate connected Claude's custom connector over MCP sign-in. Their app was listed in Settings and created a project, but the empty project still said "Start with your agent" and "Connect an agent", which read as if the connection had failed. The empty screen now loads the member's connected apps. When at least one is connected it says, for example, "Claude is connected. Ask it to build a model in “Bridge Tombstone”." Its connect button becomes the secondary "Add another agent". It falls back to the original wording while the list loads or if loading it fails. The Connect drawer now leads with adding the server URL and signing in, and keeps API keys for clients without sign-in.
+
+- `src/web/empty.test.ts` covers no apps, an unknown list, one app, two apps, three or more, and one app signed in twice. Full `bash ci/run.sh` passed: 308 Worker tests and 84 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run.
+- In the app (local `wrangler dev`): with no connected app, the empty project showed the original wording. A local client named "Claude" was registered and approved on the consent page, and its code was exchanged for tokens. Opening the project then showed "Claude is connected" (`docs/images/workspace-empty-connected.png`). After disconnecting it through the Settings API, the original wording returned.
+- At 390 px there is no horizontal scroll and both buttons fit on one row (`docs/images/workspace-empty-connected-mobile.png`). Known limit, present before this change: with the activity panel open on a phone, its "Hide activity" toggle overlaps the empty screen's first button.

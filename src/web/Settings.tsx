@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ConnectedApp } from "./empty";
 import {
   can,
   PERMISSIONS,
@@ -368,8 +369,6 @@ function Keys({ me }: { me: Me }) {
     </>
   );
 }
-
-type ConnectedApp = { id: string; name: string; connected_at: string };
 
 /** Apps the member approved through MCP sign-in. Shown to every member. */
 function ConnectedApps() {
