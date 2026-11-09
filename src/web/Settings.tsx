@@ -221,11 +221,14 @@ function Apps() {
 function SetupPrompt() {
   const prompt = useMemo(() => mcpSetupPrompt(location.origin), []);
   const [copied, setCopied] = useState<"" | "copied" | "failed">("");
+  // Wrapped so a missing clipboard (plain-HTTP pages) shows the error instead of throwing.
   const copy = () =>
-    navigator.clipboard.writeText(prompt).then(
-      () => setCopied("copied"),
-      () => setCopied("failed"),
-    );
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(prompt))
+      .then(
+        () => setCopied("copied"),
+        () => setCopied("failed"),
+      );
   useEffect(() => {
     if (!copied) return;
     const timer = setTimeout(() => setCopied(""), 2500);
