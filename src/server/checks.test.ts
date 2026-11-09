@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import bridge from "../../examples/bridge.py";
 import toyJson from "../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
 import boxJson from "../../engine/tests/fixtures/enclosure_inspect.inspect.json";
+import fitJson from "../../engine/tests/fixtures/display_box_fit.inspect.json";
 import type { Check, CheckResult } from "../shared/checks";
 import type { Context } from "./core";
 import { dispatch, execute } from "./tools";
@@ -248,6 +249,19 @@ describe("check lists", () => {
     );
     expect(context).toContain(
       "Checks: 1 pass · 2 fail (Coin wall 1.50 mm < 2.00 mm; Tall 17.1° < 20.0°)",
+    );
+  });
+
+  it("lists placements in the agent's model summary, with or without checks", async () => {
+    const { m } = await model(fitJson);
+    const { context } = await dispatch(
+      carol,
+      "checks_list",
+      { modelId: m.id },
+      "mcp",
+    );
+    expect(context).toContain(
+      "Placements: Lid angle 0.0° (LID_ANGLE), Drawer travel 0.00 mm (DRAWER_OUT)",
     );
   });
 

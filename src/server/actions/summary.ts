@@ -1,7 +1,13 @@
 import type { Context } from "../core";
 import { modelAccess } from "../core";
 import { AppError } from "../core";
-import { checksLine, evaluateModel } from "../check-tools";
+import {
+  buildOf,
+  checksLine,
+  evaluateModel,
+  placementsLine,
+  recordOf,
+} from "../check-tools";
 import type { StepLog } from "./catalog";
 import { pyValue, readSteps, type Step, type StepValue } from "./script";
 
@@ -148,6 +154,12 @@ export async function modelContext(
     const line = checksLine(await evaluateModel(c, modelId));
     if (line) lines.push(line);
   }
+  // Where parts sit: placements a person or the agent sets with models_set_parameter.
+  const build = await buildOf(c.env, modelId, model.revision);
+  const placements = placementsLine(
+    build ? await recordOf(c.env, build.id) : null,
+  );
+  if (placements) lines.push(placements);
   if (!lines.length) return summary;
   const tail = lines.join("\n");
   return `${summary.slice(0, SUMMARY_LIMIT - tail.length - 1)}\n${tail}`;

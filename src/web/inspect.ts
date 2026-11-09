@@ -10,6 +10,7 @@ import type {
   EmbedRecord,
   StabilityRecord,
   DraftRecord,
+  JointRecord,
   InspectRecord,
 } from "../shared/inspect-types";
 export type {
@@ -23,6 +24,7 @@ export type {
   EmbedRecord,
   StabilityRecord,
   DraftRecord,
+  JointRecord,
   InspectRecord,
 };
 

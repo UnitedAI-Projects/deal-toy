@@ -125,11 +125,14 @@ function evaluateOne(
       const tolerance = set(limit.tolerance) ? limit.tolerance : 0;
       const off = Math.abs(dim.value - limit.nominal);
       const pass = off <= tolerance + 1e-9;
+      const joint =
+        dim.joint !== undefined ? record.joints?.[dim.joint] : undefined;
       return {
         status: pass ? "pass" : "fail",
         value: dim.value,
-        unit: "mm",
-        faces: dim.faces,
+        unit: dim.unit === "deg" ? "deg" : "mm",
+        ...(dim.faces ? { faces: dim.faces } : {}),
+        ...(joint ? { parts: [joint.part] } : {}),
         ...(pass && tolerance > 0 && off > 0.9 * tolerance
           ? { near: true }
           : {}),

@@ -632,7 +632,7 @@ export function Workspace(props: Props) {
     editable && fine && !asOf && record && selection?.face !== undefined
       ? record.dimensions?.find(
           // Either face of a dimension offers the handle; it moves the declared face.
-          (d) => d.faces.includes(selection.face!) && dragAxis(record, d),
+          (d) => !!d.faces?.includes(selection.face!) && dragAxis(record, d),
         )
       : undefined;
   const dragLine = dragDim && record ? dragAxis(record, dragDim) : null;

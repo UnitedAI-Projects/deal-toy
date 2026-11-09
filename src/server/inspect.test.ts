@@ -3,6 +3,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import bridge from "../../examples/bridge.py";
 import record from "../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
+import fitRecord from "../../engine/tests/fixtures/display_box_fit.inspect.json";
 import { consume } from "./builds";
 import type { Context } from "./core";
 import { execute } from "./tools";
@@ -99,6 +100,21 @@ describe("inspection record", () => {
     expect(Object.keys(slice).sort()).toEqual(["embeds", "faces", "stability"]);
     expect(slice.faces.map((f) => f.index)).toEqual([0, 1]);
   });
+  it("returns joints, and slices them by the parts they move or hold", async () => {
+    const { job } = await built(fitRecord);
+    const all = (await execute(carol, "inspect_get", {
+      jobId: job.id,
+      sections: ["joints"],
+    })) as { joints: { name: string }[] };
+    expect(all.joints.map((j) => j.name)).toEqual(["hinge", "slide", "plaque"]);
+    const plaque = (await execute(carol, "inspect_get", {
+      jobId: job.id,
+      parts: [3],
+    })) as { joints: { name: string }[]; parts: unknown[] };
+    expect(plaque.joints.map((j) => j.name)).toEqual(["plaque"]);
+    expect(plaque.parts).toHaveLength(1);
+  });
+
   it("lets demo viewers read it, and hides private projects", async () => {
     const { p, job } = await built();
     await expect(

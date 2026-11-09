@@ -97,7 +97,7 @@ export function InspectPanel(props: {
       )
     : null;
   const dims = (record.dimensions ?? []).filter(
-    (d) => first.face !== undefined && d.faces.includes(first.face),
+    (d) => first.face !== undefined && !!d.faces?.includes(first.face),
   );
   const style = {
     left: `min(max(12px, ${first.x + 16}px), calc(100% - 308px))`,
