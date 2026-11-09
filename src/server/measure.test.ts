@@ -40,7 +40,7 @@ async function built(record: unknown = boxJson) {
 const queued = async (buildId: string) =>
   (
     await env.DB.prepare(
-      "SELECT jobs.id,jobs.options FROM jobs WHERE purpose='measure' AND json_extract(options,'$.build')=?",
+      "SELECT jobs.id,jobs.options FROM jobs WHERE purpose='measure' AND json_extract(options,'$.build')=? AND json_extract(options,'$.drawing') IS NULL",
     )
       .bind(buildId)
       .all<{ id: string; options: string }>()

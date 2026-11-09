@@ -1176,9 +1176,9 @@ export function Workspace(props: Props) {
                   artifacts.length > 0 &&
                   !artifacts.some((a) => a.name === "blueprint.pdf") && (
                     <p className="muted">
-                      This build has no blueprint. Builds from before blueprints
-                      existed, and models too slow to draw, have none. Rebuild
-                      to try again.
+                      The blueprint appears here a minute or two after a build
+                      finishes. If none appears, the drawing failed or the build
+                      is older than blueprints; rebuild to try again.
                     </p>
                   )}
                 {facts && (

@@ -87,22 +87,37 @@ def names(result):
 CORE = {"model.step", "model.stl", "model.glb", "facts.json", "inspect.json"}
 
 
-def test_a_requested_drawing_ships_beside_the_exports():
-    result = service.execute(BRIDGE.read_text(), drawing={"title": "Bridge", "revision": 1})
-    assert names(result) == CORE | set(service.DRAWING_FILES)
+@pytest.fixture(scope="module")
+def built():
+    result = service.execute(BRIDGE.read_text())
+    assert names(result) == CORE, "a build must not draw; drawing is its own job"
+    return next(a["base64"] for a in result["artifacts"] if a["name"] == "model.step")
+
+
+def test_a_drawing_job_reads_only_the_step(built):
+    result = service.execute_drawing(built, {"title": "Bridge", "revision": 1})
+    assert names(result) == set(service.DRAWING_FILES)
     pdf = next(a for a in result["artifacts"] if a["name"] == "blueprint.pdf")
     assert base64.b64decode(pdf["base64"])[:5] == b"%PDF-"
 
 
-def test_no_drawing_unless_asked():
-    assert names(service.execute(BRIDGE.read_text())) == CORE
+def test_a_failed_drawing_says_why():
+    broken = base64.b64encode(b"ISO-10303-21;\nnot a real step file").decode()
+    with pytest.raises(ValueError, match="Drawing failed"):
+        service.execute_drawing(broken, {})
 
 
-def test_an_exhausted_budget_keeps_the_build(monkeypatch):
-    monkeypatch.setattr(service, "DRAW_SECONDS", 0)
-    assert names(service.execute(BRIDGE.read_text(), drawing={})) == CORE
+def test_a_drawing_is_stopped_at_its_limit(built):
+    with pytest.raises(ValueError, match="time limit"):
+        service.execute_drawing(built, {}, timeout=0.01)
 
 
-def test_a_model_cannot_plant_a_drawing():
-    planted = 'import os\nos.makedirs("drawing")\nopen("drawing/blueprint.pdf", "w").write("forged")\n'
-    assert names(service.execute(planted + BRIDGE.read_text(), drawing={})) == CORE
+@pytest.mark.parametrize("step", ["", "not base64!", base64.b64encode(b"plain text").decode(), None])
+def test_only_a_step_file_is_drawn(step):
+    with pytest.raises(ValueError, match="STEP"):
+        service.execute_drawing(step, {})
+
+
+def test_the_spec_must_be_an_object(built):
+    with pytest.raises(ValueError, match="spec"):
+        service.execute_drawing(built, "title")
