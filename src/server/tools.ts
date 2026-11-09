@@ -30,6 +30,7 @@ import { savedTools } from "./saved-tools";
 import { inspectTools } from "./inspect-tools";
 import { checkTools } from "./check-tools";
 import { DESIGN_WRITES, designTools } from "./design-tools";
+import { stopSessionPlans } from "./design/plans";
 import { catalogIndex } from "./actions/catalog";
 import {
   catalogNews,
@@ -351,6 +352,7 @@ export const tools: Tool[] = [
       const session = await sessionFor(c, i.sessionId);
       if (session.ended_at) return { ok: true, endedAt: session.ended_at };
       const endedAt = now();
+      await stopSessionPlans(c, session.id);
       await c.env.DB.prepare(
         "UPDATE sessions SET ended_at=?,summary=? WHERE id=? AND ended_at IS NULL",
       )

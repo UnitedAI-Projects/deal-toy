@@ -3,6 +3,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Context } from "./core";
 import { recordEvent } from "./activity";
+import { openPlan } from "./design/plans";
 import { dispatch, execute } from "./tools";
 import { member } from "./test-helpers";
 
@@ -257,5 +258,248 @@ describe("design_start", () => {
   it("returns no sheet for a model without one", async () => {
     const { modelId } = await newModel();
     expect(await agent("design_get", { modelId })).toEqual({ sheet: null });
+  });
+});
+
+/** A steps-layout source whose layers are the given names, each a trivial body step. */
+function stepsSource(names: string[], params = "{}") {
+  const steps = names
+    .map(
+      (n, k) =>
+        `    m.body(${JSON.stringify(n)}, shape="box", size=(10, 10, ${k + 1}))\n`,
+    )
+    .join("");
+  return (
+    "import build123d as bd\nimport mantel as mt\n\n" +
+    `PARAMS = ${params}\n\n\ndef base():\n    return None\n\n\n` +
+    "def build():\n    m = mt.Model(base(), params=PARAMS)\n" +
+    `    # mantel:steps begin\n${steps}    # mantel:steps end\n` +
+    "    return m.result()\n"
+  );
+}
+async function seedRevision(modelId: string, source: string) {
+  const model = await env.DB.prepare("SELECT revision FROM models WHERE id=?")
+    .bind(modelId)
+    .first<{ revision: number }>();
+  const n = model!.revision + 1;
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO revisions (id,model_id,number,source,created_at) VALUES (?,?,?,?,?)",
+    ).bind(crypto.randomUUID(), modelId, n, source, stamp()),
+    env.DB.prepare("UPDATE models SET revision=? WHERE id=?").bind(n, modelId),
+  ]);
+  return n;
+}
+async function designed(c = carol) {
+  const model = await newModel(c);
+  const started = (await agent(
+    "design_start",
+    { modelId: model.modelId, ...CUP },
+    c,
+  )) as { planId: string };
+  return { ...model, frameworkPlan: started.planId };
+}
+/** A model whose framework is built and finished, ready for change plans. */
+async function built(c = carol) {
+  const model = await designed(c);
+  await seedRevision(model.modelId, stepsSource(["Cup wall", "Rim", "Handle"]));
+  await agent(
+    "change_finish",
+    { planId: model.frameworkPlan, summary: "Framework built." },
+    c,
+  );
+  return model;
+}
+async function planRow(planId: string) {
+  return (await env.DB.prepare("SELECT * FROM change_plans WHERE id=?")
+    .bind(planId)
+    .first<{ status: string; current: string | null; phrases: string }>())!;
+}
+async function changeEvents(projectId: string) {
+  const { results } = await env.DB.prepare(
+    "SELECT payload FROM project_events WHERE project_id=? AND kind='change' ORDER BY rowid",
+  )
+    .bind(projectId)
+    .all<{ payload: string }>();
+  return results.map((r) => JSON.parse(r.payload) as Record<string, unknown>);
+}
+
+describe("change plans", () => {
+  it("opens, reports and finishes a plan", async () => {
+    const { projectId, modelId } = await built();
+    const { planId } = (await agent("change_begin", {
+      modelId,
+      request: "Make the handle thinner",
+      edit: ["Handle"],
+    })) as { planId: string };
+    await agent("change_progress", {
+      planId,
+      layer: "Handle",
+      phrases: ["Thinning the grip", "Keeping the joins"],
+    });
+    const progress = await planRow(planId);
+    expect(progress.current).toBe("Handle");
+    expect(JSON.parse(progress.phrases)).toEqual([
+      "Thinning the grip",
+      "Keeping the joins",
+    ]);
+    const finished = (await agent("change_finish", {
+      planId,
+      summary: "Handle is 2 mm thinner.",
+    })) as { missing: string[] };
+    expect(finished.missing).toEqual([]);
+    expect((await planRow(planId)).status).toBe("finished");
+    const types = (await changeEvents(projectId))
+      .filter((e) => e.planId === planId)
+      .map((e) => e.type);
+    expect(types).toEqual(["begin", "progress", "finish"]);
+  });
+
+  it("refuses a plan without a design sheet", async () => {
+    const { modelId } = await newModel();
+    await expect(
+      agent("change_begin", { modelId, request: "x", edit: ["Rim"] }),
+    ).rejects.toThrow(
+      "This model has no design sheet. Question the person about every section, then call design_start.",
+    );
+  });
+
+  it("refuses an empty plan", async () => {
+    const { modelId } = await built();
+    await expect(
+      agent("change_begin", { modelId, request: "x", follow: ["Rim"] }),
+    ).rejects.toThrow(
+      "A plan must add, edit, remove or rename at least one layer.",
+    );
+  });
+
+  it("refuses a second open plan", async () => {
+    const { modelId } = await built();
+    await agent("change_begin", { modelId, request: "x", edit: ["Rim"] });
+    await expect(
+      agent("change_begin", { modelId, request: "y", edit: ["Handle"] }),
+    ).rejects.toThrow(
+      /^A change plan is already open for this model \(started .+ by carol-design@example\.test\)\. Finish it with change_finish\.$/,
+    );
+  });
+
+  it("refuses progress on an undeclared layer", async () => {
+    const { modelId } = await built();
+    const { planId } = (await agent("change_begin", {
+      modelId,
+      request: "x",
+      edit: ["Rim"],
+      follow: ["Cup wall"],
+    })) as { planId: string };
+    await agent("change_progress", { planId, layer: "Cup wall" });
+    await expect(
+      agent("change_progress", { planId, layer: "Handle" }),
+    ).rejects.toThrow("Handle is not in this plan.");
+  });
+
+  it("refuses another member's plan", async () => {
+    const { modelId } = await built();
+    const { planId } = (await agent("change_begin", {
+      modelId,
+      request: "x",
+      edit: ["Rim"],
+    })) as { planId: string };
+    await expect(
+      agent("change_progress", { planId, layer: "Rim" }, dave),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("stops a plan after 30 minutes without activity", async () => {
+    const { modelId } = await built();
+    const { planId } = (await agent("change_begin", {
+      modelId,
+      request: "x",
+      edit: ["Rim"],
+    })) as { planId: string };
+    const old = new Date(Date.now() - 31 * 60_000).toISOString();
+    await env.DB.prepare("UPDATE change_plans SET updated_at=? WHERE id=?")
+      .bind(old, planId)
+      .run();
+    expect(
+      await openPlan({ ...carol, channel: "internal" }, modelId),
+    ).toBeNull();
+    expect((await planRow(planId)).status).toBe("stopped");
+    await expect(
+      agent("change_progress", { planId, layer: "Rim" }),
+    ).rejects.toThrow(
+      "This plan is stopped. It stopped after 30 minutes without activity.",
+    );
+    await expect(
+      agent("change_begin", { modelId, request: "again", edit: ["Rim"] }),
+    ).resolves.toMatchObject({ planId: expect.any(String) });
+  });
+
+  it("session_end stops the session's open plans", async () => {
+    const { projectId, modelId } = await built();
+    const { sessionId } = (await agent("session_start", {
+      projectId,
+      prompt: "Change the rim",
+    })) as { sessionId: string };
+    const { planId } = (await agent("change_begin", {
+      sessionId,
+      modelId,
+      request: "Change the rim",
+      edit: ["Rim"],
+    })) as { planId: string };
+    await agent("session_end", { sessionId, summary: "Stopped early." });
+    expect((await planRow(planId)).status).toBe("stopped");
+    const stopped = (await changeEvents(projectId)).find(
+      (e) => e.planId === planId && e.type === "stopped",
+    );
+    expect(stopped).toMatchObject({ reason: "session_ended" });
+  });
+
+  it("framework plan cannot finish before its layers exist", async () => {
+    const { modelId, frameworkPlan } = await designed();
+    await seedRevision(modelId, stepsSource(["Cup wall"]));
+    await expect(
+      agent("change_finish", { planId: frameworkPlan, summary: "Done." }),
+    ).rejects.toThrow("The framework is not built yet: missing Rim, Handle.");
+    expect((await planRow(frameworkPlan)).status).toBe("open");
+  });
+
+  it("finishing the framework plan marks the sheet built", async () => {
+    const { modelId } = await built();
+    const { sheet } = (await agent("design_get", { modelId })) as {
+      sheet: Sheet;
+    };
+    expect(sheet.built).toBe(true);
+  });
+
+  it("reports added layers that were never built", async () => {
+    const { modelId } = await built();
+    const { planId } = (await agent("change_begin", {
+      modelId,
+      request: "Add a saucer",
+      add: [{ name: "Saucer", kind: "shape", region: region(-5, 0) }],
+    })) as { planId: string };
+    const finished = (await agent("change_finish", {
+      planId,
+      summary: "Gave up.",
+    })) as { missing: string[] };
+    expect(finished.missing).toEqual(["Saucer"]);
+  });
+
+  it("merges section updates by name", async () => {
+    const { modelId } = await built();
+    await agent("change_begin", {
+      modelId,
+      request: "Make the rim oval",
+      edit: ["Rim"],
+      sections: [{ name: "Rim", value: "oval 86 x 72", source: "answered" }],
+    });
+    const { sheet } = (await agent("design_get", { modelId })) as {
+      sheet: Sheet;
+    };
+    expect(sheet.sections).toEqual([
+      CUP.sections[0],
+      { name: "Rim", value: "oval 86 x 72", source: "answered" },
+      CUP.sections[2],
+    ]);
   });
 });
