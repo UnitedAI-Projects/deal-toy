@@ -237,3 +237,12 @@ Every MCP client now connects through OAuth sign-in, so Mantel API keys (`mtl_�
 - Full `bash ci/run.sh` passed: 300 Worker tests and 84 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run.
 - In the app (local `wrangler dev`, migration 0009 applied): Settings lists Account and Connected apps under "You", and the Connected apps page shows the server URL and the existing list (`docs/images/settings-connected-apps.png`). Access levels no longer lists an API keys permission. At 390 px there is no horizontal scroll (`docs/images/settings-connected-apps-mobile.png`).
 - Known limit: a script or CI job can no longer call `/mcp` without a browser sign-in. Rolling back the Worker alone would not bring keys back, because the migration drops the table; D1 Time Travel can restore it.
+
+## Copyable MCP setup instructions in Settings — 2026-11-09
+
+**Settings → Connected apps** now opens with a **Set up your AI** panel. **Copy instructions** copies text a member pastes into their AI app. The text gives this site's `/mcp` URL, says sign-in is OAuth and there are no keys, and lists each client's own setup: the `claude mcp add` and `codex mcp add`/`codex mcp login` commands, Cursor/VS Code, and Claude's custom connector (which the member adds themselves). It warns that sign-in returns to the computer the AI runs on, then has the AI confirm with `projects_list` and read the modeling skill with `skills_list`. The workspace Connect drawer points to it.
+
+- `src/web/setup.test.ts` checks the URL in every command, that the text never mentions keys or bearer tokens, and that it asks for the `projects_list` check. Full `bash ci/run.sh` passed: 310 Worker tests and 100 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run.
+- The `claude mcp add` and `codex mcp add`/`login` flags were checked against the installed CLIs' `--help`.
+- In the app (local `wrangler dev`): **Copy instructions** changed to "Copied" and back after about 2.5 seconds, with no error (`docs/images/settings-setup-prompt.png`). At 390 px there is no horizontal scroll (`docs/images/settings-setup-prompt-mobile.png`). Browsers may break a line after the hyphen in `--transport`; the copied text is unchanged.
+- Not verified: pasting the instructions into an AI app and completing a sign-in from them.

@@ -1367,6 +1367,17 @@ pre.code {
   line-height: 1.55;
   max-height: 62vh;
 }
+/* The setup prompt is prose that members copy; wrap it instead of scrolling sideways. */
+.setup-copy {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+pre.code.setup-prompt {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-size: 12.5px;
+  max-height: 340px;
+}
 pre.code.error-block {
   white-space: pre-wrap;
   color: var(--bad);
