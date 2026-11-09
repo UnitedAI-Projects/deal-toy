@@ -7,6 +7,8 @@ import { openPlan } from "./design/plans";
 import { dispatch, execute } from "./tools";
 import { member } from "./test-helpers";
 import bridge from "../../examples/bridge.py";
+import modelingSkill from "../../skills/modeling/SKILL.md";
+import { tools } from "./tools";
 
 let carol: Context;
 let dave: Context;
@@ -928,5 +930,30 @@ describe("guard", () => {
     await expect(
       agent("models_save", { modelId, expectedRevision: 2, source: bridge }),
     ).rejects.toThrow("This model has no design sheet.");
+  });
+});
+
+describe("modeling skill", () => {
+  it("every tool the modeling skill names is registered", () => {
+    const registered = new Set(tools.map((t) => t.name));
+    const named = [...modelingSkill.matchAll(/`([a-z]+_[a-z_]+)`/g)]
+      .map((m) => m[1])
+      .filter((n) =>
+        /^(models|steps|design|change|session|actions|presets|builds|projects|checks|inspect|documents|view|notes|selection)_/.test(
+          n,
+        ),
+      );
+    expect(named.filter((n) => !registered.has(n))).toEqual([]);
+    for (const required of [
+      "design_start",
+      "change_begin",
+      "change_progress",
+      "change_finish",
+    ])
+      expect(named).toContain(required);
+    // The design comes first: design_start is named before the first geometry tool.
+    expect(modelingSkill.indexOf("`design_start`")).toBeLessThan(
+      modelingSkill.indexOf("`steps_add`"),
+    );
   });
 });
