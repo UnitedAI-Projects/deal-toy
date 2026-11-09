@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 
 import build123d
-from service import Handler, HTTPServer, execute, execute_measure
+from service import Handler, HTTPServer, execute, execute_drawing, execute_measure
 
 # The image is read-only at run time, so bytecode exists only if the image build compiled it.
 for module in (build123d, json):
@@ -37,9 +37,9 @@ with HTTPServer(("0.0.0.0", 0), Handler) as server:
         (measured,) = execute_measure(step, [{"key": "f0-f1", "a": {"face": 0}, "b": {"face": 1}}])["results"]
         assert "distance" in measured and measured["distance"] >= 0, measured
         print(f"Measure mode reads the STEP ({measured['distance']:.2f} mm between faces 0 and 1)")
-        # A drawing runs after the exports, on a read-only image, from the STEP alone.
-        drawn = execute(Path("/examples/bridge.py").read_text(), drawing={"title": "Bridge", "revision": 1})
-        assert {"blueprint.pdf", "blueprint.dxf"} <= {a["name"] for a in drawn["artifacts"]}, "no blueprint"
+        # A drawing job reads the build's STEP only, on the read-only image.
+        drawn = execute_drawing(step, {"title": "Bridge", "revision": 1})
+        assert {a["name"] for a in drawn["artifacts"]} == {"blueprint.pdf", "blueprint.dxf"}, "no blueprint"
         print("Blueprint PDF and DXF generated")
         # Text in the default font (Arial) must come out in an outline font with Arial's
         # metrics, not OCCT's single-line fallback or a monospace face. The listener takes one

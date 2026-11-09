@@ -87,8 +87,9 @@ export async function queueBuild(
   if ((today?.n ?? 0) >= limit)
     throw new AppError(429, "Daily build limit reached");
   const jobId = crypto.randomUUID();
+  // Blueprint jobs have no member and follow builds one for one, so they never fill the queue.
   const admitted = await c.env.DB.prepare(
-    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by,purpose,options) SELECT ?,?,'queued',NULL,NULL,?,?,?,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running'))<10",
+    "INSERT INTO jobs (id,revision_id,status,error,facts,created_at,updated_at,created_by,purpose,options) SELECT ?,?,'queued',NULL,NULL,?,?,?,?,? WHERE (SELECT count(*) FROM jobs WHERE status IN ('queued','running') AND created_by IS NOT NULL)<10",
   )
     .bind(
       jobId,
