@@ -1,5 +1,7 @@
 """The revolve, loft, sweep, shell and appearance actions, and the tea cup reference model."""
+import json
 import math
+from pathlib import Path
 
 from test_mantel import run, script, states, step
 
@@ -92,6 +94,16 @@ def test_shell_hollows_with_open_top(tmp_path):
     assert abs(part(facts, "Cup")["volume_mm3"] - expected) / expected < 0.02
 
 
+def test_shell_hollows_a_flared_loft(tmp_path):
+    sections = '[{"shape": "circle", "z": 4, "diameter": 62}, {"shape": "circle", "z": 95, "diameter": 84}]'
+    facts = run(tmp_path, script([
+        f'm.loft("Cup", sections={sections})',
+        'm.shell("Hollow", target=m.part("Cup"), thickness=3, open=[m.face("Cup", "top")])',
+    ]))
+    assert states(facts) == {"Cup": "ok", "Hollow": "ok"}
+    assert part(facts, "Cup")["volume_mm3"] < 100000
+
+
 def test_shell_open_face_must_belong_to_the_target(tmp_path):
     facts = run(tmp_path, script([
         'm.body("Cup", shape="cylinder", diameter=60, height=60)',
@@ -122,3 +134,21 @@ def test_parts_without_appearance_have_no_colour(tmp_path):
 def test_appearance_unknown_part_fails(tmp_path):
     facts = run(tmp_path, script([SPARE, 'm.appearance("Glaze", target=m.part("Cup"), color=(1, 1, 1))']))
     assert step(facts, "Glaze")["code"] == "part_not_found"
+
+
+EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
+
+
+def test_tea_cup_example_builds(tmp_path):
+    source = (EXAMPLES / "tea_cup_steps.py").read_text()
+    design = json.loads((EXAMPLES / "tea_cup_design.json").read_text())
+    facts = run(tmp_path, source, name="cup")
+    assert set(states(facts).values()) == {"ok"}, facts["steps"]
+    assert [p["label"] for p in facts["parts"]] == ["Cup wall"]
+    assert abs(facts["bounds"][2] - 95) <= 0.5
+    assert [s["name"] for s in facts["steps"]] == [layer["name"] for layer in design["framework"]]
+    taller = source.replace('"CUP_HEIGHT": {"value": 95.0', '"CUP_HEIGHT": {"value": 110.0')
+    assert taller != source
+    facts = run(tmp_path, taller, name="taller")
+    assert set(states(facts).values()) == {"ok"}, facts["steps"]
+    assert abs(facts["bounds"][2] - 110) <= 0.5

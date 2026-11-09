@@ -1,0 +1,97 @@
+{
+  "units": "mm",
+  "bounds": [106.36566301263451, 83.69241978300886, 95.0],
+  "volume_mm3": 76093.04734169702,
+  "solids": 1,
+  "valid": true,
+  "manufacturing_approval": "not_reviewed",
+  "parts": [
+    {
+      "label": "Cup wall",
+      "volume_mm3": 76093.04734169702,
+      "color": [0.96, 0.95, 0.92],
+      "finish": "gloss"
+    }
+  ],
+  "params": {
+    "CUP_HEIGHT": {
+      "value": 95.0,
+      "unit": "mm",
+      "part": "Cup wall",
+      "min": 60.0,
+      "max": 140.0
+    },
+    "RIM_DIAMETER": {
+      "value": 84.0,
+      "unit": "mm",
+      "part": "Cup wall",
+      "min": 60.0,
+      "max": 110.0
+    },
+    "BASE_DIAMETER": {
+      "value": 62.0,
+      "unit": "mm",
+      "part": "Cup wall",
+      "min": 50.0,
+      "max": 80.0
+    },
+    "WALL": {
+      "value": 3.0,
+      "unit": "mm",
+      "part": "Cup wall",
+      "min": 2.0,
+      "max": 6.0
+    }
+  },
+  "steps": [
+    {
+      "name": "Cup wall",
+      "action": "loft",
+      "version": 1,
+      "state": "ok",
+      "created": ["surface"],
+      "ms": 50
+    },
+    {
+      "name": "Hollow",
+      "action": "shell",
+      "version": 1,
+      "state": "ok",
+      "created": ["inside"],
+      "ms": 55
+    },
+    {
+      "name": "Foot ring",
+      "action": "revolve",
+      "version": 1,
+      "state": "ok",
+      "created": ["surface"],
+      "ms": 8
+    },
+    {
+      "name": "Rim",
+      "action": "fillet",
+      "version": 1,
+      "state": "ok",
+      "created": ["rounds"],
+      "ms": 26
+    },
+    {
+      "name": "Handle",
+      "action": "sweep",
+      "version": 1,
+      "state": "ok",
+      "created": ["surface"],
+      "ms": 157
+    },
+    {
+      "name": "Glaze",
+      "action": "appearance",
+      "version": 1,
+      "state": "ok",
+      "created": [],
+      "ms": 0
+    }
+  ],
+  "incomplete": false
+}

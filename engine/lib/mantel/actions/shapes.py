@@ -113,7 +113,14 @@ def shell(m, name, target, thickness, open=None, inward=True):
         faces.extend(found)
     before = m.parts[label]
     amount = -thickness if inward else thickness
-    after = _geometry(lambda: bd.offset(before, amount=amount, openings=faces or None))
+
+    def hollow():
+        # Rounded offsets fail on some blended walls, such as a flared loft; sharp ones then work.
+        try:
+            return bd.offset(before, amount=amount, openings=faces or None)
+        except Exception:  # noqa: BLE001 - OCCT reports offset failures with assorted types
+            return bd.offset(before, amount=amount, openings=faces or None, kind=bd.Kind.INTERSECTION)
+    after = _geometry(hollow)
     if not after.solids() or not after.is_valid or abs(after.volume - before.volume) < 1e-6:
         raise StepError("invalid_geometry", "The part could not be hollowed at this thickness")
     m.parts[label] = after
