@@ -20,6 +20,16 @@ import { InspectPanel, type Picked } from "./InspectPanel";
 import { ChecksPanel } from "./ChecksPanel";
 import { overlayTones, type Toggles } from "./checks";
 import { dimensionEdit, dragAxis, dragValue } from "./adjust";
+import { jointDragValue, jointFrames, partTransforms } from "./fit";
+import {
+  attachmentText,
+  commitsFor,
+  fitLabel,
+  fitStep,
+  initialFit,
+  type FitAction,
+  type FitState,
+} from "./fit-state";
 import type { DimensionRecord } from "../shared/inspect-types";
 import type { Check, CheckResult, Target } from "../shared/checks";
 import { pickFace, type InspectRecord } from "./inspect";
@@ -107,6 +117,19 @@ export function Workspace(props: Props) {
     value: number;
   } | null>(null);
   const dragRef = useRef<{ dim: DimensionRecord; value: number } | null>(null);
+  // Explode, view-only joint poses and a part drag; held in a ref so a release commits once.
+  const fitRef = useRef<FitState>(initialFit(null));
+  const [, setFitTick] = useState(0);
+  const [explodeOpen, setExplodeOpen] = useState(false);
+  const [moveParts, setMoveParts] = useState(false);
+  function fitDo(action: FitAction) {
+    const out = fitStep(fitRef.current, action);
+    if (out.state !== fitRef.current) {
+      fitRef.current = out.state;
+      setFitTick((n) => n + 1);
+    }
+    return out.commit;
+  }
   const [presets, setPresets] = useState<Preset[]>([]);
   // What the agent is pointing at, until the person clicks.
   const [agentPoint, setAgentPoint] = useState<{
@@ -278,7 +301,10 @@ export function Workspace(props: Props) {
     void request(`/api/artifacts/${inspectArtifact.id}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled) setRecord(json as InspectRecord);
+        if (cancelled) return;
+        setRecord(json as InspectRecord);
+        // A new build replaces every pose and cancels a drag; the explode amount stays.
+        fitDo({ type: "record", buildId: inspectArtifact.id });
       })
       .catch(() => {});
     return () => {
@@ -666,6 +692,68 @@ export function Workspace(props: Props) {
           },
         }
       : null;
+  // Explode and joint poses: where each part is shown, and dragging a part along its joint.
+  const fit = fitRef.current;
+  const fitRecord = !asOf && record?.parts.length ? record : null;
+  const posed =
+    !!fitRecord && (fit.explode > 0 || Object.keys(fit.poses).length > 0);
+  const pose = useMemo(
+    () =>
+      posed && fitRecord
+        ? {
+            key: `${fit.buildId}:${fit.explode}:${JSON.stringify(fit.poses)}`,
+            matrices: partTransforms(fitRecord, fit.explode, fit.poses),
+          }
+        : null,
+    [posed, fitRecord, fit.buildId, fit.explode, fit.poses],
+  );
+  const movable = (fitRecord?.joints ?? [])
+    .map((j, k) => (j.kind === "rigid" ? -1 : k))
+    .filter((k) => k >= 0);
+  const move =
+    moveParts && fine && fitRecord && movable.length
+      ? {
+          joints: movable,
+          frames: jointFrames(fitRecord, fit.explode, fit.poses),
+          onStart: (k: number) =>
+            void fitDo({
+              type: "start",
+              joint: k,
+              value: fitRef.current.poses[k] ?? fitRecord.joints![k].value,
+            }),
+          onMove: (delta: number) => {
+            const drag = fitRef.current.drag;
+            if (!drag) return;
+            const dim = fitRecord.dimensions?.find(
+              (d) => d.joint === drag.joint,
+            );
+            const spec = dim?.param ? facts?.params?.[dim.param] : undefined;
+            fitDo({
+              type: "move",
+              value: jointDragValue(
+                fitRecord.joints![drag.joint],
+                spec ? { ...spec, scale: dim!.scale } : undefined,
+                drag.start,
+                delta,
+              ),
+            });
+          },
+          onRelease: () => {
+            const drag = fitRef.current.drag;
+            const dim = drag
+              ? commitsFor(fitRecord, drag.joint, editable)
+              : null;
+            const commit = fitDo({ type: "release", commits: !!dim });
+            if (commit && dim)
+              void adjust(dim, commit.value).catch((e: Error) => {
+                setError(e.message);
+                fitDo({ type: "reset" });
+              });
+          },
+          onCancel: () => void fitDo({ type: "cancel" }),
+        }
+      : null;
+  const fitText = fitRecord ? fitLabel(fitRecord, fit) : null;
   const dragGhost =
     drag && dragLine && record
       ? {
@@ -710,8 +798,10 @@ export function Workspace(props: Props) {
           record={asOf ? null : record}
           highlights={highlights}
           section={asOf ? null : section}
-          ghost={asOf ? null : (dragGhost ?? ghost)}
-          handle={handle}
+          ghost={asOf || posed ? null : (dragGhost ?? ghost)}
+          handle={posed ? null : handle}
+          pose={pose}
+          move={move}
           onSelect={(label, point, hit, additive) => {
             setAgentPoint(null);
             if (label && pickIntoForm(label, hit)) return;
@@ -946,6 +1036,63 @@ export function Workspace(props: Props) {
           {section && (
             <span className="muted small">{section.offset.toFixed(1)} mm</span>
           )}
+          {record.parts.length > 1 && (
+            <button
+              className={`chip ${explodeOpen ? "on" : ""}`}
+              aria-pressed={explodeOpen}
+              onClick={() => setExplodeOpen(!explodeOpen)}
+            >
+              Explode
+            </button>
+          )}
+          {explodeOpen && (
+            <>
+              <input
+                type="range"
+                aria-label="Explode"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(fit.explode * 100)}
+                onChange={(e) =>
+                  fitDo({
+                    type: "explode",
+                    amount: Number(e.target.value) / 100,
+                  })
+                }
+              />
+              <button
+                className="chip"
+                disabled={fit.explode === 0}
+                onClick={() => fitDo({ type: "collapse" })}
+              >
+                Collapse
+              </button>
+            </>
+          )}
+          {fine && movable.length > 0 && (
+            <button
+              className={`chip wide-only ${moveParts ? "on" : ""}`}
+              aria-pressed={moveParts}
+              title="Drag a part along its joint"
+              onClick={() => setMoveParts(!moveParts)}
+            >
+              Move parts
+            </button>
+          )}
+          {fitText && (
+            <span className="fit-label small" role="status">
+              {fitText}
+              {fit.viewOnly && (
+                <button
+                  className="link"
+                  onClick={() => fitDo({ type: "reset" })}
+                >
+                  Reset
+                </button>
+              )}
+            </span>
+          )}
         </div>
       )}
 
@@ -993,6 +1140,7 @@ export function Workspace(props: Props) {
           label={selection.label}
           at={selection}
           params={params.filter(([, s]) => s.part === selection.label)}
+          attachment={record ? attachmentText(record, selection.label) : null}
           editable={editable}
           building={
             viewedJob?.status === "queued" || viewedJob?.status === "running"
@@ -1327,6 +1475,8 @@ function PartPopover(props: {
   editable: boolean;
   building: boolean;
   readOnly: boolean;
+  /** How the part attaches by its joint, when the model declares joints. */
+  attachment?: string | null;
   onClose: () => void;
   onApply: (name: string, value: number) => Promise<void>;
 }) {
@@ -1370,6 +1520,7 @@ function PartPopover(props: {
           ×
         </button>
       </div>
+      {props.attachment && <p className="small">{props.attachment}</p>}
       {!props.params.length && (
         <p className="muted small">
           No editable dimensions are declared for this part.

@@ -1226,6 +1226,22 @@ button.danger {
 .inspect-tools input[type="range"] {
   width: 140px;
 }
+.inspect-tools {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 28px);
+}
+/* The live value of a part drag, and whether it is saved. */
+.fit-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  backdrop-filter: blur(10px);
+}
 .inspect-panel .measures {
   display: grid;
   gap: 2px;
