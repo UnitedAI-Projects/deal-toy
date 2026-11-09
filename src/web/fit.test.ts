@@ -5,10 +5,12 @@ import boxJson from "../../engine/tests/fixtures/enclosure_inspect.inspect.json"
 import type { InspectRecord, JointRecord, Vec3 } from "../shared/inspect-types";
 import {
   angleAround,
+  applyDirection,
   applyPoint,
   explodeOffsets,
   invertRigid,
   jointDragValue,
+  jointFrames,
   jointMotion,
   partTransforms,
 } from "./fit";
@@ -159,5 +161,27 @@ describe("jointDragValue", () => {
   });
   it("holds the start value when the pointer gives no number", () => {
     expect(jointDragValue(slide, undefined, 7, Number.NaN)).toBe(7);
+  });
+});
+
+describe("jointFrames", () => {
+  it("carries each joint's axis with the part it is fixed to", () => {
+    const hinge = jointOf(fit, "hinge");
+    const plaque = jointOf(fit, "plaque");
+    const poses = { [hinge]: 60 };
+    const frames = jointFrames(fit, 0, poses);
+    const lid = partTransforms(fit, 0, poses)[label(fit, "Lid")];
+    expect(frames[plaque]).toEqual(lid);
+    expect(frames[hinge]).toEqual(IDENTITY);
+    const exploded = jointFrames(fit, 1, {});
+    const offset = explodeOffsets(fit, 1)[label(fit, "Drawer")];
+    close(applyPoint(exploded[jointOf(fit, "slide")], [0, 0, 0]), offset, 9);
+    close(
+      applyDirection(lid, [0, 0, 1]),
+      applyPoint(lid, [0, 0, 1]).map(
+        (v, k) => v - applyPoint(lid, [0, 0, 0])[k],
+      ) as Vec3,
+      9,
+    );
   });
 });

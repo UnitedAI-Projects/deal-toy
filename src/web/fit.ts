@@ -75,6 +75,15 @@ export function applyPoint(m: Mat4, p: Vec3): Vec3 {
   ];
 }
 
+/** A direction moved by a matrix's rotation alone. */
+export function applyDirection(m: Mat4, d: Vec3): Vec3 {
+  return [
+    m[0] * d[0] + m[4] * d[1] + m[8] * d[2],
+    m[1] * d[0] + m[5] * d[1] + m[9] * d[2],
+    m[2] * d[0] + m[6] * d[1] + m[10] * d[2],
+  ];
+}
+
 /** The inverse of a rotation-and-translation matrix. */
 export function invertRigid(m: Mat4): Mat4 {
   const t: Vec3 = [m[12], m[13], m[14]];
@@ -200,6 +209,23 @@ export function partTransforms(
     return m;
   };
   return record.parts.map((_, i) => visit(i, new Set()));
+}
+
+/**
+ * Where each joint's frame is now, indexed like `record.joints`: the transform of the part it is
+ * fixed to, then the moving part's explode offset. A drag measures along the joint's axis moved by
+ * this, so dragging an exploded or posed part follows what the person sees.
+ */
+export function jointFrames(
+  record: InspectRecord,
+  explode: number,
+  poses: Record<number, number>,
+): Mat4[] {
+  const transforms = partTransforms(record, explode, poses);
+  const offsets = explodeOffsets(record, explode);
+  return (record.joints ?? []).map((j) =>
+    multiply(transforms[j.to], translation(offsets[j.part])),
+  );
 }
 
 /**
