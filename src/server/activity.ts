@@ -6,7 +6,14 @@ import {
   type Context,
 } from "./core";
 export type EventKind =
-  "prompt" | "agent_update" | "tool_call" | "team_note" | "team_edit" | "ended";
+  | "prompt"
+  | "agent_update"
+  | "tool_call"
+  | "team_note"
+  | "team_edit"
+  | "ended"
+  | "design"
+  | "change";
 export type ProjectEvent = {
   id: string;
   project_id: string;

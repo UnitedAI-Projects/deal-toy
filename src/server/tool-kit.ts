@@ -59,7 +59,7 @@ export async function saveRevision(
   const revisionId = crypto.randomUUID();
   const rows = await c.env.DB.batch([
     c.env.DB.prepare(
-      "INSERT INTO revisions SELECT ?,id,revision+1,?,? FROM models WHERE id=? AND revision=?",
+      "INSERT INTO revisions (id,model_id,number,source,created_at) SELECT ?,id,revision+1,?,? FROM models WHERE id=? AND revision=?",
     ).bind(revisionId, source, now(), modelId, expectedRevision),
     c.env.DB.prepare(
       "UPDATE models SET revision=revision+1 WHERE id=? AND revision=? AND EXISTS(SELECT 1 FROM revisions WHERE id=?)",
