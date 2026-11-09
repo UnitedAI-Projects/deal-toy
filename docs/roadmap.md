@@ -14,7 +14,7 @@
 ## Next: manufacturer-ready package
 
 1. Add a structured part/BOM model and native assemblies, preserving material and placement metadata.
-2. Add drawing specifications to the geometry-derived blueprint adapter: feature and hole-position dimensions, tolerances, material and revision invalidation.
+2. Add drawing specifications to the geometry-derived blueprint adapter: feature and hole-position dimensions on the views, tolerances and revision invalidation.
 3. Add supplier/process profiles and measured DFM checks with cited limits and explicit unknowns.
 4. Add human reviews, revision invalidation, immutable release manifests and ZIP export of source, geometry, drawings, BOM and brief.
 
