@@ -24,6 +24,28 @@ describe("validateInputs", () => {
       ).not.toThrow();
     }
   });
+  it("reads PARAMS inside nested point lists", () => {
+    const source =
+      'def build():\n    # mantel:steps begin\n    m.revolve("Cup wall", profile=[(0, 0), (40, 0), (40, mt.P("CUP_HEIGHT")), (0, 3)])\n    # mantel:steps end\n';
+    const [step] = readSteps(source).steps;
+    expect((step.inputs.profile as unknown[])[2]).toEqual([
+      40,
+      { param: "CUP_HEIGHT" },
+    ]);
+    expect(() =>
+      validateInputs(getAction("revolve"), step.inputs),
+    ).not.toThrow();
+  });
+  it("requires each loft section's sizes", () => {
+    expect(() =>
+      validateInputs(getAction("loft"), {
+        sections: [
+          { shape: "circle", z: 0 },
+          { shape: "circle", z: 10, diameter: 20 },
+        ],
+      }),
+    ).toThrow("sections[0].diameter is required when shape is circle");
+  });
   it("rejects out-of-range numbers", () => {
     expect(() => validateInputs(hole, { ...base, diameter: 500 })).toThrow(
       "diameter must be at most 200 mm",

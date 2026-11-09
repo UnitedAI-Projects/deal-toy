@@ -1512,6 +1512,650 @@
       "example": "m.move(\"Lift coin\", part=m.part(\"Coin\"), method=\"translate\", by=(0, 0, 2))"
     },
     {
+      "id": "revolve",
+      "version": 1,
+      "title": "Revolve",
+      "category": "Create",
+      "summary": "Spin a closed profile of radius and height points around a vertical axis to make a round part.",
+      "description": "Use for round bodies: cup walls, bowls, foot rings, knobs and rolled lips. The profile is a list of (r, z) points from the axis outward, closed automatically and revolved about the vertical axis through at. Points may read PARAMS with mt.P. Not for straight prisms (use extrude) or shapes that change outline between heights (use loft).",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "array",
+            "description": "The outline as (r, z) points: distance from the axis and height",
+            "minItems": 3,
+            "maxItems": 200,
+            "items": {
+              "type": "array",
+              "description": "One (r, z) point",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number",
+                "description": "r, the distance from the axis, then z, the height",
+                "unit": "mm",
+                "minimum": -2000,
+                "maximum": 2000
+              }
+            }
+          },
+          "smooth": {
+            "type": "boolean",
+            "description": "Draw a smooth curve through the points instead of straight lines",
+            "default": false
+          },
+          "angle": {
+            "type": "number",
+            "description": "How far to revolve; 360 makes a full ring",
+            "unit": "deg",
+            "minimum": 1,
+            "maximum": 360,
+            "default": 360
+          },
+          "at": {
+            "type": "array",
+            "description": "A point on the vertical axis, in model coordinates; defaults to the origin",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["new", "join", "cut"],
+            "description": "Make a new part named after the step, add to the target, or cut from it",
+            "default": "new"
+          },
+          "target": {
+            "x-ref": "part",
+            "description": "The part to join to or cut from"
+          }
+        },
+        "required": ["profile"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "join"
+                }
+              }
+            },
+            "then": {
+              "required": ["target"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "cut"
+                }
+              }
+            },
+            "then": {
+              "required": ["target"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "surface": "The revolved faces"
+      },
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "missed_target",
+          "explanation": "The tool did not touch the target part, so nothing changed.",
+          "fix": "Move the tool so it overlaps the target, or check the direction."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "bodies",
+      "example": "m.revolve(\"Cup wall\", profile=[(0, 0), (40, 0), (42, 95), (39, 95), (37, 3), (0, 3)])"
+    },
+    {
+      "id": "loft",
+      "version": 1,
+      "title": "Loft",
+      "category": "Create",
+      "summary": "Blend between horizontal outlines at increasing heights, such as a round base rising to an oval rim.",
+      "description": "Use when the outline changes with height: a cup body that is round at the foot and oval at the rim, or a tapered plinth. Each section is a circle, ellipse, rectangle or rounded rectangle centred on the vertical axis through at, at height z. For one outline revolved round an axis use revolve; for a constant outline use extrude.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "sections": {
+            "type": "array",
+            "description": "The outlines from bottom to top, with strictly increasing z",
+            "minItems": 2,
+            "maxItems": 20,
+            "items": {
+              "description": "One outline at one height",
+              "type": "object",
+              "properties": {
+                "shape": {
+                  "type": "string",
+                  "enum": [
+                    "circle",
+                    "ellipse",
+                    "rectangle",
+                    "rounded_rectangle"
+                  ],
+                  "description": "The outline at this height"
+                },
+                "z": {
+                  "type": "number",
+                  "description": "Height of the outline",
+                  "unit": "mm",
+                  "minimum": -2000,
+                  "maximum": 2000
+                },
+                "diameter": {
+                  "type": "number",
+                  "description": "Diameter of a circle",
+                  "unit": "mm",
+                  "minimum": 0.1,
+                  "maximum": 2000
+                },
+                "width": {
+                  "type": "number",
+                  "description": "Size along X of an ellipse or rectangle",
+                  "unit": "mm",
+                  "minimum": 0.1,
+                  "maximum": 2000
+                },
+                "length": {
+                  "type": "number",
+                  "description": "Size along Y of an ellipse or rectangle",
+                  "unit": "mm",
+                  "minimum": 0.1,
+                  "maximum": 2000
+                },
+                "radius": {
+                  "type": "number",
+                  "description": "Corner radius of a rounded rectangle",
+                  "unit": "mm",
+                  "minimum": 0.05,
+                  "maximum": 500
+                }
+              },
+              "required": ["shape", "z"],
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "shape": {
+                        "const": "circle"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": ["diameter"]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "shape": {
+                        "const": "ellipse"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": ["width", "length"]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "shape": {
+                        "const": "rectangle"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": ["width", "length"]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "shape": {
+                        "const": "rounded_rectangle"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": ["width", "length", "radius"]
+                  }
+                }
+              ]
+            }
+          },
+          "ruled": {
+            "type": "boolean",
+            "description": "Join the outlines with straight sides instead of a smooth blend",
+            "default": false
+          },
+          "at": {
+            "type": "array",
+            "description": "A point on the vertical axis the outlines are centred on; defaults to the origin",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "description": "One coordinate",
+              "unit": "mm",
+              "minimum": -2000,
+              "maximum": 2000
+            }
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["new", "join", "cut"],
+            "description": "Make a new part named after the step, add to the target, or cut from it",
+            "default": "new"
+          },
+          "target": {
+            "x-ref": "part",
+            "description": "The part to join to or cut from"
+          }
+        },
+        "required": ["sections"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "join"
+                }
+              }
+            },
+            "then": {
+              "required": ["target"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "cut"
+                }
+              }
+            },
+            "then": {
+              "required": ["target"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "surface": "The blended side faces"
+      },
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "missed_target",
+          "explanation": "The tool did not touch the target part, so nothing changed.",
+          "fix": "Move the tool so it overlaps the target, or check the direction."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "bodies",
+      "example": "m.loft(\"Cup body\", sections=[{\"shape\": \"circle\", \"z\": 0, \"diameter\": 62}, {\"shape\": \"ellipse\", \"z\": 95, \"width\": 86, \"length\": 72}])"
+    },
+    {
+      "id": "sweep",
+      "version": 1,
+      "title": "Sweep",
+      "category": "Create",
+      "summary": "Sweep a circle, ellipse or rectangle along a path of points, such as a cup handle.",
+      "description": "Use for handles, rails, piping and wire-like shapes that follow a curve. The section is placed square to the path at its first point. By default the swept shape joins the target, which it must touch. Not for straight prisms (use extrude) or round bodies (use revolve).",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "array",
+            "description": "Points the section travels through, in model coordinates",
+            "minItems": 2,
+            "maxItems": 200,
+            "items": {
+              "type": "array",
+              "description": "A point on the path",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number",
+                "description": "One coordinate",
+                "unit": "mm",
+                "minimum": -2000,
+                "maximum": 2000
+              }
+            }
+          },
+          "section": {
+            "type": "string",
+            "enum": ["circle", "ellipse", "rectangle"],
+            "description": "The cross-section",
+            "default": "circle"
+          },
+          "diameter": {
+            "type": "number",
+            "description": "Diameter of a circular section",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 500
+          },
+          "width": {
+            "type": "number",
+            "description": "Width of an ellipse or rectangle section",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 500
+          },
+          "length": {
+            "type": "number",
+            "description": "Length of an ellipse or rectangle section",
+            "unit": "mm",
+            "minimum": 0.1,
+            "maximum": 500
+          },
+          "smooth": {
+            "type": "boolean",
+            "description": "Follow a smooth curve through the points instead of straight segments",
+            "default": true
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["new", "join", "cut"],
+            "description": "Make a new part named after the step, add to the target, or cut from it",
+            "default": "join"
+          },
+          "target": {
+            "x-ref": "part",
+            "description": "The part to join to or cut from"
+          }
+        },
+        "required": ["path"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "section": {
+                  "const": "circle"
+                }
+              }
+            },
+            "then": {
+              "required": ["diameter"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "section": {
+                  "const": "ellipse"
+                }
+              }
+            },
+            "then": {
+              "required": ["width", "length"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "section": {
+                  "const": "rectangle"
+                }
+              }
+            },
+            "then": {
+              "required": ["width", "length"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "join"
+                }
+              }
+            },
+            "then": {
+              "required": ["target"]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "cut"
+                }
+              }
+            },
+            "then": {
+              "required": ["target"]
+            }
+          }
+        ]
+      },
+      "selections": [
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 0,
+          "max": 1
+        }
+      ],
+      "creates": {
+        "surface": "The swept faces"
+      },
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "missed_target",
+          "explanation": "The tool did not touch the target part, so nothing changed.",
+          "fix": "Move the tool so it overlaps the target, or check the direction."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "bodies",
+      "example": "m.sweep(\"Handle\", path=[(38, 0, 80), (60, 0, 72), (62, 0, 40), (38, 0, 25)], diameter=8, target=m.part(\"Cup wall\"))"
+    },
+    {
+      "id": "shell",
+      "version": 1,
+      "title": "Shell",
+      "category": "Modify",
+      "summary": "Hollow out a part to a wall thickness, leaving the chosen faces open.",
+      "description": "Use to turn a solid body into a vessel: a cup from a solid loft, a box with an open top. Open faces must belong to the target. With inward true the outside stays where it is. For a revolved cup, drawing the wall in the revolve profile is simpler and more robust.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "x-ref": "part",
+            "description": "The part to hollow"
+          },
+          "thickness": {
+            "type": "number",
+            "description": "Wall thickness",
+            "unit": "mm",
+            "minimum": 0.2,
+            "maximum": 50
+          },
+          "open": {
+            "type": "array",
+            "description": "Faces of the target to leave open",
+            "minItems": 0,
+            "maxItems": 6,
+            "items": {
+              "x-ref": "face",
+              "description": "A face to remove"
+            }
+          },
+          "inward": {
+            "type": "boolean",
+            "description": "Keep the outside and grow the wall inward",
+            "default": true
+          }
+        },
+        "required": ["target", "thickness"],
+        "additionalProperties": false
+      },
+      "selections": [
+        {
+          "input": "target",
+          "kind": "part",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "input": "open",
+          "kind": "face",
+          "min": 0,
+          "max": 6
+        }
+      ],
+      "creates": {
+        "inside": "The new inner faces"
+      },
+      "failures": [
+        {
+          "code": "part_not_found",
+          "explanation": "No part has the label this step refers to.",
+          "fix": "Check the part label in the model summary."
+        },
+        {
+          "code": "face_not_found",
+          "explanation": "A face this step refers to no longer exists, often after an earlier step or a parameter changed.",
+          "fix": "Pick the face again, or refer to a name an earlier step created."
+        },
+        {
+          "code": "ambiguous_reference",
+          "explanation": "A face or edge query matched two candidates equally well, so the step refused to guess.",
+          "fix": "Move the reference point closer to the intended face, or pick it by a created name."
+        },
+        {
+          "code": "invalid_geometry",
+          "explanation": "The operation produced geometry that is not a valid solid.",
+          "fix": "Try a smaller size or a different face; check the step's inputs against the part's size."
+        },
+        {
+          "code": "invalid_input",
+          "explanation": "An input is missing, has the wrong type or is out of range.",
+          "fix": "Read the action's inputs with actions_describe and correct the value."
+        },
+        {
+          "code": "duplicate_name",
+          "explanation": "Another step or part already uses this name.",
+          "fix": "Give the step a unique name."
+        },
+        {
+          "code": "internal_error",
+          "explanation": "The step raised an unexpected error.",
+          "fix": "Read the message; if it persists, simplify the inputs or use a custom step."
+        }
+      ],
+      "preview": "none",
+      "example": "m.shell(\"Hollow\", target=m.part(\"Cup body\"), thickness=3, open=[m.face(\"Cup body\", \"top\")])"
+    },
+    {
       "id": "custom",
       "version": 1,
       "title": "Custom step",

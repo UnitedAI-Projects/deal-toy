@@ -174,8 +174,9 @@ describe("action and step tools", () => {
       "hole",
       "fillet",
       "chamfer",
+      "shell",
     ]);
-    expect(catalog.index.split("\n")).toHaveLength(10);
+    expect(catalog.index.split("\n")).toHaveLength(14);
     expect(catalog.states).toHaveLength(6);
     const searched = (await call("actions_list", { query: "engrave" })) as {
       actions: { id: string }[];
