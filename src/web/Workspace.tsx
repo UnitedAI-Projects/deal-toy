@@ -105,6 +105,7 @@ export function Workspace(props: Props) {
     dim: DimensionRecord;
     value: number;
   } | null>(null);
+  const dragRef = useRef<{ dim: DimensionRecord; value: number } | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
   // What the agent is pointing at, until the person clicks.
   const [agentPoint, setAgentPoint] = useState<{
@@ -621,21 +622,27 @@ export function Workspace(props: Props) {
           key: `${shownJob.id}-${dragDim.name}`,
           origin: dragLine.origin,
           direction: dragLine.direction,
-          onMove: (along: number) =>
-            setDrag({
+          onMove: (along: number) => {
+            dragRef.current = {
               dim: dragDim,
               value: dragValue(dragDim, dragSpec, along, dragLine.sign),
-            }),
-          onRelease: () => {
-            setDrag((current) => {
-              if (current && current.value !== current.dim.value)
-                void adjust(current.dim, current.value).catch((e: Error) =>
-                  setError(e.message),
-                );
-              return null;
-            });
+            };
+            setDrag(dragRef.current);
           },
-          onCancel: () => setDrag(null),
+          onRelease: () => {
+            // One commit per release, read from the ref rather than inside a state update.
+            const released = dragRef.current;
+            dragRef.current = null;
+            setDrag(null);
+            if (released && released.value !== released.dim.value)
+              void adjust(released.dim, released.value).catch((e: Error) =>
+                setError(e.message),
+              );
+          },
+          onCancel: () => {
+            dragRef.current = null;
+            setDrag(null);
+          },
         }
       : null;
   const dragGhost =

@@ -256,6 +256,19 @@ describe("inspect_measure and measure jobs", () => {
     expect(after!.n).toBe(counted!.n + 1);
   });
 
+  it("keeps measure jobs out of the project's builds", async () => {
+    const { p, job } = await built();
+    const { jobId } = (await execute(carol, "inspect_measure", {
+      buildId: job.id,
+      ...lip,
+    })) as { jobId: string };
+    const project = (await execute(carol, "projects_get", {
+      projectId: p.id,
+    })) as { jobs: { id: string }[] };
+    expect(project.jobs.map((j) => j.id)).toEqual([job.id]);
+    expect(project.jobs.map((j) => j.id)).not.toContain(jobId);
+  });
+
   it("rejects targets outside the build", async () => {
     const { job } = await built();
     await expect(
