@@ -8,7 +8,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import service
-from drawing import PAPER, choose_enlargement, clean, draw, scale_label
+from drawing import (
+    PANEL_WIDTH,
+    PAPER,
+    choose_enlargement,
+    clean,
+    draw,
+    panel_sections,
+    scale_label,
+)
 
 BRIDGE = Path(__file__).resolve().parents[2] / "examples/bridge.py"
 
@@ -62,6 +70,58 @@ def test_sheet_states_what_it_cannot_know(plate):
         assert expected in words
     assert len(doc.modelspace().query('LINE[layer=="CENTER"]')) == 2
     assert (plate / "blueprint.pdf").read_bytes()[:5] == b"%PDF-"
+
+
+DETAILS = {
+    "project": "Anthropic IPO",
+    "materials": [{"part": "Body", "name": "C360 brass"}],
+    "dimensions": [{"name": "Body width", "value": 76, "matches": True}, {"name": "Step", "value": 72, "matches": False}],
+    "holes": [{"part": "Body", "diameter": 3.3, "depth": 10, "blind": True, "at": [-25, 0, 18]}],
+    "text": [{"name": "Text line 1", "bbox": {"min": [-18.67, -7, 59.77], "max": [18.67, -6.7, 67.23]}}],
+}
+
+
+def sheet_words(tmp_path, spec, size=(80, 40, 20)):
+    step = tmp_path / "part.step"
+    bd.export_step(bd.Box(*size), step)
+    draw(step, spec, tmp_path / "out")
+    doc = ezdxf.readfile(tmp_path / "out" / "blueprint.dxf")
+    assert not doc.audit().has_errors
+    return [e.dxf.text for e in doc.layouts.get(PAPER[0]).query("TEXT")]
+
+
+def test_the_panel_prints_what_the_build_measured(tmp_path):
+    words = sheet_words(tmp_path, {"title": "Toy", "revision": 3, **DETAILS})
+    for expected in ("Anthropic IPO", "C360 brass", "Body width", "76.00", "72.00 CHECK", "H1", "3.30", "10.00 BLIND",
+                     "-25.00, 0.00, 18.00", "Text line 1", "-18.67 to 18.67", "59.77 to 67.23"):
+        assert expected in words
+    assert "2. TOLERANCES NOT SPECIFIED. SEE THE MANUFACTURING BRIEF." in words
+
+
+def test_a_sheet_without_measurements_has_no_panel(tmp_path):
+    words = sheet_words(tmp_path, {"title": "Toy", "revision": 3})
+    assert "FEATURE DIMENSIONS" not in words
+    assert any("TOLERANCES AND MATERIAL NOT SPECIFIED" in w for w in words)
+
+
+def test_rows_that_cannot_be_read_are_left_off():
+    spec = {"dimensions": [{"name": "Good", "value": 1}, {"name": "Infinite", "value": float("inf")}, {"name": "None"},
+                           "not a row"], "holes": "nope", "materials": None, "text": [{"name": "x", "bbox": {}}]}
+    assert panel_sections(spec) == [("FEATURE DIMENSIONS", (("NAME", 0), ("MM", 100)), [("Good", "1.00")])]
+
+
+def test_rows_past_the_end_of_the_sheet_are_counted(tmp_path):
+    many = [{"name": f"Dimension {i}", "value": i, "matches": True} for i in range(200)]
+    words = sheet_words(tmp_path, {"title": "Toy", "revision": 3, "dimensions": many})
+    assert "Dimension 0" in words
+    assert "Dimension 199" not in words
+    shown = sum(w.startswith("Dimension ") for w in words)
+    assert f"{200 - shown} MORE ROWS DO NOT FIT. SEE INSPECT.JSON." in words
+
+
+def test_the_panel_takes_width_from_the_views():
+    assert scale_label(choose_enlargement(190, 60, 40)) == "1:1"
+    assert scale_label(choose_enlargement(190, 60, 40, PANEL_WIDTH)) == "1:2"
 
 
 @pytest.mark.parametrize(("size", "label"), [((10, 5, 5), "10:1"), ((100, 55, 51), "1:1"), ((2000, 2000, 2000), "1:50")])
