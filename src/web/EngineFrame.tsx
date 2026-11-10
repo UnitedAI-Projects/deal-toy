@@ -1,9 +1,17 @@
 /* Opens a phase engine (served at /apps/<engine>/) over the project, with a file loaded, and keeps
-   every save as a new phase file. Engines with the Craft host bridge (MantelDocs, MantelPDF) talk
-   over postMessage (<app>:ready/open/save/saved/dirty/failed); MantelArt is driven through its
-   page API (window.vectorcraft); MantelCAD has no file bridge yet and opens on its own. */
+   every save as a new phase file. MantelDocs, MantelPDF and MantelMesh speak the Craft host bridge
+   over postMessage (<app>:ready/open/save/saved/dirty/failed). MantelArt is driven through its page
+   API (window.vectorcraft) and MantelCAD through its editing embed's (window.mantelcad:
+   document.export / import / saved). */
 import { useEffect, useRef, useState } from "react";
 import { request, uploadPhaseFile, type PhaseFile } from "./api";
+
+type CadApi = {
+  request: (
+    method: string,
+    params?: unknown,
+  ) => Promise<Record<string, unknown>>;
+};
 
 type ArtApi = {
   openFile: (name: string, bytes: Uint8Array) => boolean;
@@ -32,6 +40,7 @@ const MEDIA: Record<string, string> = {
   step: "model/step",
   stp: "model/step",
   vectorcraft: "application/json",
+  sc: "application/json",
   mmesh: "application/json",
   glb: "model/gltf-binary",
 };
@@ -78,7 +87,84 @@ export function EngineFrame(props: {
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const artApi = useRef<ArtApi | undefined>(undefined);
+  const cadApi = useRef<CadApi | undefined>(undefined);
+  const cadSaved = useRef<number | null>(null);
   const [busy, setBusy] = useState(false);
+  /** MantelCAD: keep the open design (its JSON) as a .sc file, and tell MantelCAD it is saved. */
+  async function saveCad() {
+    const api = cadApi.current;
+    if (!api) return;
+    setBusy(true);
+    setError("");
+    try {
+      const kept = await api.request("document.export");
+      const name =
+        props.file?.name.replace(/\.[^.]+$/, "") ||
+        (typeof kept.name === "string" && kept.name.replace(/\.[^.]+$/, "")) ||
+        "Design";
+      await keep(`${name}.sc`, new TextEncoder().encode(String(kept.text)));
+      await api.request("document.saved", { revision: kept.revision });
+      cadSaved.current = Number(kept.revision);
+      setDirty(false);
+      setStatus(`Saved ${name}.sc`);
+    } catch (err) {
+      setError(`Couldn't save the design: ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // MantelCAD: its page API (window.mantelcad), as its editing embed documents.
+  useEffect(() => {
+    if (props.engine !== "mantelcad") return;
+    let stopped = false;
+    void (async () => {
+      let api: CadApi | undefined;
+      for (let i = 0; i < 480 && !stopped && !api; i++) {
+        api = (
+          frame.current?.contentWindow as unknown as { mantelcad?: CadApi }
+        )?.mantelcad;
+        if (!api) await new Promise((r) => setTimeout(r, 250));
+      }
+      if (!api || stopped) return;
+      cadApi.current = api;
+      if (props.file && cadDesign) {
+        try {
+          const text = new TextDecoder().decode(await bytesOf(props.file.url));
+          await api.request("document.import", {
+            text,
+            name: props.file.name.replace(/\.[^.]+$/, ""),
+          });
+          setStatus(props.file.name);
+        } catch (err) {
+          setError(
+            `Couldn't open ${props.file.name}: ${(err as Error).message}`,
+          );
+        }
+      } else setStatus(props.file ? props.file.name : "Ready");
+      try {
+        cadSaved.current = Number(
+          (await api.request("document.revision")).revision,
+        );
+      } catch {
+        cadSaved.current = null;
+      }
+      // Unsaved changes: the design's revision has moved since it was opened or saved.
+      while (!stopped) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const rev = Number((await api.request("document.revision")).revision);
+          setDirty(cadSaved.current !== null && rev !== cadSaved.current);
+        } catch {
+          // The app is busy; try again next time.
+        }
+      }
+    })();
+    return () => {
+      stopped = true;
+    };
+  }, [props.engine, props.file?.url]);
+
   /** MantelArt: save the document and an SVG export into the project, through its commands. */
   async function saveArt() {
     const api = artApi.current;
@@ -108,7 +194,13 @@ export function EngineFrame(props: {
   const [error, setError] = useState("");
   const name = ENGINE_NAMES[props.engine];
   const bridged = BRIDGED.includes(props.engine);
-  const src = `/apps/${props.engine}/${bridged ? "?host=parent" : ""}`;
+  // MantelCAD runs as its editing embed: designs move through its page API; other files (STEP)
+  // open from their URL.
+  const cadDesign = !!props.file && /\.(sc|json)$/i.test(props.file.name);
+  const src =
+    props.engine === "mantelcad"
+      ? `/apps/mantelcad/?embed=editor${props.file && !cadDesign ? `&open=${encodeURIComponent(props.file.url)}` : ""}`
+      : `/apps/${props.engine}/${bridged ? "?host=parent" : ""}`;
   const [deployed, setDeployed] = useState<boolean | null>(null);
   useEffect(() => {
     fetch(`/apps/${props.engine}/`, {
@@ -303,10 +395,10 @@ export function EngineFrame(props: {
             {busy ? "Saving…" : "Save to project"}
           </button>
         )}
-        {props.engine === "mantelcad" && (
-          <span className="muted small">
-            Saving back to Mantel isn't connected for MantelCAD yet.
-          </span>
+        {props.engine === "mantelcad" && !props.readOnly && (
+          <button disabled={busy} onClick={() => void saveCad()}>
+            {busy ? "Saving…" : "Save to project"}
+          </button>
         )}
         {error && (
           <span className="error small" role="alert">

@@ -43,7 +43,7 @@ Phases open an engine with `EngineFrame`:
 
 - **MantelDocs, MantelPDF and MantelMesh** use the Craft host bridge (`?host=parent`, `<app>:ready/open/save`).
 - **MantelArt** is driven through its page API (`window.vectorcraft`).
-- **MantelCAD** opens without a file bridge for now.
+- **MantelCAD** runs as its editing embed (`?embed=editor`). Designs move through `window.mantelcad`: `document.export` and `document.import` carry the design's JSON, saved as `.sc`, and `document.saved` marks it saved. STEP files open from their URL (`&open=`).
 
 Every save becomes a new phase file.
 

@@ -18,7 +18,8 @@ import {
 } from "./phases";
 import { Workspace, type WorkspaceProps } from "./Workspace";
 import { EngineFrame, type EngineId } from "./EngineFrame";
-import type { PhaseFile } from "./api";
+import { call, type PhaseFile } from "./api";
+import { latestBuild } from "./DocumentsPhase";
 import { withConceptSave } from "./phases";
 
 export type PhaseProps = {
@@ -184,6 +185,8 @@ export function ProjectShell(props: WorkspaceProps) {
               go={go}
               openEngine={openEngine}
               filesVersion={filesVersion}
+              projectId={projectId}
+              data={data}
             />
           }
         />
@@ -245,9 +248,34 @@ export function ProjectShell(props: WorkspaceProps) {
   );
 }
 
-function ModelOutput(props: Omit<PhaseProps, "data" | "canDownload">) {
+function ModelOutput(
+  props: Omit<PhaseProps, "data" | "canDownload"> & {
+    projectId: string;
+    data: PhaseProps["data"];
+  },
+) {
   const { state, latestRevision } = props;
   const [open, setOpen] = useState(false);
+  // What MantelCAD opens: the latest design saved from it, else the latest build's STEP.
+  const [design, setDesign] = useState<PhaseFile | null>(null);
+  useEffect(() => {
+    call<{ files: PhaseFile[] }>("phase_files_list", {
+      projectId: props.projectId,
+      phase: "model",
+    })
+      .then((r) =>
+        setDesign(r.files.find((f) => /\.sc$/i.test(f.name)) ?? null),
+      )
+      .catch(() => setDesign(null));
+  }, [props.projectId, props.filesVersion]);
+  const step = latestBuild(props.data)?.artifacts.find((a) =>
+    /\.(step|stp)$/i.test(a.name),
+  );
+  const cadFile = design
+    ? { name: design.name, url: design.url }
+    : step
+      ? { name: step.name, url: `/api/artifacts/${step.id}` }
+      : undefined;
   const status = phaseStatus(state, "model", latestRevision);
   const questions = state.decision?.questions ?? [];
   const unresolved = questions.filter((q) => !q.resolved);
@@ -281,8 +309,12 @@ function ModelOutput(props: Omit<PhaseProps, "data" | "canDownload">) {
       </span>
       <button
         className="secondary"
-        onClick={() => props.openEngine("mantelcad", "model")}
-        title="Open the model's engine"
+        onClick={() => props.openEngine("mantelcad", "model", cadFile)}
+        title={
+          cadFile
+            ? `Open ${cadFile.name} in MantelCAD`
+            : "Open MantelCAD with a new design"
+        }
       >
         Open in MantelCAD
       </button>
