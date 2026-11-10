@@ -1,0 +1,96 @@
+{
+  "kernel_commit": "81b3d3e166f085eb822ca8368f99acbbc73c2c3a",
+  "build_profile": "ci",
+  "validation": "each_step",
+  "before_historical_operation": {
+    "action": "face.shell",
+    "command": {
+      "command": "solid.shell",
+      "params": {
+        "faces": [
+          [
+            102.79999999999998,
+            16.0,
+            8.299999999999999
+          ]
+        ],
+        "thickness": 0.5
+      }
+    },
+    "design": "corpus/issue-616-lid-ribs",
+    "entity": "Lid/F8:-x",
+    "kind": "error",
+    "message": "SMLib shell: SMLib's check refuses the result: 1 failed tests:\nSmLoop::Test #2 Bad Loop Orient: A UpperLoopuse->Edgeuse's 'Inside' is Outside Surface Natural Boundary - loop may have wrong orientation [owner SmLoop]\n",
+    "ok": false
+  },
+  "after_historical_operation": {
+    "body_count": 1,
+    "closed": true,
+    "volume_mm3": 3810.779465666421,
+    "bbox": {
+      "max": [
+        176.8,
+        89.3,
+        14.1
+      ],
+      "min": [
+        100.0,
+        0.0,
+        0.0
+      ]
+    },
+    "topology": {
+      "edges": 320,
+      "faces": 110,
+      "shells": 1,
+      "vertices": 212
+    },
+    "timeline_errors": []
+  },
+  "after_reduced_operation": {
+    "body_count": 1,
+    "closed": true,
+    "volume_mm3": 642.7500000000005,
+    "bbox": {
+      "max": [
+        20.0,
+        20.0,
+        10.0
+      ],
+      "min": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "topology": {
+      "edges": 140,
+      "faces": 52,
+      "shells": 1,
+      "vertices": 92
+    },
+    "timeline_errors": []
+  },
+  "reduced_expected_volume_mm3": 642.75,
+  "control_expected_volume_mm3": 653.25,
+  "expectation_basis": "Closed-form material minus cavity; see the linked finding and integration test.",
+  "after_historical_action_matrix": {
+    "action": "face.shell",
+    "command": {
+      "command": "solid.shell",
+      "params": {
+        "faces": [
+          [
+            102.79999999999998,
+            16.0,
+            8.299999999999999
+          ]
+        ],
+        "thickness": 0.5
+      }
+    },
+    "design": "corpus/issue-616-lid-ribs",
+    "entity": "Lid/F8:-x",
+    "ok": true
+  }
+}
