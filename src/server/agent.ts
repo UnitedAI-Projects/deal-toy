@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requirePermission } from "./access";
 import { AppError, boundedText, id, projectAccess, type Context } from "./core";
 import { PHASES } from "./phase-tools";
+import { agentState } from "./agent-state";
 import { catalog, dispatch, tools } from "./tools";
 
 export const AGENT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
@@ -167,6 +168,7 @@ export async function agentTool(
       400,
       "Project and session identifiers are supplied by the server",
     );
+  if (name === "phases_save") agentState.parse(values.state);
   return (await dispatch(c, name, { ...values, projectId }, "mcp")).value;
 }
 

@@ -20,7 +20,7 @@ AGENT_DAILY_LIMIT=20 and AGENT_GLOBAL_DAILY_LIMIT=100 cap admitted requests per 
 
 Run npm run db:local, npm run build, npm run dev, and npm test. Sign in through the documented local account setup, create a synthetic project, and ask “Set the Deal answer to Harbor acquires Northline, marked answered.” Check that the answer changes live, other fields and approvals remain intact, a successful action receipt appears, and history survives reload.
 
-The automated agent tests use fake inference and exercise ownership, permission revocation, disabled tools, arbitrary actions, project/session injection, approval changes, stale versions, concurrent quota admission, persistent receipts after failure, nullable provider responses, first-draft initialization and request validation. Live Wrangler calls use real Cloudflare inference and account usage.
+The automated agent tests use fake inference and exercise ownership, permission revocation, disabled tools, arbitrary actions, project/session injection, approval changes, stale versions, concurrent quota admission, persistent receipts after failure, nullable provider responses, first-draft initialization and request validation and rejection of malformed phase state before persistence. Live Wrangler calls use real Cloudflare inference and account usage.
 
 Acceptance observed on 2026-11-10: real Workers AI guidance and single-field and multiple-field updates from the MacBook through the mini's forwarded development server. Production acceptance remains separate.
 

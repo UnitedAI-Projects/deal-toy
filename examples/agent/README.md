@@ -8,4 +8,4 @@ These are synthetic local-development results, not customer data or production a
 
 Observed 2026-11-10: real Workers AI guidance, first-draft initialization and multiple brief-field edits through the MacBook's forwarded development server. Reloading and reopening the project retained the saved answer and conversation. Desktop 1440×900 and phone 390×844 were visually inspected in Chromium. Safari/Firefox and production deployment were not tested in this acceptance pass.
 
-Validation: 511 TypeScript tests passed, including 18 agent cases; 151 Python tests passed with 11 skipped; formatting, type checks, browser build, dependency audit and Worker dry-run packaging passed. The isolated legacy CAD container smoke test passed STEP/STL/GLB/inspection, measurement, PDF/DXF and font checks. Native engine CI remains separate.
+Validation: 512 TypeScript tests passed, including 19 agent cases; 151 Python tests passed with 11 skipped; formatting, type checks, browser build, dependency audit and Worker dry-run packaging passed. The isolated legacy CAD container smoke test passed STEP/STL/GLB/inspection, measurement, PDF/DXF and font checks. Native engine CI remains separate.

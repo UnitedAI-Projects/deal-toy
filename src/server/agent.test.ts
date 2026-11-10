@@ -1,3 +1,4 @@
+import { emptyPhaseState } from "../shared/phases";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, expect, it, vi } from "vitest";
@@ -40,16 +41,18 @@ const input = (message = "Help with this brief") => ({
   phase: "brief",
   message,
 });
-const state = (text = "A buys B") => ({
-  brief: {
-    version: 1,
-    fields: [{ key: "deal", value: text, state: "answered" }],
-    files: [],
-  },
-  concepts: [],
-  docs: {},
-  suppliers: [],
-});
+const state = (text = "A buys B") => {
+  const fresh = emptyPhaseState();
+  return {
+    ...fresh,
+    brief: {
+      ...fresh.brief,
+      fields: [
+        { ...fresh.brief.fields[0], value: text, state: "answered" as const },
+      ],
+    },
+  };
+};
 
 it("persists project/phase history and deduplicates a retried request", async () => {
   const { c, project, run } = await setup();
@@ -369,7 +372,19 @@ it("updates one brief answer while preserving approvals and unrelated phases", a
       ...state().brief,
       approved: { version: 1, fields: [], by: "person", at: "now" },
     },
-    concepts: [{ id: "c", name: "Keep me" }],
+    concepts: [
+      {
+        id: "c",
+        name: "Keep me",
+        size: "",
+        materials: "",
+        components: "",
+        notes: "",
+        starred: false,
+        discarded: false,
+        createdAt: "now",
+      },
+    ],
   };
   await dispatch(
     c,
@@ -464,4 +479,24 @@ it("saves several brief answers atomically and rejects a bad field without a par
     }),
   ).rejects.toMatchObject({ status: 400 });
   expect(await agentTool(c, project, "phases_get", {})).toEqual(snapshot);
+});
+
+it("refuses model state that would break the phase UI, without storing it", async () => {
+  const { c, project } = await setup();
+  for (const broken of [
+    { ...state(), concepts: {} },
+    { ...state(), brief: { fields: "broken" } },
+    { ...state(), docs: { proof: { content: 42 } } },
+    { ...state(), art: { kinds: [] } },
+  ])
+    await expect(
+      agentTool(c, project, "phases_save", {
+        expectedVersion: 0,
+        state: broken,
+      }),
+    ).rejects.toThrow();
+  expect(await agentTool(c, project, "phases_get", {})).toMatchObject({
+    version: 0,
+    state: null,
+  });
 });
