@@ -115,3 +115,41 @@ jobs:
           name: web-${{ matrix.engine }}
           path: ${{ runner.temp }}/web
           retention-days: 14
+
+  # solidcore is a nested workspace. Keep its focused regression/goldens gate separate
+  # from the full CAD application and browser build so both retain their time budgets.
+  shell-kernel:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.engines), 'mantelcad')
+    name: mantelcad shell kernel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/engines/mantelcad/solidcore/target
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.99.1"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: engines/mantelcad/solidcore -> target
+          shared-key: shell-kernel
+          cache-on-failure: true
+      - name: Fetch pinned kernel test inputs
+        working-directory: engines/mantelcad/solidcore
+        # Goldens read these data files; no upstream code is built or executed.
+        run: |
+          source scripts/upstream-pin.env
+          git init upstream
+          git -C upstream remote add origin "$UPSTREAM_REPO"
+          git -C upstream sparse-checkout set --no-cone '/TestFiles/pt_TestFiles/'
+          git -C upstream fetch --filter=blob:none --depth 1 origin "$UPSTREAM_COMMIT"
+          git -C upstream checkout --detach "$UPSTREAM_COMMIT"
+          test "$(git -C upstream rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+      - name: Test shell construction and its golden cases
+        run: bash engines/mantelcad/ci/test-shell-kernel.sh
