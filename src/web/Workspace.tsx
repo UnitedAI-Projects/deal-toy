@@ -56,6 +56,8 @@ import {
 import { refFromPick } from "./refs";
 import { Toolbar, type ToolbarAction } from "./Toolbar";
 import { CommandSearch } from "./CommandSearch";
+import { BrowserPanel } from "./BrowserPanel";
+import { browserTree } from "./browser-tree";
 import { Triad, type TriadHandle } from "./AxisTriad";
 import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
@@ -541,6 +543,15 @@ export function Workspace(props: Props) {
       error: "",
       busy: false,
     });
+  }
+  // Opens a saved step's form with its current inputs, from the timeline or the Browser.
+  async function editStep(name: string) {
+    if (!model) return;
+    const { steps } = await call<{
+      steps: { action: string; name: string; inputs: FormValues }[];
+    }>("steps_list", { modelId: model.id });
+    const step = steps.find((s) => s.name === name);
+    if (step) await openAction(step.action, { name, inputs: step.inputs });
   }
   async function submitForm() {
     if (!form || (form.editing && (!model || !latest))) return;
@@ -1083,6 +1094,21 @@ export function Workspace(props: Props) {
       )}
 
       <div className={`chat-shell ${chatOpen ? "open" : ""}`}>
+        <BrowserPanel
+          tree={browserTree({ parts, steps: facts?.steps ?? [] })}
+          visible={originShown}
+          onToggle={(item) =>
+            setOriginOverrides((o) => ({ ...o, [item]: !originShown[item] }))
+          }
+          selected={
+            selection && selection.face === undefined ? selection.label : null
+          }
+          onSelectBody={(label, at) => {
+            setSelection({ label, ...at });
+            setSecond(null);
+          }}
+          onOpenStep={(name) => void editStep(name).catch(() => {})}
+        />
         <button className="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
           {chatOpen ? "Hide activity" : "Agent activity"}
           {running && <span className="dot on" />}
@@ -1339,15 +1365,7 @@ export function Workspace(props: Props) {
             await props.reload();
           }}
           onViewAsOf={viewAsOf}
-          onEdit={async (name) => {
-            if (!model) return;
-            const { steps } = await call<{
-              steps: { action: string; name: string; inputs: FormValues }[];
-            }>("steps_list", { modelId: model.id });
-            const step = steps.find((s) => s.name === name);
-            if (step)
-              await openAction(step.action, { name, inputs: step.inputs });
-          }}
+          onEdit={editStep}
         />
       )}
 

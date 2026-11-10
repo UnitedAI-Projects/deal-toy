@@ -1007,14 +1007,16 @@ button.wide {
 .state.running {
   background: var(--busy);
 }
-/* Step timeline: one chip per modeling step, coloured by its state in the shown build. */
+/* Step timeline: one chip per modeling step, coloured by its state in the shown build. It floats
+   at the bottom centre, above the revision chips, clear of the section tools on the right. */
 .timeline {
   position: absolute;
-  top: 64px;
+  bottom: 52px;
   left: 368px;
-  right: 14px;
+  right: 440px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   z-index: 6;
   pointer-events: none;
@@ -1175,6 +1177,94 @@ button.wide {
   .cadbar {
     top: 58px;
   }
+  .chat-shell {
+    top: 104px;
+  }
+}
+/* The Browser card: the top of the left column, above the activity feed, which fills the rest. */
+.browser {
+  pointer-events: auto;
+  flex: none;
+  max-height: 45%;
+  overflow-y: auto;
+  background: var(--float);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 16px rgba(20, 22, 28, 0.08);
+  font-size: 13px;
+  width: 220px;
+}
+.browser-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+.browser-body {
+  padding: 0 8px 8px;
+}
+.browser details > summary {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  padding: 4px 4px 2px;
+  cursor: pointer;
+}
+.browser ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.browser li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 4px;
+  min-height: 26px;
+}
+.browser li.hidden .browser-label,
+.browser li.hidden .swatch {
+  opacity: 0.4;
+}
+.browser .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.browser-label {
+  flex: 1;
+  color: var(--ink);
+}
+.browser .eye {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 2px 6px;
+  width: auto;
+  font-size: 13px;
+}
+.browser-item {
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.browser-item:hover,
+.browser-item.on {
+  background: var(--surface-2);
 }
 .toolbar-item {
   display: flex;
@@ -1592,7 +1682,7 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     bottom: auto;
-    top: 60px;
+    top: 100px;
     justify-content: flex-start;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1601,13 +1691,22 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     bottom: auto;
-    top: 96px;
+    top: 172px;
     max-width: none;
   }
   .timeline {
     left: 10px;
     right: 10px;
-    top: 132px;
+    bottom: 52px;
+    justify-content: flex-start;
+  }
+  .browser {
+    position: fixed;
+    top: 136px;
+    left: 10px;
+    width: min(260px, calc(100% - 20px));
+    max-height: 50vh;
+    z-index: 12;
   }
   .cadbar {
     top: 56px;
@@ -1645,20 +1744,20 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     bottom: auto;
-    top: 240px;
+    top: 280px;
     max-width: none;
   }
   .inspect-tools {
     right: 10px;
     left: 10px;
     bottom: auto;
-    top: 204px;
+    top: 244px;
     flex-wrap: wrap;
   }
   .asof-banner {
     left: 10px;
     right: 10px;
-    top: 168px;
+    top: 208px;
     max-width: none;
     flex-wrap: wrap;
   }
