@@ -45,6 +45,14 @@ import {
   type FormValues,
 } from "./forms";
 import { ghostShape } from "./ghost";
+import {
+  ORIGIN_ITEMS,
+  ORIGIN_PLANES,
+  originPickRef,
+  originVisible,
+  type OriginItem,
+  type OriginPlane,
+} from "./origin";
 import { refFromPick } from "./refs";
 import { Toolbar, type ToolbarAction } from "./Toolbar";
 import { ConfirmName } from "./Trash";
@@ -136,6 +144,10 @@ export function Workspace(props: Props) {
     error: string;
     busy: boolean;
   } | null>(null);
+  // Shown or hidden by hand in the Browser; otherwise the origin follows originVisible.
+  const [originOverrides, setOriginOverrides] = useState<
+    Partial<Record<OriginItem, boolean>>
+  >({});
   const [savedActions, setSavedActions] = useState<ToolbarAction[]>([]);
   // The Checks panel, what it colours on the model, and a tick that refetches it on live changes.
   const [checksOpen, setChecksOpen] = useState(false);
@@ -469,9 +481,12 @@ export function Workspace(props: Props) {
   const paramNames = Object.entries(facts?.params ?? {})
     .filter(([, v]) => !v.unit || v.unit === "mm")
     .map(([k]) => k);
-  const planeNames = (facts?.steps ?? [])
-    .filter((s) => s.action === "plane")
-    .map((s) => s.name);
+  const planeNames: string[] = [
+    ...ORIGIN_PLANES,
+    ...(facts?.steps ?? [])
+      .filter((s) => s.action === "plane")
+      .map((s) => s.name),
+  ];
   const builtins = (
     catalog.actions as unknown as (ActionSchema & ToolbarAction)[]
   ).filter((a) => a.id !== "custom");
@@ -622,6 +637,41 @@ export function Workspace(props: Props) {
     setForm({ ...form, values: next.values, active: next.next, error: "" });
     return true;
   }
+  // The active form field takes a plane, so the origin planes show and a click on one fills it.
+  const pickingPlane =
+    !!form?.active &&
+    !!fieldsFor(form.action, form.values)
+      .find((f) => f.name === form.active)
+      ?.refKinds?.includes("datum");
+  function pickPlaneIntoForm(name: OriginPlane) {
+    if (!form?.active) return;
+    const next = applyPick(
+      fieldsFor(form.action, form.values),
+      form.values,
+      form.active,
+      originPickRef(name),
+    );
+    setForm({ ...form, values: next.values, active: next.next, error: "" });
+  }
+  const originContext = {
+    hasParts: parts.length > 0,
+    pickingPlane,
+    overrides: originOverrides,
+  };
+  const originShown = Object.fromEntries(
+    ORIGIN_ITEMS.map((item) => [item, originVisible(item, originContext)]),
+  ) as Record<OriginItem, boolean>;
+  const originBounds =
+    record && record.parts.length
+      ? {
+          min: [0, 1, 2].map((k) =>
+            Math.min(...record.parts.map((p) => p.bbox.min[k])),
+          ) as [number, number, number],
+          max: [0, 1, 2].map((k) =>
+            Math.max(...record.parts.map((p) => p.bbox.max[k])),
+          ) as [number, number, number],
+        }
+      : null;
   const ghost =
     form && record
       ? ghostShape(
@@ -861,6 +911,12 @@ export function Workspace(props: Props) {
           handle={posed ? null : handle}
           pose={pose}
           move={move}
+          origin={{
+            visible: originShown,
+            bounds: asOf ? null : originBounds,
+            pickPlanes: pickingPlane,
+            onPickPlane: pickPlaneIntoForm,
+          }}
           onSelect={(label, point, hit, additive) => {
             setAgentPoint(null);
             if (label && pickIntoForm(label, hit)) return;

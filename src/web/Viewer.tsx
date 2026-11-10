@@ -20,6 +20,13 @@ import {
 } from "./inspect";
 import type { Ghost } from "./ghost";
 import {
+  ORIGIN_PLANES,
+  originAxes,
+  originPlanes,
+  type OriginItem,
+  type OriginPlane,
+} from "./origin";
+import {
   ghostObject,
   overlayGroup,
   sectionCaps,
@@ -84,6 +91,16 @@ type Props = {
     onRelease: () => void;
     onCancel: () => void;
   } | null;
+  /**
+   * The origin planes and axes, drawn in the model's frame even before the first build. While
+   * `pickPlanes` is set, a click on a plane reports it instead of selecting a part.
+   */
+  origin?: {
+    visible: Record<OriginItem, boolean>;
+    bounds: { min: Vec3; max: Vec3 } | null;
+    pickPlanes: boolean;
+    onPickPlane: (name: OriginPlane) => void;
+  };
 };
 type Scene = {
   scene: THREE.Scene;
@@ -178,7 +195,7 @@ export function Viewer(props: Props) {
       if (!start || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5)
         return;
       const s = state.current;
-      if (!s?.object) return;
+      if (!s) return;
       const rect = renderer.domElement.getBoundingClientRect();
       const pointer = new THREE.Vector2(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -186,6 +203,13 @@ export function Viewer(props: Props) {
       );
       const ray = new THREE.Raycaster();
       ray.setFromCamera(pointer, s.camera);
+      const origin = latest.current.origin;
+      const plane = origin?.pickPlanes ? pickOriginPlane(s.scene, ray) : null;
+      if (plane) {
+        origin!.onPickPlane(plane);
+        return;
+      }
+      if (!s.object) return;
       const hit = ray.intersectObject(s.object, true)[0];
       const labels = new Map(latest.current.parts.map((p) => [nodeName(p), p]));
       let node: THREE.Object3D | null = hit?.object ?? null;
@@ -332,6 +356,30 @@ export function Viewer(props: Props) {
       palette[props.theme].highlight,
     );
   }, [props.selected]);
+
+  // The origin, in the loaded model's frame (or 1 mm per unit before the first build). It sits in
+  // the scene beside the model, not inside it, so section cuts and part picks never see it.
+  const origin = props.origin;
+  const originKey = origin
+    ? JSON.stringify([origin.visible, origin.bounds, origin.pickPlanes])
+    : "";
+  useEffect(() => {
+    const s = state.current;
+    if (!s || !origin) return;
+    const object = s.object;
+    // A loaded mesh without its record (a past revision) has no known scale, so no origin.
+    if (object && !props.record) return;
+    const scale = object
+      ? sceneScale(props.record!, [s.size.x, s.size.z, s.size.y])
+      : 1;
+    const group = originObject(origin, scale);
+    if (object) group.position.copy(object.position);
+    s.scene.add(group);
+    return () => {
+      group.removeFromParent();
+      group.traverse(disposeMesh);
+    };
+  }, [originKey, props.record, props.artifactId, loaded]);
 
   // Face highlights, drawn from the exact record in the model's own frame.
   useEffect(() => {
@@ -747,6 +795,65 @@ function sceneMatrix(m: Mat4, scale: number) {
     .clone()
     .multiply(new THREE.Matrix4().fromArray(m))
     .multiply(s.clone().invert());
+}
+/** Translucent origin planes with an outline, and the three axis lines, none of them raycast. */
+function originObject(origin: NonNullable<Props["origin"]>, scale: number) {
+  const group = new THREE.Group();
+  group.name = "origin";
+  const ignore = () => {};
+  const at = (p: Vec3) => new THREE.Vector3(...toScene(p, scale));
+  for (const plane of originPlanes(origin.bounds)) {
+    if (!origin.visible[plane.name]) continue;
+    const [a, b, c, d] = plane.corners.map(at);
+    const fill = new THREE.Mesh(
+      new THREE.BufferGeometry().setFromPoints([a, b, c, a, c, d]),
+      new THREE.MeshBasicMaterial({
+        color: plane.color,
+        transparent: true,
+        opacity: origin.pickPlanes ? 0.18 : 0.12,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    fill.name = `origin-${plane.name}`;
+    fill.userData.originPlane = plane.name;
+    fill.raycast = ignore;
+    const edge = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints([a, b, b, c, c, d, d, a]),
+      new THREE.LineBasicMaterial({
+        color: plane.color,
+        transparent: true,
+        opacity: 0.55,
+      }),
+    );
+    edge.raycast = ignore;
+    group.add(fill, edge);
+  }
+  for (const axis of originAxes(origin.bounds)) {
+    if (!origin.visible[axis.name]) continue;
+    const line = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints([at(axis.from), at(axis.to)]),
+      new THREE.LineBasicMaterial({ color: axis.color }),
+    );
+    line.name = `origin-${axis.name}`;
+    line.raycast = ignore;
+    group.add(line);
+  }
+  return group;
+}
+/** The nearest visible origin plane under the ray, tested explicitly since the planes ignore raycasts. */
+function pickOriginPlane(scene: THREE.Object3D, ray: THREE.Raycaster) {
+  const group = scene.getObjectByName("origin");
+  if (!group) return null;
+  const hits: THREE.Intersection[] = [];
+  group.updateWorldMatrix(true, true);
+  for (const name of ORIGIN_PLANES) {
+    const mesh = group.getObjectByName(`origin-${name}`);
+    if (mesh instanceof THREE.Mesh)
+      THREE.Mesh.prototype.raycast.call(mesh, ray, hits);
+  }
+  hits.sort((x, y) => x.distance - y.distance);
+  return (hits[0]?.object.userData.originPlane as OriginPlane) ?? null;
 }
 /** GLTFLoader rewrites node names (spaces become underscores); compare the same way. */
 function nodeName(label: string) {
