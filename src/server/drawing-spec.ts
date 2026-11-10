@@ -3,20 +3,28 @@ import type {
   FaceRecord,
   HoleRecord,
   InspectRecord,
+  LetteringRecord,
 } from "../shared/inspect-types";
 
 /** What the blueprint can state beyond its views, all of it measured by the build's inspection. */
 export type DrawingDetails = {
   materials: { part: string; name: string; volume?: number; mass?: number }[];
-  dimensions: { name: string; value: number; matches: boolean }[];
+  dimensions: {
+    name: string;
+    value: number;
+    matches: boolean;
+    part?: string;
+  }[];
   holes: {
     part: string;
     diameter: number;
     depth: number;
     blind: boolean;
     at: [number, number, number];
+    axis: [number, number, number];
   }[];
   text: { name: string; bbox: Box }[];
+  lettering: LetteringRecord[];
 };
 
 const MAX_ROWS = 200;
@@ -77,11 +85,15 @@ export function drawingDetails(record: InspectRecord): DrawingDetails {
       })
       .slice(0, MAX_ROWS),
     dimensions: (record.dimensions ?? [])
-      .map(({ name, value, matches_param: matches }) => ({
-        name,
-        value,
-        matches,
-      }))
+      .map(({ name, value, matches_param: matches, faces: between }) => {
+        const part = between && faces.get(between[0])?.part;
+        return {
+          name,
+          value,
+          matches,
+          ...(part !== undefined && { part: label(part) }),
+        };
+      })
       .slice(0, MAX_ROWS),
     holes: record.holes
       .filter((hole) => isBore(hole, faces))
@@ -92,8 +104,10 @@ export function drawingDetails(record: InspectRecord): DrawingDetails {
         depth: hole.depth,
         blind: !hole.through,
         at: hole.axis.origin,
+        axis: hole.axis.direction,
       }))
       .slice(0, MAX_ROWS),
     text: textExtents(record).slice(0, MAX_ROWS),
+    lettering: (record.lettering ?? []).slice(0, MAX_ROWS),
   };
 }

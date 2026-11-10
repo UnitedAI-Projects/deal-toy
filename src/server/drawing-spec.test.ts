@@ -101,7 +101,14 @@ describe("drawingDetails", () => {
       }),
     );
     expect(details.holes).toEqual([
-      { part: "Body", diameter: 3.3, depth: 10, blind: true, at: [25, 0, 18] },
+      {
+        part: "Body",
+        diameter: 3.3,
+        depth: 10,
+        blind: true,
+        at: [25, 0, 18],
+        axis: [0, 0, 1],
+      },
     ]);
   });
 
@@ -140,5 +147,29 @@ describe("drawingDetails", () => {
       }),
     );
     expect(details.text).toEqual([]);
+  });
+
+  it("names each dimension's part and passes the lettering on as worded", () => {
+    const line = {
+      text: "Goldman Sachs \u00b7 Morgan Stanley",
+      method: "UV-printed",
+    };
+    const details = drawingDetails(
+      record({
+        faces: [face(1, [0, 0, 0], [1, 1, 1])],
+        dimensions: [
+          {
+            name: "Body width",
+            value: 76,
+            faces: [1, 2],
+            matches_param: true,
+            scale: 1,
+          },
+        ],
+        lettering: [line],
+      }),
+    );
+    expect(details.dimensions[0]).toMatchObject({ part: "Body" });
+    expect(details.lettering).toEqual([line]);
   });
 });

@@ -15,6 +15,8 @@ from drawing import (
     choose_enlargement,
     clean,
     draw,
+    find_lettering,
+    page_names,
     panel_sections,
     scale_label,
 )
@@ -229,3 +231,87 @@ def test_materials_list_volume_mass_and_total():
 def test_a_partial_mass_has_no_total():
     spec = {"materials": [{"part": "Base", "name": "Walnut", "volume": 1.0, "mass": 1.0}, {"part": "Body", "name": "Brass"}]}
     assert panel_sections(spec)[0][2] == [("Base", "Walnut", "1", "1.00"), ("Body", "Brass", "-", "-")]
+
+
+def page_words(doc, name):
+    return [e.dxf.text for e in doc.layouts.get(name).query("TEXT")]
+
+
+LETTERS = "Hi Lo"
+
+
+def engraved(tmp_path, text=LETTERS, cut=True):
+    """A 90 x 14 x 50 plate, two 8 mm holes along Z, a line cut 0.3 deep in its -Y face, on a base."""
+    body = bd.Pos(0, 0, 25) * bd.Box(90, 14, 50)
+    letters = bd.Text(text, font_size=10, align=(bd.Align.CENTER, bd.Align.CENTER))
+    place = bd.Plane(origin=(0, -7, 25), x_dir=(1, 0, 0), z_dir=(0, -1, 0))
+    if cut:
+        body -= bd.extrude(place.offset(0.1) * letters, amount=0.4, dir=(0, 1, 0))
+    for x in (-30, 30):
+        body -= bd.Pos(x, 0, 5) * bd.Cylinder(4, 10)
+    body.label = "Body"
+    base = bd.Pos(0, 0, -5) * bd.Box(100, 40, 10)
+    base.label = "Base"
+    step = tmp_path / "toy.step"
+    bd.export_step(bd.Compound(children=[base, body]), step)
+    return step
+
+
+HOLES = [{"part": "Body", "diameter": 8, "depth": 10, "blind": True, "at": [x, 0, 0], "axis": [0, 0, 1]} for x in (-30, 30)]
+
+
+def test_every_part_gets_its_own_sheet_with_real_dimensions(tmp_path):
+    spec = {"title": "Toy", "revision": 2, "holes": HOLES, "materials": [{"part": "Body", "name": "C360 brass", "mass": 12.5}]}
+    result = draw(engraved(tmp_path), spec, tmp_path / "out")
+    doc = ezdxf.readfile(tmp_path / "out" / "blueprint.dxf")
+    assert not doc.audit().has_errors
+    assert result["sheets"] == 4
+    assert page_names(doc) == ["A3", "S2 Base", "S3 Body", "S4 Lettering"]
+    words = page_words(doc, "S3 Body")
+    for expected in ("C360 brass", "12.50", "H1", "H2", "BLIND", "SECTION A-A", "3 OF 4 - PART"):
+        assert any(expected in w for w in words), expected
+    shown = set()
+    for dim in doc.layouts.get("S3 Body").query("DIMENSION"):
+        shown |= {float(e.plain_text()) for e in dim.get_geometry_block() if e.dxftype() == "MTEXT"}
+    assert {90.0, 14.0, 50.0} <= shown
+
+
+def test_the_lettering_sheet_traces_each_letter_from_the_solid(tmp_path):
+    declared = [{"text": LETTERS, "font": "Arial", "height": 10.0, "depth": 0.3, "method": "engrave"}]
+    draw(engraved(tmp_path), {"title": "Toy", "revision": 2, "lettering": declared}, tmp_path / "out")
+    doc = ezdxf.readfile(tmp_path / "out" / "blueprint.dxf")
+    sheet = doc.layouts.get("S4 Lettering")
+    words = page_words(doc, "S4 Lettering")
+    assert LETTERS in words
+    assert all(character in words for character in LETTERS.replace(" ", ""))  # the i's dot is not a letter of its own
+    assert any("DEPTH 0.30" in w for w in words)
+    assert any("METHOD ENGRAVE" in w for w in words)
+    assert len(sheet.query('LWPOLYLINE[layer=="LETTERING"]')) > 20
+
+
+def test_a_line_no_model_declared_is_not_given_words(tmp_path):
+    draw(engraved(tmp_path), {"title": "Toy", "revision": 2}, tmp_path / "out")
+    words = page_words(ezdxf.readfile(tmp_path / "out" / "blueprint.dxf"), "S4 Lettering")
+    assert "WORDING NOT DECLARED BY THE MODEL" in words
+
+
+def test_a_line_with_the_wrong_letter_count_stays_unplaced(tmp_path):
+    draw(engraved(tmp_path), {"title": "Toy", "revision": 2, "lettering": [{"text": "NOT THE SAME"}]}, tmp_path / "out")
+    words = page_words(ezdxf.readfile(tmp_path / "out" / "blueprint.dxf"), "S4 Lettering")
+    assert "WORDING NOT DECLARED BY THE MODEL" in words
+    assert "NOT THE SAME" in words
+
+
+def test_printed_wording_keeps_its_punctuation(tmp_path):
+    line = "Goldman Sachs · Morgan Stanley $200.00 per Share"
+    spec = {"title": "Toy", "revision": 2, "lettering": [{"text": line, "method": "UV-printed"}]}
+    draw(engraved(tmp_path, cut=False), spec, tmp_path / "out")
+    doc = ezdxf.readfile(tmp_path / "out" / "blueprint.dxf")
+    assert line in page_words(doc, page_names(doc)[-1])
+
+
+def test_counterbores_are_not_mistaken_for_lettering():
+    plate = bd.Box(90, 50, 10)
+    for x in (-30, -10, 10, 30):
+        plate -= bd.Pos(x, 0, 3) * bd.Cylinder(4, 4)
+    assert find_lettering("Plate", plate) == []

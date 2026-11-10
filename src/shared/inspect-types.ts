@@ -88,6 +88,17 @@ export type DraftRecord = {
   pull: Vec3;
   faces: { index: number; angle_deg: number; sampled: boolean }[];
 };
+/** One line of deal text, worded exactly as the model cut or declared it. */
+export type LetteringRecord = {
+  text: string;
+  name?: string;
+  part?: string;
+  font?: string;
+  method?: string;
+  height?: number;
+  depth?: number;
+};
+
 export type InspectRecord = {
   version: 1;
   units: "mm";
@@ -98,6 +109,7 @@ export type InspectRecord = {
   pairs?: PairRecord[];
   dimensions?: DimensionRecord[];
   materials?: Record<string, { name: string; density_g_cm3: number }>;
+  lettering?: LetteringRecord[];
   embeds?: EmbedRecord[];
   stability?: StabilityRecord | null;
   draft?: DraftRecord[];
