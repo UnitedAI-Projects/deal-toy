@@ -24,6 +24,7 @@ import { serve } from "./oauth";
 import { purgeExpired } from "./trash";
 import { addPhaseFile, getPhaseFile } from "./phase-tools";
 import { serveApp } from "./apps";
+import { agentRoute } from "./agent";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
 /** The app itself: every route except the OAuth endpoints and /mcp, which the provider owns. */
@@ -116,6 +117,11 @@ export const app = {
       // the OAuth provider before a request reaches this handler.
       const identity = await authenticateBrowser(request, env);
       const c = { env, identity };
+      const agentMatch = /^\/api\/projects\/([a-f0-9-]{36})\/agent$/.exec(
+        url.pathname,
+      );
+      if (agentMatch)
+        return secure(await agentRoute(c, agentMatch[1], request));
       const ticketMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/live-ticket$/.exec(url.pathname);
       if (ticketMatch && request.method === "POST") {

@@ -63,3 +63,7 @@ uv run --project engine python engine/runner.py examples/tea_cup_steps.py exampl
 ## Brand model
 
 [brand/](brand/README.md) holds the Mantel name shown on the sign-in screen: its build123d source, exports and the bundled Inter font with its license.
+
+## Built-in phase agent
+
+[Editable synthetic phase data and browser evidence](agent/README.md) demonstrate project-scoped Workers AI guidance and brief editing.

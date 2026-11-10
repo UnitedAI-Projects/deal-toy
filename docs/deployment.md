@@ -4,7 +4,7 @@
 
 `Checks` runs on PRs, main pushes and manual dispatch. Its stable required job is `test`. It uses hosted Linux, read-only repository permissions, pinned Actions, lockfiles, no persisted checkout credentials and a fifteen-minute timeout. `ci/run.sh` is the shared local/remote validation entry point. The native container smoke test exercises real export generation with networking disabled.
 
-There is no agent runner, provider key or advisory AI review. GitHub-hosted private compute availability and branch protection depend on the organization plan. A billing refusal is an infrastructure block, not a failed executed test; resolve it without changing visibility or bypassing checks.
+There is no CI agent runner, provider key or advisory AI review. The application itself uses the Workers AI binding described in [agent.md](agent.md). GitHub-hosted private compute availability and branch protection depend on the organization plan. A billing refusal is an infrastructure block, not a failed executed test; resolve it without changing visibility or bypassing checks.
 
 ## Cloudflare resources
 
@@ -91,3 +91,9 @@ Use additive migrations. Before a destructive schema change, add a backup/restor
 ## Local runtime caveat
 
 Wrangler's Docker development runtime may use development-only container privileges such as SYS_ADMIN/FUSE. Use trusted synthetic models during local development; do not treat the local Docker setup as proof of the deployed isolation boundary. Live Cloudflare runtime acceptance must check the production configuration separately.
+
+## Built-in phase agent
+
+Apply migration 0013_agent.sql before deploying the agent route. The AI binding uses the same Cloudflare account as this Worker; no browser credential or separate provider key is needed. Set AGENT_DAILY_LIMIT (default 20/member) and AGENT_GLOBAL_DAILY_LIMIT (default 100/app) to bound rolling 24-hour request admission; setting either to 0 disables new inference. These are request quotas, not a dollar budget.
+
+Workers AI calls made by local Wrangler development are real remote inference and consume account usage. Tests inject a fake binding and do not incur inference charges. Use a synthetic owned project for live acceptance, verify a brief update and its receipt, reload history, and verify approvals stay unchanged. Do not describe local acceptance as production deployment.
