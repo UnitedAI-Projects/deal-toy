@@ -48,17 +48,18 @@ fn designs() -> Vec<(String, Source)> {
             out.push((format!("{prefix}/{stem}"), Source::File(p)));
         }
     };
-    add("corpus", root.join("apps/mantelcad-cli/tests/corpus"), "mantelcad");
+    add("corpus", root.join("apps/mantelcad-cli/tests/corpus"), "solidcraft");
     add("examples", root.join("examples"), "json");
     add("examples", root.join("examples/acceptance"), "json");
     add("regressions", root.join("examples/regressions"), "json");
     add("demo", root.join("examples/demo"), "json");
     add("typical", root.join("tests/action_matrix/designs"), "json");
-    add("demo", root.join("tests/action_matrix/designs"), "mantelcad");
-    add("fixtures", root.join("crates/engine/src/tests/fixtures"), "mantelcad");
+    add("demo", root.join("tests/action_matrix/designs"), mantelcad_engine::io::DESIGN_EXT);
+    add("fixtures", root.join("crates/engine/src/tests/fixtures"), mantelcad_engine::io::DESIGN_EXT);
     add("hole_matrix", root.join("tests/hole_matrix/old-0.9"), "json");
     add("taper", root.join("tests/taper/before-1014"), "json");
     add("projection", root.join("tests/projection/before-1508"), "json");
+    assert!(out.iter().filter(|(name, _)| name.starts_with("corpus/")).count() >= 7, "historical design corpus is missing");
     let mut cases: Vec<PathBuf> =
         std::fs::read_dir(root.join("tests/oracle")).unwrap().flatten().map(|e| e.path()).filter(|p| p.join("recipe.json").is_file()).collect();
     cases.sort();
@@ -77,7 +78,7 @@ fn load(source: &Source) -> Result<Session, String> {
     let mut s = Session::default();
     let script = match source {
         Source::Sample(script) => script(),
-        Source::File(path) if path.extension().is_some_and(|x| x == "mantelcad") => {
+        Source::File(path) if mantelcad_engine::io::is_design_container_path(path) => {
             s.execute("doc.open", &json!({"path": path.to_string_lossy()})).map_err(|e| e.to_string())?;
             return Ok(s);
         }
