@@ -9,9 +9,73 @@ jobs:
   checks:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/checks.yml
-  production:
+  # Each engine's browser app, built from engines/<engine> and uploaded to R2 under its Git tree,
+  # unless that exact build is already there. Builds are cached by tree, so only changed engines
+  # compile.
+  engine-web:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: production
+    strategy:
+      fail-fast: true
+      matrix:
+        engine: [manteldocs, mantelpdf, mantelart, mantelcad]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - id: tree
+        run: echo "tree=$(git rev-parse HEAD:engines/${{ matrix.engine }})" >> "$GITHUB_OUTPUT"
+      - id: deployed
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if node engines/publish-web.mjs has ${{ matrix.engine }} ${{ steps.tree.outputs.tree }}; then
+            echo "uploaded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "uploaded=false" >> "$GITHUB_OUTPUT"
+          fi
+      - id: cache
+        if: steps.deployed.outputs.uploaded != 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/web
+          key: engine-web-${{ matrix.engine }}-${{ steps.tree.outputs.tree }}
+      - if: steps.deployed.outputs.uploaded != 'true' && steps.cache.outputs.cache-hit != 'true'
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential pkg-config
+          libudev-dev libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev libxrandr-dev libxi-dev
+          libfontconfig1-dev libfreetype-dev libglib2.0-dev libgtk-3-dev libssl-dev libheif-dev libgl1-mesa-dev
+      - if: steps.deployed.outputs.uploaded != 'true' && steps.cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.99.1"
+          targets: wasm32-unknown-unknown
+      - if: steps.deployed.outputs.uploaded != 'true' && steps.cache.outputs.cache-hit != 'true'
+        name: Build the browser app
+        run: |
+          curl -fsSL -o trunk.tgz https://github.com/trunk-rs/trunk/releases/download/v0.22.1/trunk-x86_64-unknown-linux-gnu.tar.gz
+          echo "2ab8d548fd5ed9cda50906f61fd8654204e7893bd52ebbfd90533862b7d71ee1  trunk.tgz" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin" && tar -xzf trunk.tgz -C "$HOME/.local/bin" && rm trunk.tgz
+          export PATH="$HOME/.local/bin:$PATH"
+          bash engines/build-web.sh ${{ matrix.engine }} "$RUNNER_TEMP/web"
+      - if: steps.deployed.outputs.uploaded != 'true'
+        name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node engines/publish-web.mjs upload ${{ matrix.engine }} "$RUNNER_TEMP/web" ${{ steps.tree.outputs.tree }}
+  production:
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: [checks, engine-web]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -41,6 +105,12 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           npx wrangler d1 migrations apply DB --remote
           npx wrangler deploy --var RELEASE_SHA:"$GITHUB_SHA" --message "source:$GITHUB_SHA"
+          # Switch the engines to the builds of this commit, after the Worker that serves them.
+          node engines/publish-web.mjs manifest \
+            manteldocs="$(git rev-parse HEAD:engines/manteldocs)" \
+            mantelpdf="$(git rev-parse HEAD:engines/mantelpdf)" \
+            mantelart="$(git rev-parse HEAD:engines/mantelart)" \
+            mantelcad="$(git rev-parse HEAD:engines/mantelcad)"
       - name: Verify deployed source
         env:
           APP_URL: ${{ vars.APP_URL }}

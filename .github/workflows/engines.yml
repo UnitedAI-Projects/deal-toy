@@ -72,10 +72,19 @@ jobs:
       - name: Test
         working-directory: engines/${{ matrix.engine }}
         run: cargo test --workspace --locked
+      - id: tree
+        run: echo "tree=$(git rev-parse HEAD:engines/${{ matrix.engine }})" >> "$GITHUB_OUTPUT"
+      # The same key and path as the deploy's engine-web job, which reuses this build.
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/web
+          key: engine-web-${{ matrix.engine }}-${{ steps.tree.outputs.tree }}
       - name: Build the browser app
-        run: bash engines/build-web.sh ${{ matrix.engine }} "$RUNNER_TEMP/web/${{ matrix.engine }}"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash engines/build-web.sh ${{ matrix.engine }} "$RUNNER_TEMP/web"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-${{ matrix.engine }}
-          path: ${{ runner.temp }}/web/${{ matrix.engine }}
+          path: ${{ runner.temp }}/web
           retention-days: 14

@@ -25,6 +25,7 @@ export type PhaseFile = {
   media_type: string;
   size: number;
   url: string;
+  created_at: string;
 };
 /** Stores a file in one of a project's phases (logos, sketches, references, engine saves). */
 export async function uploadPhaseFile(

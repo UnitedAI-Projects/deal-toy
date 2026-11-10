@@ -28,6 +28,28 @@ bash engines/build-web.sh manteldocs
 
 The output goes to `dist/apps/<engine>/`, built for the path `/apps/<engine>/` where Mantel serves it.
 
+## Serve the engines in Mantel
+
+Mantel serves each engine at `/apps/<engine>/` to signed-in people, from R2 under `apps/<engine>/<tree>/`. `<tree>` is the Git tree of `engines/<engine>`, and `apps/manifest.json` names the tree each engine serves. The deploy workflow builds and uploads an engine only when its tree has no upload yet, and switches the manifest after deploying the Worker.
+
+Phases open an engine with `EngineFrame`:
+
+- **MantelDocs and MantelPDF** use the Craft host bridge (`?host=parent`, `<app>:ready/open/save`).
+- **MantelArt** is driven through its page API (`window.vectorcraft`).
+- **MantelCAD** opens without a file bridge for now.
+
+Every save becomes a new phase file.
+
+To run them locally with `npm run dev`, build an engine, upload it to the local R2 and write the manifest:
+
+```bash
+bash engines/build-web.sh manteldocs /tmp/manteldocs-web
+node engines/publish-web.mjs upload manteldocs /tmp/manteldocs-web "$(git rev-parse HEAD:engines/manteldocs)" --local
+node engines/publish-web.mjs manifest manteldocs="$(git rev-parse HEAD:engines/manteldocs)" --local
+```
+
+Build sizes as of 2026-11-10 (`.wasm`, uncompressed): MantelCAD 153 MB, MantelArt 91 MB, MantelPDF 45 MB and MantelDocs 30 MB. Served compressed and cached by content hash, the first load of MantelCAD is still around 47 MB.
+
 ## Update an engine from its source repository
 
 ```bash

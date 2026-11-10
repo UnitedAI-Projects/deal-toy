@@ -16,6 +16,8 @@ import {
   type PhaseState,
 } from "./phases";
 import { Workspace, type WorkspaceProps } from "./Workspace";
+import { EngineFrame, type EngineId } from "./EngineFrame";
+import type { PhaseFile } from "./api";
 
 export type PhaseProps = {
   state: PhaseState;
@@ -26,7 +28,12 @@ export type PhaseProps = {
   canDownload: boolean;
   latestRevision: number;
   go: (p: PhaseId) => void;
+  /** Opens a phase engine over the project, with a file loaded; saves are filed under phase. */
+  openEngine: (engine: EngineId, phase: string, file?: EngineFile) => void;
+  /** Bumped whenever an engine keeps a save, so file lists refresh. */
+  filesVersion: number;
 };
+export type EngineFile = { name: string; url: string; briefField?: string };
 
 function fromHash(): PhaseId | null {
   const h = location.hash.slice(1);
@@ -65,6 +72,14 @@ export function ProjectShell(props: WorkspaceProps) {
     return () => removeEventListener("hashchange", on);
   }, []);
   const go = (p: PhaseId) => setPhase(p);
+  const [engine, setEngine] = useState<{
+    engine: EngineId;
+    phase: string;
+    file?: EngineFile;
+  } | null>(null);
+  const [filesVersion, setFilesVersion] = useState(0);
+  const openEngine = (e: EngineId, p: string, file?: EngineFile) =>
+    setEngine({ engine: e, phase: p, file });
   const back = () => {
     history.replaceState(null, "", location.pathname);
     props.onBack();
@@ -78,6 +93,41 @@ export function ProjectShell(props: WorkspaceProps) {
       </div>
     );
   const { state, update } = store;
+  /** A save from an engine: a new phase file, and for a brief attachment, a new attachment. */
+  const kept = (file: PhaseFile) => {
+    setFilesVersion((v) => v + 1);
+    const field = engine?.file?.briefField;
+    if (engine?.phase === "brief" && field)
+      update((s) => ({
+        ...s,
+        brief: {
+          ...s.brief,
+          files: [
+            ...s.brief.files,
+            {
+              id: file.id,
+              name: file.name,
+              type: file.media_type,
+              size: file.size,
+              field,
+              url: file.url,
+            },
+          ],
+        },
+      }));
+  };
+  const engineView = engine ? (
+    <EngineFrame
+      key={`${engine.engine}:${engine.file?.url ?? ""}`}
+      engine={engine.engine}
+      projectId={projectId}
+      phase={engine.phase}
+      file={engine.file}
+      readOnly={!owns}
+      onSaved={kept}
+      onClose={() => setEngine(null)}
+    />
+  ) : null;
   const phaseBar = (
     <PhaseBar
       state={state}
@@ -111,9 +161,12 @@ export function ProjectShell(props: WorkspaceProps) {
               readOnly={!owns}
               latestRevision={latestRevision}
               go={go}
+              openEngine={openEngine}
+              filesVersion={filesVersion}
             />
           }
         />
+        {engineView}
         {saveNote}
       </>
     );
@@ -127,6 +180,8 @@ export function ProjectShell(props: WorkspaceProps) {
     canDownload: owns || can(me, "exports.download"),
     latestRevision,
     go,
+    openEngine,
+    filesVersion,
   };
   return (
     <div className={`phase-page phase-${phase}`}>
@@ -158,6 +213,7 @@ export function ProjectShell(props: WorkspaceProps) {
         {phase === "documents" && <DocumentsPhase {...shared} />}
         {phase === "manufacture" && <ManufacturePhase {...shared} />}
       </main>
+      {engineView}
       {saveNote}
     </div>
   );
@@ -197,6 +253,13 @@ function ModelOutput(props: Omit<PhaseProps, "data" | "canDownload">) {
           </span>
         )}
       </span>
+      <button
+        className="secondary"
+        onClick={() => props.openEngine("mantelcad", "model")}
+        title="Open the model's engine"
+      >
+        Open in MantelCAD
+      </button>
       <button
         disabled={props.readOnly || !latestRevision || status === "approved"}
         onClick={() =>

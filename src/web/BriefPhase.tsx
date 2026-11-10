@@ -2,6 +2,7 @@
    came from and whether it is answered, assumed or still open. */
 import { useEffect, useState, type DragEvent } from "react";
 import { uploadPhaseFile } from "./api";
+import { ENGINE_NAMES, engineFor } from "./EngineFrame";
 import { Banner, OutputBar } from "./PhaseFrame";
 import type { PhaseProps } from "./ProjectShell";
 import {
@@ -18,6 +19,8 @@ const VECTOR = /\.(svg|eps|ai|pdf)$/i;
 const LONG = new Set(["story", "lettering", "notes", "fragile", "avoid"]);
 
 export const isVector = (name: string) => VECTOR.test(name);
+const isArtwork = (f: File) =>
+  /\.(svg|eps|ai|png|jpe?g|gif|webp|tiff?|bmp)$/i.test(f.name);
 
 /** Stores a file in the project's brief and describes it for the brief's file list. */
 async function storeFile(
@@ -74,8 +77,13 @@ export function BriefPhase(props: PhaseProps) {
   function onDrop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
-    if (!readOnly && e.dataTransfer.files.length)
-      void attach(e.dataTransfer.files);
+    if (readOnly || !e.dataTransfer.files.length) return;
+    // Artwork goes to Logos; memos, guides and anything else are references.
+    const all = [...e.dataTransfer.files];
+    const art = all.filter((f) => isArtwork(f));
+    const rest = all.filter((f) => !isArtwork(f));
+    if (art.length) void attach(art, "logos");
+    if (rest.length) void attach(rest, "notes");
   }
 
   return (
@@ -135,6 +143,15 @@ export function BriefPhase(props: PhaseProps) {
                     update((s) => editBriefField(s, f.key, patch))
                   }
                   onAttach={(files) => void attach(files, f.key)}
+                  onOpen={(x) => {
+                    const engine = engineFor(x.name);
+                    if (engine && x.url)
+                      props.openEngine(engine, "brief", {
+                        name: x.name,
+                        url: x.url,
+                        briefField: x.field,
+                      });
+                  }}
                   onRemoveFile={(id) =>
                     update((s) => {
                       const files = s.brief.files.filter((x) => x.id !== id);
@@ -292,6 +309,7 @@ function FieldRow(props: {
   onChange: (p: Partial<BriefField>) => void;
   onAttach: (files: FileList) => void;
   onRemoveFile: (id: string) => void;
+  onOpen: (file: BriefFile) => void;
 }) {
   const f = props.field;
   const [value, setValue] = useState(f.value);
@@ -301,8 +319,64 @@ function FieldRow(props: {
     if (next !== f.value) props.onChange({ value: next });
   };
   const proposal = f.state === "assumed" || f.source === "agent";
-  const raster = props.files.filter((x) => !isVector(x.name));
+  const raster =
+    f.key === "logos" ? props.files.filter((x) => !isVector(x.name)) : [];
   const Editor = LONG.has(f.key) ? "textarea" : "input";
+  const fileRow = (
+    <div className="file-row">
+      {props.files.map((x) => (
+        <span className="file" key={x.id}>
+          {(x.url ?? x.dataUrl) && x.type.startsWith("image/") ? (
+            <img src={x.url ?? x.dataUrl} alt="" />
+          ) : (
+            <span className="file-sw">
+              {x.name.split(".").pop()?.toUpperCase()}
+            </span>
+          )}
+          {x.name}
+          {f.key === "logos" && (
+            <span className={`tag ${isVector(x.name) ? "ok" : "bad"}`}>
+              {isVector(x.name) ? "vector" : "raster"}
+            </span>
+          )}
+          {x.url && engineFor(x.name) && (
+            <button
+              className="link"
+              title={`Open in ${ENGINE_NAMES[engineFor(x.name)!]}`}
+              onClick={() => props.onOpen(x)}
+            >
+              Open
+            </button>
+          )}
+          {!props.readOnly && (
+            <button
+              className="link"
+              aria-label={`Remove ${x.name}`}
+              onClick={() => props.onRemoveFile(x.id)}
+            >
+              ✕
+            </button>
+          )}
+        </span>
+      ))}
+      {!props.readOnly && (
+        <label className="file add">
+          {f.key === "logos"
+            ? "+ Attach logo files"
+            : "+ Attach reference files"}
+          <input
+            type="file"
+            multiple
+            hidden
+            accept={
+              f.key === "logos" ? ".svg,.eps,.ai,.pdf,image/*" : undefined
+            }
+            onChange={(e) => e.target.files && props.onAttach(e.target.files)}
+          />
+        </label>
+      )}
+    </div>
+  );
   return (
     <div className={`brief-field ${proposal ? "proposal" : ""} ${f.state}`}>
       <label className="brief-k" htmlFor={`f-${f.key}`}>
@@ -311,46 +385,7 @@ function FieldRow(props: {
       </label>
       <div className="brief-v">
         {f.key === "logos" ? (
-          <div className="file-row">
-            {props.files.map((x) => (
-              <span className="file" key={x.id}>
-                {(x.url ?? x.dataUrl) && x.type.startsWith("image/") ? (
-                  <img src={x.url ?? x.dataUrl} alt="" />
-                ) : (
-                  <span className="file-sw">
-                    {x.name.split(".").pop()?.toUpperCase()}
-                  </span>
-                )}
-                {x.name}
-                <span className={`tag ${isVector(x.name) ? "ok" : "bad"}`}>
-                  {isVector(x.name) ? "vector" : "raster"}
-                </span>
-                {!props.readOnly && (
-                  <button
-                    className="link"
-                    aria-label={`Remove ${x.name}`}
-                    onClick={() => props.onRemoveFile(x.id)}
-                  >
-                    ✕
-                  </button>
-                )}
-              </span>
-            ))}
-            {!props.readOnly && (
-              <label className="file add">
-                + Attach logo files
-                <input
-                  type="file"
-                  multiple
-                  hidden
-                  accept=".svg,.eps,.ai,.pdf,image/*"
-                  onChange={(e) =>
-                    e.target.files && props.onAttach(e.target.files)
-                  }
-                />
-              </label>
-            )}
-          </div>
+          fileRow
         ) : (
           <Editor
             id={`f-${f.key}`}
@@ -367,6 +402,9 @@ function FieldRow(props: {
             }}
           />
         )}
+        {f.key === "notes" &&
+          (props.files.length > 0 || !props.readOnly) &&
+          fileRow}
         {raster.length > 0 && (
           <div className="warnline">
             {raster.map((x) => x.name).join(", ")}{" "}

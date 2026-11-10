@@ -23,6 +23,7 @@ import { authorize } from "./consent";
 import { serve } from "./oauth";
 import { purgeExpired } from "./trash";
 import { addPhaseFile, getPhaseFile } from "./phase-tools";
+import { serveApp } from "./apps";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
 /** The app itself: every route except the OAuth endpoints and /mcp, which the provider owns. */
@@ -33,6 +34,8 @@ export const app = {
       if (url.pathname === "/health")
         return Response.json({ status: "ok", release: env.RELEASE_SHA });
       if (url.pathname === "/authorize") return await authorize(request, env);
+      const engineApp = await serveApp(request, env);
+      if (engineApp) return engineApp;
       if (!url.pathname.startsWith("/api/") && url.pathname !== "/mcp") {
         const response = await env.ASSETS.fetch(request);
         const headers = new Headers(response.headers);
