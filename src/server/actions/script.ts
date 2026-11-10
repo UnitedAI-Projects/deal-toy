@@ -1,4 +1,5 @@
 import { AppError } from "../core";
+import { designOf } from "../../shared/cad-source";
 
 /**
  * The steps section of a model script: the statements between `# mantel:steps begin` and
@@ -530,6 +531,11 @@ export function readSteps(source: string): {
   start: number;
   end: number;
 } {
+  if (designOf(source))
+    throw new AppError(
+      400,
+      "This model is a MantelCAD design: it has no build123d steps. Edit it in MantelCAD, or with models_edit and models_set_parameter.",
+    );
   const { start, end } = locate(source);
   return { steps: parseSection(source, start, end).steps, start, end };
 }

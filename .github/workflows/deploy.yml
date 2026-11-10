@@ -74,9 +74,38 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node engines/publish-web.mjs upload ${{ matrix.engine }} "$RUNNER_TEMP/web" ${{ steps.tree.outputs.tree }}
+  # MantelCAD's CLI for the production CAD image, from this job's own cache (deploy-* keys,
+  # written only here on main), never a binary a pull request's run built.
+  cad-cli:
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tree
+        run: echo "tree=$(git rev-parse HEAD:engines/mantelcad)" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: engine/bin/mantelcad-cli
+          key: deploy-cad-cli-${{ steps.tree.outputs.tree }}-${{ hashFiles('engines/build-cad-cli.sh') }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: bash engines/build-cad-cli.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deploy-mantelcad-cli
+          path: engine/bin/mantelcad-cli
+          retention-days: 3
   production:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
-    needs: [checks, engine-web]
+    needs: [checks, engine-web, cad-cli]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -93,6 +122,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: deploy-mantelcad-cli
+          path: engine/bin
+      - run: chmod 0755 engine/bin/mantelcad-cli
       - name: Verify main has not advanced
         env:
           GH_TOKEN: ${{ github.token }}

@@ -9,7 +9,9 @@ COPY engine/pyproject.toml engine/uv.lock ./
 RUN uv sync --no-cache --link-mode copy --frozen --no-dev --compile-bytecode \
     && python -m compileall -q -x '/(test|tests|idle_test)/' /usr/local/lib/python3.12 \
     && useradd --uid 1000 --create-home cad
-COPY engine/runner.py engine/service.py engine/measure.py engine/drawing.py ./
+COPY engine/runner.py engine/service.py engine/limited.py engine/measure.py engine/drawing.py ./
+# MantelCAD's headless CLI, built for this Debian release by engines/build-cad-cli.sh.
+COPY --chmod=555 engine/bin/mantelcad-cli ./bin/mantelcad-cli
 COPY engine/lib ./lib
 USER cad
 EXPOSE 8080

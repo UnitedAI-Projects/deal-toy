@@ -483,8 +483,8 @@ export function agentGuide(
     case "model":
       return {
         text: latestRevision
-          ? `Revision r${latestRevision} is the latest.`
-          : "No model yet. Pick a tool above, ask me here, or switch to MantelCAD to start.",
+          ? `Revision r${latestRevision} is the latest. Ask me to change it, or edit it in MantelCAD.`
+          : "No model yet. Design it in MantelCAD, or describe the part and I'll start it in MantelCAD.",
         suggestions: [],
       };
     case "documents": {

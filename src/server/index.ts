@@ -1,3 +1,4 @@
+import { designOf } from "../shared/cad-source";
 import { z } from "zod";
 import {
   authenticateBrowser,
@@ -177,6 +178,27 @@ export const app = {
           }),
         );
       }
+      // A revision's MantelCAD design, for opening it in MantelCAD. Like a revision's source, it
+      // rebuilds the exact geometry, so on someone else's project it needs the download permission.
+      const designMatch = /^\/api\/revisions\/([a-f0-9-]{36})\/design$/.exec(
+        url.pathname,
+      );
+      if (designMatch && request.method === "GET") {
+        const revision = await revisionAccess(c, designMatch[1], "read");
+        if (revision.owner !== c.identity.email)
+          requirePermission(c, "exports.download");
+        if (!designOf(revision.source))
+          throw new AppError(404, "This revision is not a MantelCAD design");
+        return secure(
+          new Response(revision.source, {
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Disposition": `attachment; filename="revision-${revision.number}.sc"`,
+              "Cache-Control": "private, no-store",
+            },
+          }),
+        );
+      }
       const uploadMatch =
         /^\/api\/projects\/([a-f0-9-]{36})\/phase-files$/.exec(url.pathname);
       if (uploadMatch && request.method === "POST")
@@ -196,7 +218,13 @@ export const app = {
           throw new AppError(415, "Use application/json");
         let input: unknown;
         try {
-          input = JSON.parse(await boundedText(request));
+          // A MantelCAD design saved from the app may be up to 1 MB, escaped inside the JSON body.
+          input = JSON.parse(
+            await boundedText(
+              request,
+              toolMatch[1] === "models_save" ? 2_500_000 : 150_000,
+            ),
+          );
         } catch (error) {
           if (error instanceof AppError) throw error;
           throw new AppError(400, "Invalid JSON");

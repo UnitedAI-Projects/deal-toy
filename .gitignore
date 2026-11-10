@@ -10,3 +10,5 @@ dist/
 coverage/
 work/
 .DS_Store
+# Built by engines/build-cad-cli.sh; never committed.
+engine/bin/

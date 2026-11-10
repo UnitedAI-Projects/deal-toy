@@ -31,7 +31,7 @@ The built-in agent can edit phase metadata and list saved files. It cannot read 
 - **Cloudflare Worker:** web application, Google sign-in, authenticated HTTP API and stateless MCP endpoint.
 - **D1:** members, access levels, hashed sessions, project metadata, model source revisions, jobs and documents.
 - **R2:** revision-linked binary exports with checksums.
-- **Cloudflare Queue + Containers:** isolated Python/build123d/Open CASCADE jobs, with no internet access or credentials.
+- **Cloudflare Queue + Containers:** isolated build jobs, with no internet access or credentials. A model revision is a MantelCAD design, built by MantelCAD's headless CLI to STEP, or a legacy build123d Python script; Open CASCADE turns either into STL, GLB, facts and the inspection record.
 - **React + Three.js:** project library, model source editor and GLB viewer.
 
 [Architecture and contracts](docs/architecture.md) · [Manufacturing handoff](docs/manufacturing.md) · [Deployment and rollback](docs/deployment.md)
@@ -49,6 +49,7 @@ npm ci --ignore-scripts
 uv sync --project engine --python 3.12 --frozen
 npm run build
 npm run db:local
+bash engines/build-cad-cli.sh   # MantelCAD's CLI for the CAD container (a first build takes a while)
 mkdir -p work
 node ci/member.mjs --local you@example.com owner work/owner-link.txt
 npm run dev
@@ -101,6 +102,8 @@ session_end({sessionId, summary})                        → also stops any plan
 
 Every tool accepts an optional `sessionId`. The app records every agent tool call itself; the prompt and progress notes are reported by the agent and labelled that way. Notes left by the team are appended to the agent's next tool result as quoted data.
 
+In the Model phase, MantelCAD is the engine: **Edit in MantelCAD** opens the model's design, and **Save to project** saves it as the next revision and builds it. Mantel's agent changes the design with MantelCAD commands (`models_edit`) and named parameters (`models_set_parameter`); see [the MantelCAD engine design](docs/superpowers/specs/2026-11-10-mantelcad-model-engine-design.md) and [the bracket example](examples/bracket.mantelcad.json). Connected MCP agents still write build123d Python, which remains supported.
+
 Python source defines `build()` returning build123d parts. Declare editable dimensions in a top-level `PARAMS` dictionary and return a `Compound` of labelled parts so each part is selectable. Use millimetres and Z up. See [the editable bridge example](examples/bridge.py).
 
 ## Extend
@@ -110,6 +113,7 @@ People with "Configure skills and tools" add and version Markdown workflows in *
 ## Validate
 
 ```sh
+bash engines/build-cad-cli.sh
 bash ci/run.sh
 docker build -f engine/Dockerfile -t deal-toy-cad:test .
 bash ci/container-smoke.sh

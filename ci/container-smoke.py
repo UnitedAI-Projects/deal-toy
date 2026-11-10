@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 
 import build123d
-from service import Handler, HTTPServer, execute, execute_drawing, execute_measure
+from service import Handler, HTTPServer, execute, execute_drawing, execute_edit, execute_measure
 
 # The image is read-only at run time, so bytecode exists only if the image build compiled it.
 for module in (build123d, json):
@@ -50,6 +50,17 @@ with HTTPServer(("0.0.0.0", 0), Handler) as server:
         width = json.loads(base64.b64decode(facts["base64"]))["bounds"][0]
         assert abs(width - 37.7) < 0.8, f"default-font text is {width} mm wide, not Arial's 37.7"
         print(f"Default-font text renders with Arial metrics ({width:.2f} mm)")
+        # A MantelCAD design builds through mantelcad-cli on the read-only image, without network.
+        design = Path("/examples/bracket.mantelcad.json").read_text()
+        built = execute(design)
+        facts = json.loads(base64.b64decode(next(a for a in built["artifacts"] if a["name"] == "facts.json")["base64"]))
+        assert [p["label"] for p in facts["parts"]] == ["Bracket"], facts["parts"]
+        assert facts["params"]["width"] == {"value": 60.0, "unit": "mm"}, facts.get("params")
+        print(f"MantelCAD design built ({facts['volume_mm3']:.0f} mm³, body {facts['parts'][0]['label']})")
+        edited = execute_edit(design, [{"command": "parameters.change",
+                                        "params": {"name": "width", "expression": "80 mm"}}])
+        assert '"80 mm"' in edited["design"], "the edit did not change the parameter"
+        print("MantelCAD edit applied a command and returned the design")
     finally:
         server.shutdown()
         thread.join(timeout=5)

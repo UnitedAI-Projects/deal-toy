@@ -39,6 +39,12 @@ import { checkTools } from "./check-tools";
 import { DESIGN_WRITES, designTools } from "./design-tools";
 import { trashTools } from "./trash";
 import { phaseTools } from "./phase-tools";
+import { cadTools, checkSource } from "./cad-tools";
+import {
+  designOf,
+  MAX_DESIGN_BYTES,
+  setDesignParameter,
+} from "../shared/cad-source";
 import { stopSessionPlans } from "./design/plans";
 import { catalogIndex } from "./actions/catalog";
 import {
@@ -190,19 +196,23 @@ export const tools: Tool[] = [
   ),
   define(
     "models_save",
-    "Save an immutable build123d Python revision. Define build() returning a solid Shape; millimetres, Z up. Supply expectedRevision to prevent overwriting newer work. Prefer the steps_* tools for changes inside the steps section." +
+    "Save an immutable revision: build123d Python (define build() returning a solid Shape; millimetres, Z up; up to 100 KB) or, from MantelCAD, its design JSON (up to 1 MB). Supply expectedRevision to prevent overwriting newer work. Prefer the steps_* tools for changes inside a Python model's steps section." +
       PLAN_NOTE,
     {
       modelId: id,
       expectedRevision: z.number().int().nonnegative(),
-      source: z.string().min(1).max(100000),
+      source: z.string().min(1).max(MAX_DESIGN_BYTES),
     },
     false,
-    async (c, i) =>
-      saveRevision(c, i.modelId, i.expectedRevision, i.source, {
+    async (c, i) => {
+      checkSource(c, i.source);
+      return saveRevision(c, i.modelId, i.expectedRevision, i.source, {
         sessionId: i.sessionId,
-        request: "Saved a new revision",
-      }),
+        request: designOf(i.source)
+          ? "Saved from MantelCAD"
+          : "Saved a new revision",
+      });
+    },
     "models.edit",
   ),
   define(
@@ -448,7 +458,7 @@ export const tools: Tool[] = [
   ),
   define(
     "models_set_parameter",
-    "Change one declared PARAMS value of the latest revision, save it as a new revision and queue its build. Only the value literal changes; the edit is refused if it cannot be located exactly once or is out of range. Agents declare Framework in the change plan's edit list first." +
+    "Change one parameter of the latest revision (a Python model's declared PARAMS value, or a MantelCAD design's named parameter), save it as a new revision and queue its build. Only the value literal changes; the edit is refused if it cannot be located exactly once or is out of range. Agents declare Framework in the change plan's edit list first." +
       PLAN_NOTE,
     {
       modelId: id,
@@ -493,7 +503,15 @@ export const tools: Tool[] = [
           400,
           `${i.name} must be between ${spec.min ?? "−∞"} and ${spec.max ?? "∞"}`,
         );
-      const source = setParameter(revision.source, i.name, i.value);
+      let source: string;
+      if (designOf(revision.source))
+        try {
+          source = setDesignParameter(revision.source, i.name, i.value);
+        } catch (error) {
+          throw new AppError(400, (error as Error).message);
+        }
+      else source = setParameter(revision.source, i.name, i.value);
+      checkSource(c, source);
       const saved = await saveRevision(
         c,
         i.modelId,
@@ -594,6 +612,7 @@ export const tools: Tool[] = [
   ...designTools,
   ...trashTools,
   ...phaseTools,
+  ...cadTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -632,6 +651,7 @@ const MODEL_CHANGES = new Set([
   "models_save",
   "models_build",
   "models_set_parameter",
+  "models_edit",
   ...STEP_WRITES,
 ]);
 function summarize(name: string, input: unknown, value: unknown) {
@@ -652,6 +672,10 @@ function summarize(name: string, input: unknown, value: unknown) {
         : `Measure ${v.key}: ${v.status}`;
     case "models_build":
       return "Queued a build";
+    case "models_edit":
+      return `Edited the model in MantelCAD (revision ${v.revision})`;
+    case "model_get":
+      return "Read the model";
     case "builds_get":
       return `Build ${v.status}${v.error ? `: ${String(v.error).slice(0, 200)}` : ""}`;
     case "models_create":

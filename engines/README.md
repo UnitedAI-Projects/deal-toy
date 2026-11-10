@@ -1,6 +1,6 @@
 # Engines
 
-The apps that do each phase's real work. The browser apps open from their phases in Mantel and save editable files to the project. The imported CLI/MCP implementations are available in the source; Mantel's hosted build jobs and agent tools still use build123d. Wiring those to the new engines remains a separate step. See the [phase engines design](../docs/superpowers/specs/2026-11-10-phase-engines-design.md).
+The apps that do each phase's real work. The browser apps open from their phases in Mantel and save editable files to the project. MantelCAD is also the Model phase's build engine: `engines/build-cad-cli.sh` builds its headless CLI for the CAD container (linux/amd64, Debian bookworm), which builds and edits model revisions; see the [MantelCAD engine design](../docs/superpowers/specs/2026-11-10-mantelcad-model-engine-design.md). The other engines' CLI/MCP implementations are in the source but not yet used by hosted jobs. See the [phase engines design](../docs/superpowers/specs/2026-11-10-phase-engines-design.md).
 
 | Directory | App | Phase | Browser app | Imported from |
 | --- | --- | --- | --- | --- |

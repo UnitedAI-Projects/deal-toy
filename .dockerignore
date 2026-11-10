@@ -5,3 +5,5 @@
 !engine/uv.lock
 !engine/runner.py
 !engine/service.py
+!engine/limited.py
+!engine/bin/mantelcad-cli

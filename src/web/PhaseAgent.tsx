@@ -197,7 +197,9 @@ function Conversation(props: Parameters<typeof PhaseAgent>[0]) {
         </button>
       </form>
       <p className="phase-agent-foot muted small">
-        Can edit phase details. Canvas edits and approvals stay with you.
+        {props.phase === "model"
+          ? "Can edit the MantelCAD design and phase details. Approvals stay with you."
+          : "Can edit phase details. Canvas edits and approvals stay with you."}
       </p>
     </aside>
   );

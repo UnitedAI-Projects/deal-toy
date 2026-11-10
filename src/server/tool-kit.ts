@@ -1,3 +1,4 @@
+import { designOf } from "../shared/cad-source";
 import { z } from "zod";
 import type { Permission } from "./access";
 import {
@@ -105,7 +106,12 @@ export async function queueBuild(
   purpose: JobPurpose = "build",
   options?: Record<string, unknown>,
 ) {
-  await revisionAccess(c, revisionId);
+  const revision = await revisionAccess(c, revisionId);
+  if ((purpose === "view" || purpose === "check") && designOf(revision.source))
+    throw new AppError(
+      400,
+      "MantelCAD designs build whole: view-as-of previews and saved-action checks are for build123d models",
+    );
   const limit = Number.parseInt(c.env.DAILY_BUILD_LIMIT, 10) || 100;
   const today = await c.env.DB.prepare(
     "SELECT count(*) AS n FROM jobs WHERE created_by=? AND created_at>?",

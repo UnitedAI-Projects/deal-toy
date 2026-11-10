@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultTarget } from "./engine-views";
+import { currentModel, defaultTarget, modelDesign } from "./engine-views";
 import { emptyPhaseState } from "./phases";
 import type { PhaseFile } from "./api";
 
@@ -79,13 +79,16 @@ describe("engine views", () => {
       conceptId: "c2",
       file: { url: "/m2" },
     });
-    expect(defaultTarget("model", s, files, step)?.file?.name).toBe(
-      "Bridge.sc",
+    // The model's design revision; else a legacy model's STEP; else an old loose .sc save.
+    const design = { name: "Bracket.sc", url: "/api/revisions/r2/design" };
+    expect(defaultTarget("model", s, files, step, design)?.file).toEqual(
+      design,
     );
-    expect(defaultTarget("model", s, [], step)?.file).toEqual({
+    expect(defaultTarget("model", s, files, step)?.file).toEqual({
       name: "model.step",
       url: "/api/artifacts/s1",
     });
+    expect(defaultTarget("model", s, files, [])?.file?.name).toBe("Bridge.sc");
     expect(defaultTarget("documents", s, files, step)?.file?.name).toBe(
       "plate-edited.dxf",
     );
@@ -99,5 +102,49 @@ describe("engine views", () => {
       phase: "concepts",
     });
     expect(defaultTarget("brief", s, [], [])?.file).toBeUndefined();
+  });
+
+  it("opens the most revised model's latest revision when it is a MantelCAD design", () => {
+    const designJson = JSON.stringify({
+      format: "solidcraft/52",
+      features: [],
+    });
+    const data = {
+      models: [
+        { id: "m1", name: "Old", revision: 1 },
+        { id: "m2", name: "Bracket", revision: 2 },
+      ],
+      revisions: [
+        {
+          id: "r1",
+          model_id: "m2",
+          number: 1,
+          created_at: "",
+          source: "def build(): ...",
+        },
+        {
+          id: "r2",
+          model_id: "m2",
+          number: 2,
+          created_at: "",
+          source: designJson,
+        },
+        {
+          id: "r3",
+          model_id: "m1",
+          number: 1,
+          created_at: "",
+          source: designJson,
+        },
+      ],
+    };
+    expect(currentModel(data)?.revision?.id).toBe("r2");
+    expect(modelDesign(data)).toEqual({
+      name: "Bracket.sc",
+      url: "/api/revisions/r2/design",
+    });
+    data.revisions[1].source = "def build(): ...";
+    expect(modelDesign(data)).toBeUndefined();
+    expect(modelDesign({ models: [], revisions: [] })).toBeUndefined();
   });
 });

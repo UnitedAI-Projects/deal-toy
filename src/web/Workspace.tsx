@@ -71,6 +71,7 @@ import { Triad, type TriadHandle } from "./AxisTriad";
 import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
+import { isDesign } from "../shared/cad-source";
 import { changedModel, initialModel } from "./follow";
 import { agentStart, type ConnectedApp } from "./empty";
 import type { ThemeChoice } from "./theme";
@@ -134,6 +135,8 @@ type Props = {
   /** Set by the project shell: the built-in phase agent, in place of external agents' activity. */
   agentPanel?: ReactNode;
   outputBar?: ReactNode;
+  /** Set by the project shell: MantelCAD is the Model engine, and this opens it. */
+  onOpenCad?: () => void;
 };
 export function Workspace(props: Props) {
   const { data } = props;
@@ -315,6 +318,9 @@ export function Workspace(props: Props) {
   const built = (r?: Revision) =>
     jobsFor(r).find((j) => j.status === "succeeded");
   const latest = revisions.at(-1);
+  // MantelCAD designs (and, where MantelCAD is the engine, a model not started yet) are edited in
+  // MantelCAD and by the agent; the build123d step toolbar is for Python models.
+  const design = isDesign(latest?.source) || (!!props.onOpenCad && !latest);
   const viewed = follow
     ? latest
     : (revisions.find((r) => r.number === viewNumber) ?? latest);
@@ -1033,7 +1039,7 @@ export function Workspace(props: Props) {
               Checks
             </button>
           )}
-          {canEdit && (
+          {canEdit && !design && (
             <CommandSearch
               actions={[...builtins, ...savedActions]}
               disabledReason={toolbarReason()}
@@ -1110,7 +1116,7 @@ export function Workspace(props: Props) {
           />
         )}
       </header>
-      {canEdit && (
+      {canEdit && !design && (
         <Toolbar
           actions={[...builtins, ...savedActions]}
           disabledReason={toolbarReason()}
@@ -1163,14 +1169,14 @@ export function Workspace(props: Props) {
           <span className="mark large" aria-hidden="true" />
           <h2>Start the model</h2>
           <p>
-            Pick a tool above to begin, ask Mantel in the panel, or switch to
-            MantelCAD for the full CAD interface.
+            Design it in MantelCAD, or ask Mantel in the panel to start it.
+            Every save becomes a revision Mantel builds, checks and documents.
           </p>
-          <div className="row">
-            <button className="secondary" onClick={() => setDrawer("code")}>
-              Write the model yourself
-            </button>
-          </div>
+          {props.onOpenCad && canEdit && (
+            <div className="row">
+              <button onClick={props.onOpenCad}>Open MantelCAD</button>
+            </div>
+          )}
         </div>
       )}
       {start && !props.agentPanel && (
@@ -1474,7 +1480,9 @@ export function Workspace(props: Props) {
             <h2>
               {
                 {
-                  code: "Source code",
+                  code: isDesign(viewed?.source)
+                    ? "MantelCAD design"
+                    : "Source code",
                   downloads: "Downloads and facts",
                   documents: "Manufacturing documents",
                   design: "Design sheet",
@@ -1499,7 +1507,14 @@ export function Workspace(props: Props) {
                   (r) => r.number === (viewed?.number ?? 0) - 1,
                 )}
                 error={viewedJob?.status === "failed" ? viewedJob.error : null}
-                readOnly={!owns || !can(me, "models.edit")}
+                readOnly={
+                  !owns || !can(me, "models.edit") || isDesign(viewed?.source)
+                }
+                note={
+                  isDesign(viewed?.source)
+                    ? "This revision is a MantelCAD design. Edit it in MantelCAD; each save there becomes a new revision."
+                    : undefined
+                }
                 onSave={async (source, build) => {
                   let id = model?.id;
                   if (!id)
@@ -1854,6 +1869,7 @@ function CodeDrawer(props: {
   previous?: Revision;
   error: string | null;
   readOnly: boolean;
+  note?: string;
   onSave: (source: string, build: boolean) => Promise<void>;
 }) {
   const original = props.revision?.source ?? (props.readOnly ? "" : sample);
@@ -1911,6 +1927,7 @@ function CodeDrawer(props: {
           </button>
         )}
       </div>
+      {props.note && <p className="muted small">{props.note}</p>}
       {props.error && <pre className="code error-block">{props.error}</pre>}
       {mode === "view" && <pre className="code">{original}</pre>}
       {mode === "diff" &&

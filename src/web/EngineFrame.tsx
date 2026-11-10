@@ -89,6 +89,9 @@ export function EngineFrame(props: {
   visible?: boolean;
   /** Told whenever the engine gains or loses unsaved changes. */
   onDirty?: (dirty: boolean) => void;
+  /** MantelCAD in the Model phase: a save becomes the model's next revision, not a loose file.
+      Resolves to the status to show. */
+  onSaveDesign?: (text: string, name: string) => Promise<string>;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const artApi = useRef<ArtApi | undefined>(undefined);
@@ -100,7 +103,8 @@ export function EngineFrame(props: {
   const cadApi = useRef<CadApi | undefined>(undefined);
   const cadSaved = useRef<number | null>(null);
   const [busy, setBusy] = useState(false);
-  /** MantelCAD: keep the open design (its JSON) as a .sc file, and tell MantelCAD it is saved. */
+  /** MantelCAD: save the open design (its JSON) as the model's next revision (or, outside the
+      Model phase, as a .sc file), and tell MantelCAD it is saved. */
   async function saveCad() {
     const api = cadApi.current;
     if (!api) return;
@@ -112,11 +116,18 @@ export function EngineFrame(props: {
         props.file?.name.replace(/\.[^.]+$/, "") ||
         (typeof kept.name === "string" && kept.name.replace(/\.[^.]+$/, "")) ||
         "Design";
-      await keep(`${name}.sc`, new TextEncoder().encode(String(kept.text)));
+      if (props.readOnly) throw new Error("This project is view-only");
+      const message = props.onSaveDesign
+        ? await props.onSaveDesign(String(kept.text), name)
+        : (await keep(
+            `${name}.sc`,
+            new TextEncoder().encode(String(kept.text)),
+          ),
+          `Saved ${name}.sc`);
       await api.request("document.saved", { revision: kept.revision });
       cadSaved.current = Number(kept.revision);
       setDirty(false);
-      setStatus(`Saved ${name}.sc`);
+      setStatus(message);
     } catch (err) {
       setError(`Couldn't save the design: ${(err as Error).message}`);
     } finally {

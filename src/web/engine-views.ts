@@ -1,6 +1,7 @@
 /* Which engine a phase's professional view runs, and what it opens there: the phase's most recent
    working file, so switching views lands on what the person was working on. */
-import type { Artifact, PhaseFile } from "./api";
+import type { Artifact, Model, PhaseFile, Revision } from "./api";
+import { isDesign } from "../shared/cad-source";
 import type { EngineId } from "./EngineFrame";
 import type { PhaseId, PhaseState } from "./phases";
 
@@ -19,6 +20,28 @@ export type ViewTarget = {
   conceptId?: string;
 };
 
+/** The model the Model phase shows, as latestBuild does: the most revised one. */
+export function currentModel(data: { models: Model[]; revisions: Revision[] }) {
+  const model = [...data.models].sort((a, b) => b.revision - a.revision)[0];
+  const revision = model
+    ? data.revisions.find(
+        (r) => r.model_id === model.id && r.number === model.revision,
+      )
+    : undefined;
+  return model ? { model, revision } : null;
+}
+
+/** The model's latest revision as a MantelCAD design to open, when it is one. */
+export function modelDesign(data: { models: Model[]; revisions: Revision[] }) {
+  const current = currentModel(data);
+  return current?.revision && isDesign(current.revision.source)
+    ? {
+        name: `${current.model.name}.sc`,
+        url: `/api/revisions/${current.revision.id}/design`,
+      }
+    : undefined;
+}
+
 const newest = (files: PhaseFile[], phase: string, pattern: RegExp) =>
   [...files]
     .filter((f) => f.phase === phase && pattern.test(f.name))
@@ -30,6 +53,8 @@ export function defaultTarget(
   state: PhaseState,
   files: PhaseFile[],
   buildArtifacts: Artifact[],
+  /** The model's latest revision when it is a MantelCAD design (modelDesign). */
+  design?: { name: string; url: string },
 ): ViewTarget | null {
   const engine = PHASE_ENGINE[phase];
   if (!engine) return null;
@@ -72,11 +97,14 @@ export function defaultTarget(
         : { engine, phase };
     }
     case "model":
+      // The model itself; a legacy build123d model opens as its STEP (saving makes it a design).
       return {
         engine,
         phase,
         file:
-          file(newest(files, "model", /\.sc$/i)) ?? artifact(/\.(step|stp)$/i),
+          design ??
+          artifact(/\.(step|stp)$/i) ??
+          file(newest(files, "model", /\.sc$/i)),
       };
     case "documents":
       return {

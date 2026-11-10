@@ -18,8 +18,13 @@ import {
 } from "./phases";
 import { Workspace, type WorkspaceProps } from "./Workspace";
 import { ENGINE_NAMES, EngineFrame, type EngineId } from "./EngineFrame";
-import { defaultTarget, PHASE_ENGINE } from "./engine-views";
-import { call, type PhaseFile } from "./api";
+import {
+  currentModel,
+  defaultTarget,
+  modelDesign,
+  PHASE_ENGINE,
+} from "./engine-views";
+import { ApiError, call, type PhaseFile } from "./api";
 import { latestBuild } from "./DocumentsPhase";
 import { withConceptSave } from "./phases";
 
@@ -177,6 +182,45 @@ export function ProjectShell(props: WorkspaceProps) {
         },
       }));
   };
+  /** A design saved in MantelCAD becomes the model's next revision, built straight away. */
+  const saveDesign = async (text: string) => {
+    let model = currentModel(data)?.model;
+    if (!model) {
+      const created = await call<{ id: string; name: string }>(
+        "models_create",
+        { projectId, name: "Model 01" },
+      );
+      model = { id: created.id, name: created.name, revision: 0 };
+    }
+    const save = (expectedRevision: number) =>
+      call<{ id: string; number: number }>("models_save", {
+        modelId: model.id,
+        expectedRevision,
+        source: text,
+      });
+    let saved: { id: string; number: number };
+    try {
+      saved = await save(model.revision);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 409) throw error;
+      // Someone (or the agent) saved a newer revision while this design was open.
+      const latest = await call<{ model: { revision: number } | null }>(
+        "model_get",
+        { projectId, modelId: model.id },
+      );
+      const revision = latest.model?.revision ?? model.revision;
+      if (
+        !confirm(
+          `Revision r${revision} was saved while you worked. Save your design as r${revision + 1} on top of it?`,
+        )
+      )
+        throw new Error(`Not saved: r${revision} is newer`, { cause: error });
+      saved = await save(revision);
+    }
+    await call("models_build", { revisionId: saved.id });
+    await props.reload();
+    return `Saved as revision r${saved.number}; building`;
+  };
   const view = views[phase] ?? "mantel";
   const phaseEngine = PHASE_ENGINE[phase];
   const showEngine = view === "engine" && engine?.phase === phase;
@@ -190,6 +234,7 @@ export function ProjectShell(props: WorkspaceProps) {
       state,
       allFiles,
       latestBuild(data)?.artifacts ?? [],
+      modelDesign(data),
     );
     if (target)
       openEngine(target.engine, target.phase, target.file, target.conceptId);
@@ -229,6 +274,11 @@ export function ProjectShell(props: WorkspaceProps) {
       onSaved={kept}
       onDirty={setEngineDirty}
       onClose={() => showView("mantel")}
+      onSaveDesign={
+        engine.engine === "mantelcad" && engine.phase === "model"
+          ? saveDesign
+          : undefined
+      }
     />
   ) : null;
   const agentFor = (p: PhaseId) => (
@@ -276,6 +326,7 @@ export function ProjectShell(props: WorkspaceProps) {
           phaseBar={phaseBar}
           topRight={viewSwitch}
           agentPanel={agentFor("model")}
+          onOpenCad={() => showView("engine")}
           outputBar={
             <ModelOutput
               state={state}
@@ -343,26 +394,13 @@ function ModelOutput(
 ) {
   const { state, latestRevision } = props;
   const [open, setOpen] = useState(false);
-  // What MantelCAD opens: the latest design saved from it, else the latest build's STEP.
-  const [design, setDesign] = useState<PhaseFile | null>(null);
-  useEffect(() => {
-    call<{ files: PhaseFile[] }>("phase_files_list", {
-      projectId: props.projectId,
-      phase: "model",
-    })
-      .then((r) =>
-        setDesign(r.files.find((f) => /\.sc$/i.test(f.name)) ?? null),
-      )
-      .catch(() => setDesign(null));
-  }, [props.projectId, props.filesVersion]);
+  // What MantelCAD opens: the model's design, else (a legacy build123d model) its STEP.
   const step = latestBuild(props.data)?.artifacts.find((a) =>
     /\.(step|stp)$/i.test(a.name),
   );
-  const cadFile = design
-    ? { name: design.name, url: design.url }
-    : step
-      ? { name: step.name, url: `/api/artifacts/${step.id}` }
-      : undefined;
+  const cadFile =
+    modelDesign(props.data) ??
+    (step ? { name: step.name, url: `/api/artifacts/${step.id}` } : undefined);
   const status = phaseStatus(state, "model", latestRevision);
   const questions = state.decision?.questions ?? [];
   const unresolved = questions.filter((q) => !q.resolved);
@@ -403,7 +441,7 @@ function ModelOutput(
             : "Open MantelCAD with a new design"
         }
       >
-        Open in MantelCAD
+        Edit in MantelCAD
       </button>
       <button
         disabled={props.readOnly || !latestRevision || status === "approved"}
