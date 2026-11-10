@@ -2,7 +2,7 @@
 
 | Artifact | Format | How to use |
 | --- | --- | --- |
-| [Mac preview](../artifacts/MantelArt-preview-macos-arm64.zip) | ZIP containing MantelArt.app | Extract on an Apple Silicon Mac and open MantelArt.app; development build, ad-hoc signed, not notarized |
+| [Mac preview](https://github.com/ichen27/mantelart/blob/feat/mantelart-branding/artifacts/MantelArt-preview-macos-arm64.zip) (kept in the MantelArt repository's Git LFS; not copied into Mantel) | ZIP containing MantelArt.app | Extract on an Apple Silicon Mac and open MantelArt.app; development build, ad-hoc signed, not notarized |
 | [Welcome screen](../artifacts/mantelart-home.png) | PNG | Verified native interface |
 | [About screen](../artifacts/mantelart-about.png) | PNG | Brand, icon, links and license text |
 | [Drawing view](../artifacts/mantelart-drawing.png) | PNG | Existing Neon Drive document opened without warnings |

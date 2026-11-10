@@ -16,7 +16,7 @@ This is a development build, not a signed or notarized release. Platform support
 
 - Rust 1.99.1 with Cargo, rustfmt and Clippy.
 - Python 3.11+ for the validation audit.
-- Git LFS to download the prebuilt Mac preview; run git lfs pull after cloning. Building from source does not need the preview archive.
+- Inside Mantel (`engines/mantelart`) the prebuilt Mac preview is not included; it stays in the MantelArt repository's Git LFS. Building from source does not need it.
 - macOS with Xcode command-line tools; Linux desktop development libraries are listed in the CI workflow; Windows needs the MSVC build tools.
 - For the browser build: wasm32-unknown-unknown and Trunk.
 - Optional font bundles and platform setup: [development guide](docs/development.md). The app builds without the optional craft-fonts checkout.
