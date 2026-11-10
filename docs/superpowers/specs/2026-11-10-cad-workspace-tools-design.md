@@ -35,7 +35,7 @@ Decided by the product owner in conversation on 2026-11-10:
 - The new demo project (after both designs).
 - Surfaces, sheet metal, plastic parts, assemblies and motion studies: SolidCraft has them; deal toys do not need them yet.
 - Editing free-form Python models with the tool bar. Free Python stays possible through the custom step.
-- Sketch editing on phones. Phones show sketches and the tool bar read-only. _(my call)_
+- Sketch editing on phones. Phones show sketches read-only; the rest of the tool bar works there as "+ Add step" does today, collapsed to its group buttons. _(my call)_
 - A 3D sketch, splines in v1 beyond a fit-point spline, equation curves, and projecting edges onto a sketch. _(my call; candidates for a later batch)_
 
 ## Anti-goals
@@ -68,7 +68,7 @@ New for sketching:
 
 - Planes are translucent squares sized to the model's bounding box (with a minimum), coloured by their normal axis: XY blue, XZ green, YZ red, following the usual convention that a plane takes the colour of its normal. _(my call; the mockup used other colours)_
 - Shown by default on an empty model and while sketching; hidden by default otherwise; the Browser eye overrides. _(my call)_
-- Picking a plane fills a `plane` input with `m.plane("XY")` (and `"XZ"`, `"YZ"`); picking an axis fills an `axis` input with `m.axis("X")`. These are new built-in references in the engine, so they never drift.
+- The origin planes are built-in construction planes named `XY`, `XZ` and `YZ`, so picking one fills a plane input with `m.datum("XY")` exactly as picking a construction plane does, and no step may take those names. (`m.plane(...)` is already the construction-plane action.) Picking an axis fills an `axis` input with `m.axis("X")`; axis inputs arrive with sketch-driven revolve, so axes are drawn but not pickable until then. These references are built in, so they never drift.
 
 ### The tool bar is the catalog
 
@@ -83,7 +83,7 @@ The agent's always-on action index is unchanged in form. Adding sketching adds o
 
 ### Sketches
 
-A sketch is one step: `m.sketch("Base outline", on=m.plane("XY"), ...)`. Its inputs, all described in its record:
+A sketch is one step: `m.sketch("Base outline", on=m.datum("XY"), ...)`. Its inputs, all described in its record:
 
 - **`on`**: an origin plane, a construction plane or a flat face. Entity coordinates are 2D, in the sketch plane's own axes. Origin planes use the standard axes: XY is X right and Y up; XZ is X right and Z up; YZ is Y right and Z up. A face's sketch plane has its origin at the face's centre, and its X axis is the global X projected onto the face, or the global Y when X is normal to it. That makes the axes repeatable across rebuilds. _(my call)_
 - **`entities`**: an ordered list. Each has an `id` and a `type`: `point`, `line`, `arc`, `circle`, `ellipse`, `rectangle`, `polygon`, `slot`, `spline` (fit points), `text`, and a `construction` flag for reference geometry that makes no profile. Rectangles, polygons and slots expand into lines, arcs and the constraints that keep them square, regular or rounded.
