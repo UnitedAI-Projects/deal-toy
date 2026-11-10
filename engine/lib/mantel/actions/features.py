@@ -246,6 +246,8 @@ def text(m, name, on, text, height, depth, font="Liberation Sans", mode="engrave
     span = sorted(sum((f.bounding_box().size for f in faces[1:]), faces[0].bounding_box().size))
     if max(size.X, size.Y) > span[-1] + 1e-6 or min(size.X, size.Y) > span[-2] + 1e-6:
         m.warn("The text runs past the face")
+    m.lettering.append({"name": name, "part": label, "text": text, "font": font, "height": float(height),
+                        "depth": float(depth), "method": mode})
     return {"text_faces": (label, _new_faces(before, after))}
 
 

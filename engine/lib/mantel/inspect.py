@@ -258,6 +258,30 @@ def _materials(module, record):
     return out
 
 
+def _lettering(module, record):
+    """Wording as the text steps cut it, then any LETTERING a model script declares for text a custom
+    step cuts or a printer applies. The drawing prints this wording, so it is never reworded here."""
+    from .model import last_model
+
+    model = last_model() if module is not None else None
+    declared = getattr(module, "LETTERING", None)
+    rows = (list(model.lettering) if model is not None else []) + (declared if isinstance(declared, list) else [])
+    out = []
+    for row in rows[:200]:
+        if not isinstance(row, dict) or not isinstance(row.get("text"), str) or not row["text"].strip():
+            record["warnings"].append(f"LETTERING entry {row!r} needs its text"[:300])
+            continue
+        entry = {"text": row["text"][:300]}
+        for key in ("name", "part", "font", "method"):
+            if isinstance(row.get(key), str):
+                entry[key] = row[key][:120]
+        for key in ("height", "depth"):
+            if isinstance(row.get(key), (int, float)):
+                entry[key] = float(row[key])
+        out.append(entry)
+    return out
+
+
 def _outer_solid(part):
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid
 
@@ -475,6 +499,7 @@ def complete(record, shape, module, faces):
         record["warnings"].append(f'Two parts are labelled "{label}"')
     record["pairs"] = _pairs(parts, record)
     record["materials"] = _materials(module, record)
+    record["lettering"] = _lettering(module, record)
     record["embeds"] = _embeds(parts, module, record)
     joints = _joints(parts, record)
     record["dimensions"] = _dimensions(shape, module, faces, record, joints) if faces is not None else []

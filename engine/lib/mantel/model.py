@@ -81,6 +81,7 @@ class Model:
         self.looks: dict[str, tuple[tuple[float, float, float], str]] = {}
         self.params = params or {}
         self.log: list[dict] = []
+        self.lettering: list[dict] = []  # what each text step cut, for the lettering sheet
         self._created: dict[str, dict[str, tuple[str, list[g.Signature]]]] = {}
         self._unavailable: dict[str, str] = {}
         self._names: set[str] = set()
