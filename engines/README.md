@@ -24,6 +24,23 @@ The import pins above remain the provenance record; integration fixes are commit
 
 The engines workflow runs desktop CAD tests serially because cold graphics-driver initialization can stall the socket-based daemon tests. The remaining workspace packages retain normal test parallelism. Failed runs retain compiled dependency caches and continue through the remaining test binaries, while still failing the job.
 
+The CAD kernel is a nested workspace, so its shell regression tests run in the separate **mantelcad shell kernel** job. It checks analytic volumes and topology, boundary refusals, and the offset executive golden cases. To reproduce it from a fresh checkout, fetch the pinned data files (no upstream code is built):
+
+```bash
+(
+  cd engines/mantelcad/solidcore
+  source scripts/upstream-pin.env
+  git init upstream
+  git -C upstream remote add origin "$UPSTREAM_REPO"
+  git -C upstream sparse-checkout set --no-cone '/TestFiles/pt_TestFiles/'
+  git -C upstream fetch --filter=blob:none --depth 1 origin "$UPSTREAM_COMMIT"
+  git -C upstream checkout --detach "$UPSTREAM_COMMIT"
+)
+bash engines/mantelcad/ci/test-shell-kernel.sh
+```
+
+If `upstream/` already exists, verify it is at the commit in `scripts/upstream-pin.env` and contains `TestFiles/pt_TestFiles` instead of initializing it again. These golden checks do not update expected results.
+
 ## Build a browser app
 
 Some engines read pinned public inputs at build time. MantelPDF reads its translations from `storytold/craft-i18n` at the commit in `craft-i18n.rev`; without them it builds English-only and its language tests fail. Fetch them and export the variables first:
