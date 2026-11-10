@@ -1,0 +1,32 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/UnitedAI-Projects/deal-toy"
+rust-version = "1.95"
+
+[workspace.dependencies]
+mantelmesh-mesh = { path = "crates/mesh" }
+mantelmesh-ops = { path = "crates/ops" }
+mantelmesh-doc = { path = "crates/doc" }
+mantelmesh-io = { path = "crates/io" }
+mantelmesh-engine = { path = "crates/engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+panic = "deny"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

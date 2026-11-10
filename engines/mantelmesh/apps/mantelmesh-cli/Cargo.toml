@@ -1,0 +1,20 @@
+[package]
+name = "mantelmesh-cli"
+description = "MantelMesh from the command line: run a command script and export the result"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "mantelmesh-cli"
+path = "src/main.rs"
+
+[dependencies]
+mantelmesh-engine.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+
+[lints]
+workspace = true

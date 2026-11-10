@@ -1,0 +1,15 @@
+[package]
+name = "mantelmesh-doc"
+description = "MantelMesh's document: named objects with transforms and materials, and the undo journal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mantelmesh-mesh.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

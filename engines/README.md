@@ -8,7 +8,7 @@ The apps that do each phase's real work. Each one runs in the browser, opened fr
 | [`mantelart/`](mantelart/) | MantelArt (vector illustration) | Art | `apps/vectorcraft-web` | [`ichen27/mantelart`](https://github.com/ichen27/mantelart) `feat/mantelart-branding` at `3c4a12eb505d` |
 | [`mantelcad/`](mantelcad/) | MantelCAD (parametric CAD) | Model | `apps/mantelcad-web` | [`ichen27/mantelcad`](https://github.com/ichen27/mantelcad) `feat/mantelcad-latest` at `0051d334765b` |
 | [`manteldocs/`](manteldocs/) | MantelDocs (2D drafting) | Documents (drawings) | `apps/manteldocs-web` | [`ichen27/manteldocs`](https://github.com/ichen27/manteldocs) `main` at `ea9884a1f05b` |
-| `mantelmesh/` | MantelMesh (mesh modeller) | Concepts | planned | New code, built here ([design](../docs/superpowers/specs/2026-11-10-mantelmesh-design.md)) |
+| [`mantelmesh/`](mantelmesh/) | MantelMesh (mesh modeller) | Concepts | next (core and CLI done) | New code, built here ([design](../docs/superpowers/specs/2026-11-10-mantelmesh-design.md)) |
 
 Each directory is its own Cargo workspace and keeps its own README, AGENTS.md, licences, attribution and notices. The `.github/` folders inside them are kept for reference only; GitHub runs workflows from the repository root, where [`engines.yml`](../.github/workflows/engines.yml) tests and builds the engines whose files changed.
 

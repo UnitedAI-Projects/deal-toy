@@ -1,0 +1,20 @@
+[package]
+name = "mantelmesh-engine"
+description = "MantelMesh's session and command registry: every edit is a self-describing command the UI, CLI, control channel and MCP share"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mantelmesh-mesh.workspace = true
+mantelmesh-ops.workspace = true
+mantelmesh-doc.workspace = true
+mantelmesh-io.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+
+[lints]
+workspace = true

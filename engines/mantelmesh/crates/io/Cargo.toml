@@ -1,0 +1,17 @@
+[package]
+name = "mantelmesh-io"
+description = "MantelMesh's files: the native .mmesh format, and GLB, OBJ and STL exchange"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mantelmesh-mesh.workspace = true
+mantelmesh-doc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
