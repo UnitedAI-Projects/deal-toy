@@ -1,0 +1,16 @@
+*~
+/target
+/plan/
+/plans/
+/dist/
+/log/
+/temp/
+.DS_Store
+*.swp
+/apps/manteldocs-web/dist/
+/.claude/worktrees/
+
+/work/
+.env
+.env.*
+!.env.example

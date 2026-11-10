@@ -1,0 +1,23 @@
+[package]
+name = "manteldocs-mcp"
+description = "MantelDocs MCP server: JSON-RPC 2.0 over stdio, driving a running app or a headless session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+manteldocs-engine = { workspace = true }
+manteldocs-render = { workspace = true }
+manteldocs-io = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+# Secure randomness for the per-session control token (MIT OR Apache-2.0).
+getrandom = "0.4"
+
+[dev-dependencies]
+# Reads the pixels of rendered PNGs in the tests.
+tiny-skia = { workspace = true }
