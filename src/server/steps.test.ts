@@ -7,7 +7,7 @@ import bridge from "../../examples/bridge.py";
 import { factsSchema } from "./builds";
 import type { Context } from "./core";
 import type { ProjectEvent } from "./activity";
-import { readSteps, writeSteps } from "./actions/script";
+import { readSteps, STARTER_SOURCE, writeSteps } from "./actions/script";
 import { dispatch, execute } from "./tools";
 import { agentPlan, member } from "./test-helpers";
 
@@ -96,6 +96,70 @@ describe("action and step tools", () => {
       revision: 2,
       step: "Hole 3",
     });
+  });
+  async function emptyModel() {
+    const p = (await execute(carol, "projects_create", { name: "Empty" })) as {
+      id: string;
+    };
+    const m = (await execute(carol, "models_create", {
+      projectId: p.id,
+      name: "Empty",
+    })) as { id: string };
+    return { p, m };
+  }
+  const box = { shape: "box", size: [40, 20, 30] };
+  it("steps_add on a model with no revision saves revision 1 in the standard layout", async () => {
+    const { m } = await emptyModel();
+    const result = (await call("steps_add", {
+      modelId: m.id,
+      expectedRevision: 0,
+      action: "body",
+      name: "Block",
+      inputs: box,
+    })) as { revision: { number: number } };
+    expect(result.revision.number).toBe(1);
+    const source = await sourceOf(m.id, 1);
+    expect(readSteps(source).steps.map((s) => s.name)).toEqual(["Block"]);
+    expect(source.split("\n")[0]).toBe(STARTER_SOURCE.split("\n")[0]);
+  });
+  it("steps_add still refuses a free-form model", async () => {
+    const { m } = await emptyModel();
+    await execute(carol, "models_save", {
+      modelId: m.id,
+      expectedRevision: 0,
+      source:
+        "import build123d as bd\n\ndef build():\n    return bd.Box(1, 1, 1)\n",
+    });
+    await expect(
+      call("steps_add", {
+        modelId: m.id,
+        expectedRevision: 1,
+        action: "body",
+        name: "Block",
+        inputs: box,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining("This model has no steps section"),
+    });
+  });
+  it("an agent still needs a design sheet on an empty model", async () => {
+    const { m } = await emptyModel();
+    await expect(
+      dispatch(
+        carol,
+        "steps_add",
+        {
+          modelId: m.id,
+          expectedRevision: 0,
+          action: "body",
+          name: "Block",
+          inputs: box,
+        },
+        "mcp",
+      ),
+    ).rejects.toThrow("no design sheet");
+    expect(await revisions(m.id)).toBe(0);
   });
   it("refuses a stale revision", async () => {
     const { m } = await seeded();

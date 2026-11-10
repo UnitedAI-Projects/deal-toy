@@ -15,6 +15,7 @@ import {
 import {
   publicStep,
   readSteps,
+  STARTER_SOURCE,
   writeSteps,
   type StepValue,
 } from "./actions/script";
@@ -41,7 +42,7 @@ const stepName = z.string().min(1).max(80);
 const inputs = z.record(z.string(), z.unknown());
 const target = {
   modelId: id,
-  expectedRevision: z.number().int().positive(),
+  expectedRevision: z.number().int().nonnegative(),
 };
 const WRITE = ["models.edit", "builds.run"] as const;
 
@@ -84,15 +85,16 @@ async function change(
   )
     .bind(i.modelId, i.expectedRevision)
     .first<{ id: string; source: string }>();
-  if (!revision) throw new AppError(404, "Revision not found");
-  const { steps } = readSteps(revision.source);
+  // A model with no revision yet starts from the standard layout.
+  if (!revision && i.expectedRevision !== 0)
+    throw new AppError(404, "Revision not found");
+  const current = revision?.source ?? STARTER_SOURCE;
+  const { steps } = readSteps(current);
   const edit = await make(steps, model.project_id);
-  const labels =
-    (await latestFacts(c, revision.id))?.parts?.map((p) => p.label) ?? [];
-  const source = writeSteps(
-    revision.source,
-    applyStepChange(steps, edit, labels),
-  );
+  const labels = revision
+    ? ((await latestFacts(c, revision.id))?.parts?.map((p) => p.label) ?? [])
+    : [];
+  const source = writeSteps(current, applyStepChange(steps, edit, labels));
   const saved = await saveRevision(c, i.modelId, i.expectedRevision, source, {
     sessionId: i.sessionId,
     request: describeChange(edit),
