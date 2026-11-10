@@ -1,0 +1,2368 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mantel phased workspace</title>
+    <style>
+      /* Tokens copied from src/web/style.css so the mockup keeps the app's look. */
+      :root,
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f6f6f4;
+        --canvas: #f1f1ee;
+        --surface: #fff;
+        --surface-glass: rgba(255, 255, 255, 0.86);
+        --float: rgba(255, 255, 255, 0.66);
+        --surface-2: #f0f0ed;
+        --ink: #1b1c20;
+        --muted: #676b74;
+        --faint: #9a9ea6;
+        --line: #e3e3df;
+        --line-strong: #cfcfca;
+        --primary: #1b1c20;
+        --on-primary: #fff;
+        --agent: #6366f1;
+        --agent-2: #8b5cf6;
+        --agent-soft: rgba(99, 102, 241, 0.1);
+        --ok: #0f9f6e;
+        --bad: #d93a32;
+        --warn: #b7791f;
+        --warn-soft: rgba(183, 121, 31, 0.1);
+        --shadow:
+          0 8px 28px rgba(20, 22, 28, 0.08), 0 1px 3px rgba(20, 22, 28, 0.06);
+        --grid: rgba(0, 0, 0, 0.045);
+        --part: #c9c9c5;
+        --part-2: #b4b4b0;
+        --part-3: #dcdcd8;
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #111214;
+        --canvas: #141518;
+        --surface: #1a1b1f;
+        --surface-glass: rgba(26, 27, 31, 0.88);
+        --float: rgba(26, 27, 31, 0.55);
+        --surface-2: #232529;
+        --ink: #ecedf0;
+        --muted: #9a9fa9;
+        --faint: #6c707a;
+        --line: #2b2d33;
+        --line-strong: #3b3e45;
+        --primary: #ecedf0;
+        --on-primary: #111214;
+        --agent: #818cf8;
+        --agent-2: #a78bfa;
+        --agent-soft: rgba(129, 140, 248, 0.14);
+        --ok: #34d399;
+        --bad: #f87171;
+        --warn: #fbbf24;
+        --warn-soft: rgba(251, 191, 36, 0.12);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+        --grid: rgba(255, 255, 255, 0.04);
+        --part: #4a4c52;
+        --part-2: #3b3d42;
+        --part-3: #5a5c62;
+      }
+      :root {
+        font-family:
+          Inter,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--ink);
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        -webkit-font-smoothing: antialiased;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        overflow: hidden;
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 7px 13px;
+        background: var(--primary);
+        color: var(--on-primary);
+        font-weight: 500;
+      }
+      button.secondary {
+        background: var(--surface);
+        color: var(--ink);
+        border-color: var(--line);
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--muted);
+        border-color: transparent;
+        padding: 4px 8px;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .mono {
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .faint {
+        color: var(--faint);
+      }
+      .small {
+        font-size: 12px;
+      }
+
+      /* Floating chips (top bar) */
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 34px;
+        padding: 0 13px;
+        border-radius: 999px;
+        background: var(--surface-glass);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .chip.light {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--faint);
+        display: inline-block;
+        flex: none;
+      }
+      .dot.busy {
+        background: var(--agent);
+        box-shadow: 0 0 0 3px var(--agent-soft);
+      }
+      .dot.ok {
+        background: var(--ok);
+      }
+      .dot.warn {
+        background: var(--warn);
+      }
+
+      .top {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        z-index: 20;
+        pointer-events: none;
+      }
+      .top > * {
+        pointer-events: auto;
+      }
+      .top .left,
+      .top .right {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      /* Phase bar */
+      .phases {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        border-radius: 999px;
+        background: var(--surface-glass);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+      .phases button {
+        background: transparent;
+        color: var(--muted);
+        border: 0;
+        border-radius: 999px;
+        padding: 5px 12px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-weight: 500;
+      }
+      .phases button .n {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .phases button.on {
+        background: var(--primary);
+        color: var(--on-primary);
+      }
+      .phases button.on .n {
+        color: inherit;
+        opacity: 0.6;
+      }
+      .phases button .ck {
+        color: var(--ok);
+        font-size: 12px;
+      }
+      .phases button.on .ck {
+        color: inherit;
+      }
+      .phase-compact {
+        display: none;
+      }
+
+      /* Agent panel */
+      .agent {
+        position: fixed;
+        left: 14px;
+        top: 62px;
+        bottom: 14px;
+        width: 340px;
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface-glass);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(16px);
+        overflow: hidden;
+      }
+      .agent .head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .agent .head b {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .spark {
+        color: var(--agent);
+      }
+      .agent .log {
+        flex: 1;
+        overflow: auto;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .msg {
+        padding: 10px 12px;
+        border-radius: 12px;
+        max-width: 92%;
+      }
+      .msg.me {
+        align-self: flex-end;
+        background: var(--surface-2);
+      }
+      .msg.ai {
+        align-self: flex-start;
+        background: var(--agent-soft);
+        border: 1px solid transparent;
+      }
+      .msg.ai .who {
+        font-size: 11.5px;
+        color: var(--agent);
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .divider {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--faint);
+        font-size: 11.5px;
+      }
+      .divider::before,
+      .divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--line);
+      }
+      .tool {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 10px;
+        padding: 7px 10px;
+        font-size: 12.5px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .tool .ok {
+        color: var(--ok);
+      }
+      .quick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .quick button {
+        font-size: 12.5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--ink);
+        border-color: var(--line);
+        font-weight: 400;
+      }
+      .agent .input {
+        border-top: 1px solid var(--line);
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+      }
+      .agent .input textarea {
+        flex: 1;
+        resize: none;
+        height: 56px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: var(--surface);
+        color: var(--ink);
+        font: inherit;
+      }
+      .agent .input .send {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 9px;
+        background: var(--agent);
+        color: #fff;
+      }
+      .attach {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--muted);
+        border-color: var(--line);
+      }
+
+      /* Work area */
+      .work {
+        position: fixed;
+        left: 368px;
+        right: 14px;
+        top: 62px;
+        bottom: 84px;
+        overflow: auto;
+      }
+      .screen {
+        display: none;
+        height: 100%;
+      }
+      .screen.on {
+        display: block;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+      }
+      .glass {
+        background: var(--surface-glass);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      /* Output bar */
+      .output {
+        position: fixed;
+        left: 368px;
+        right: 14px;
+        bottom: 14px;
+        z-index: 16;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .output .bar {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 8px 8px 8px 16px;
+        border-radius: 14px;
+        background: var(--surface-glass);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+        max-width: 100%;
+      }
+      .output .bar .what {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .output .bar .facts {
+        display: flex;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 13px;
+        flex-wrap: wrap;
+      }
+      .output .bar .facts span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .output .bar.pulse {
+        box-shadow:
+          0 0 0 3px var(--agent-soft),
+          var(--shadow);
+        border-color: var(--agent);
+      }
+
+      /* Tags */
+      .tag {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .tag.assumed {
+        color: var(--warn);
+        border-color: var(--warn);
+      }
+      .tag.open {
+        color: var(--bad);
+        border-color: color-mix(in srgb, var(--bad) 50%, transparent);
+      }
+      .tag.ok {
+        color: var(--ok);
+        border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+      }
+      .tag.agent {
+        color: var(--agent);
+        border-color: color-mix(in srgb, var(--agent) 50%, transparent);
+      }
+      .tag.stale {
+        color: var(--warn);
+        border-color: var(--warn);
+        background: var(--warn-soft);
+      }
+
+      /* ---------- Brief ---------- */
+      .brief-wrap {
+        display: flex;
+        gap: 18px;
+        justify-content: center;
+        padding: 0 0 30px;
+      }
+      .brief {
+        width: min(760px, 100%);
+        padding: 26px 30px;
+      }
+      .brief h1 {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      .brief .sub {
+        color: var(--muted);
+        margin: 4px 0 18px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .sec {
+        margin-top: 18px;
+      }
+      .sec h2 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--faint);
+        margin: 0 0 6px;
+      }
+      .field {
+        display: grid;
+        grid-template-columns: 170px 1fr auto;
+        gap: 12px;
+        align-items: start;
+        padding: 9px 0;
+        border-top: 1px solid var(--line);
+      }
+      .field .k {
+        color: var(--muted);
+      }
+      .field .k .req {
+        color: var(--bad);
+        margin-left: 2px;
+      }
+      .field .v .src {
+        display: block;
+        font-size: 11.5px;
+        color: var(--faint);
+        margin-top: 1px;
+      }
+      .field .v .src.ai {
+        color: var(--agent);
+      }
+      .field .acts {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .field.proposal .v {
+        background: var(--agent-soft);
+        border-radius: 8px;
+        padding: 4px 8px;
+        margin: -4px -8px;
+      }
+      .field.missing .v {
+        color: var(--faint);
+        font-style: italic;
+      }
+      .file {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 8px;
+        margin: 0 6px 6px 0;
+        background: var(--surface-2);
+        font-size: 12.5px;
+      }
+      .file .sw {
+        width: 22px;
+        height: 22px;
+        border-radius: 5px;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 10px;
+        color: #fff;
+      }
+      .warnline {
+        color: var(--warn);
+        font-size: 12px;
+      }
+      .index {
+        width: 190px;
+        padding: 14px;
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+      }
+      .index a {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--ink);
+        text-decoration: none;
+        padding: 5px 4px;
+        font-size: 13px;
+        border-radius: 6px;
+      }
+      .index a:hover {
+        background: var(--surface-2);
+      }
+      .index .cnt {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      /* ---------- Concepts ---------- */
+      .board-tools {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 14px;
+      }
+      .board-tools .row {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+      }
+      .board-tools button {
+        background: transparent;
+        color: var(--ink);
+        border: 0;
+        padding: 6px 12px;
+        border-radius: 8px;
+      }
+      .board-tools button:hover {
+        background: var(--surface-2);
+      }
+      .board-tools .sep {
+        width: 1px;
+        background: var(--line);
+        margin: 5px 4px;
+      }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 14px;
+        padding-bottom: 20px;
+      }
+      .concept {
+        border: 1.5px dashed var(--line-strong);
+        border-radius: 14px;
+        background: var(--float);
+        backdrop-filter: blur(8px);
+        padding: 10px;
+        cursor: pointer;
+        position: relative;
+        transition: border-color 0.15s;
+      }
+      .concept:hover {
+        border-color: var(--muted);
+      }
+      .concept.sel {
+        border-color: var(--agent);
+        border-style: solid;
+        box-shadow: 0 0 0 3px var(--agent-soft);
+      }
+      .concept .pv {
+        height: 150px;
+        border-radius: 10px;
+        background: var(--surface-2);
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+      .concept .nm {
+        font-weight: 600;
+        margin: 8px 2px 2px;
+        display: flex;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      .concept .meta {
+        color: var(--muted);
+        font-size: 12.5px;
+        margin: 0 2px;
+      }
+      .concept .sws {
+        display: flex;
+        gap: 4px;
+        margin: 6px 2px 0;
+        align-items: center;
+      }
+      .concept .sws i {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        border: 1px solid var(--line);
+        display: inline-block;
+      }
+      .concept .warns {
+        margin: 6px 2px 0;
+        font-size: 12px;
+        color: var(--warn);
+      }
+      .concept .ctag {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        font-size: 10.5px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--faint);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0 7px;
+      }
+      .concept .star {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        color: var(--warn);
+      }
+      .concept.gen .pv {
+        background: linear-gradient(
+          110deg,
+          var(--surface-2) 30%,
+          var(--agent-soft) 50%,
+          var(--surface-2) 70%
+        );
+        background-size: 200% 100%;
+        animation: sh 1.6s linear infinite;
+      }
+      @keyframes sh {
+        to {
+          background-position: -200% 0;
+        }
+      }
+      .tray {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .tray i {
+        width: 28px;
+        height: 20px;
+        border: 1px dashed var(--line-strong);
+        border-radius: 5px;
+        display: inline-block;
+        opacity: 0.7;
+      }
+      .sheet {
+        position: fixed;
+        right: 14px;
+        top: 62px;
+        bottom: 84px;
+        width: 400px;
+        z-index: 17;
+        padding: 0;
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .sheet.on {
+        display: flex;
+      }
+      .sheet .sh {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .sheet .sb {
+        padding: 14px 16px;
+        overflow: auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .sheet h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--faint);
+        font-weight: 600;
+      }
+      .chk {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        padding: 6px 0;
+      }
+      .chk input {
+        margin-top: 3px;
+        accent-color: var(--ok);
+      }
+      .q {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 9px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        margin-bottom: 6px;
+        background: var(--surface-2);
+        font-size: 13px;
+      }
+      .callout {
+        border-left: 3px solid var(--warn);
+        background: var(--warn-soft);
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+
+      /* ---------- Model ---------- */
+      .cadbar {
+        position: fixed;
+        top: 58px;
+        left: calc(368px + (100vw - 382px) / 2);
+        transform: translateX(-50%);
+        z-index: 14;
+        display: none;
+        white-space: nowrap;
+      }
+      .cadbar .row {
+        display: flex;
+        padding: 3px;
+        gap: 1px;
+      }
+      .cadbar button {
+        white-space: nowrap;
+        background: transparent;
+        color: var(--ink);
+        border: 0;
+        padding: 5px 10px;
+        border-radius: 7px;
+      }
+      .cadbar .sep {
+        width: 1px;
+        background: var(--line);
+        margin: 5px 3px;
+      }
+      body.p-model .cadbar {
+        display: block;
+      }
+      body.p-model .work {
+        top: 104px;
+      }
+      .viewport {
+        position: relative;
+        height: 100%;
+      }
+      .viewport svg.bridge {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .browser {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 270px;
+        padding: 10px 12px;
+        max-height: calc(100% - 60px);
+        overflow: auto;
+      }
+      .browser h4 {
+        margin: 10px 0 4px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+      }
+      .browser .it {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 6px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .browser .it:hover,
+      .browser .it.sel {
+        background: var(--surface-2);
+      }
+      .browser .it.sel {
+        outline: 1px solid var(--agent);
+      }
+      .partcard {
+        position: absolute;
+        left: 16px;
+        top: 0;
+        width: 290px;
+        padding: 12px 14px;
+      }
+      .partcard .dim {
+        display: grid;
+        grid-template-columns: 1fr 78px 26px;
+        gap: 8px;
+        align-items: center;
+        padding: 4px 0;
+      }
+      .partcard .dim input {
+        width: 100%;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        border: 1px solid var(--line);
+        background: var(--surface-2);
+        border-radius: 7px;
+        padding: 4px 7px;
+        color: var(--ink);
+      }
+      .rel {
+        font-size: 12.5px;
+        color: var(--muted);
+        padding: 3px 0;
+        display: flex;
+        gap: 6px;
+      }
+      .rel b {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .ask {
+        margin-top: 10px;
+        border: 1px dashed var(--agent);
+        color: var(--agent);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      .oq {
+        position: absolute;
+        left: 16px;
+        bottom: 56px;
+        width: 290px;
+        padding: 10px 12px;
+      }
+      .oq .row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        font-size: 13px;
+        padding: 4px 0;
+      }
+      .revs {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 8px;
+        display: flex;
+        gap: 6px;
+      }
+      .revs .chip {
+        height: 28px;
+        font-size: 12.5px;
+        box-shadow: none;
+      }
+      .revs .chip.cur {
+        border-color: var(--agent);
+      }
+      .viewtog {
+        position: absolute;
+        right: 0;
+        bottom: 8px;
+        display: flex;
+        gap: 6px;
+      }
+      .viewtog .chip {
+        height: 30px;
+        font-size: 12.5px;
+        cursor: pointer;
+      }
+      .viewtog .chip.on {
+        border-color: var(--agent);
+        color: var(--agent);
+      }
+      .presence {
+        position: absolute;
+        font-size: 11.5px;
+        color: #fff;
+        background: var(--agent);
+        border-radius: 6px;
+        padding: 2px 7px;
+        white-space: nowrap;
+      }
+
+      /* ---------- Documents ---------- */
+      .docs {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 14px;
+        height: 100%;
+      }
+      .doclist {
+        padding: 8px;
+        overflow: auto;
+      }
+      .doc {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 10px;
+        border-radius: 9px;
+        cursor: pointer;
+      }
+      .doc:hover {
+        background: var(--surface-2);
+      }
+      .doc.sel {
+        background: var(--surface-2);
+        outline: 1px solid var(--line-strong);
+      }
+      .doc .t {
+        font-weight: 500;
+      }
+      .doc .s {
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .preview {
+        overflow: auto;
+        padding: 22px;
+        display: flex;
+        gap: 18px;
+      }
+      .paper {
+        flex: 1;
+        background: #fff;
+        color: #1b1c20;
+        border: 1px solid #e3e3df;
+        border-radius: 6px;
+        padding: 22px 26px;
+        min-width: 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      .paper h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .paper .tb {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border: 1px solid #1b1c20;
+        margin-top: 14px;
+        font-size: 11.5px;
+      }
+      .paper .tb div {
+        padding: 5px 7px;
+        border-right: 1px solid #1b1c20;
+      }
+      .paper .tb div:last-child {
+        border-right: 0;
+      }
+      .paper .tb b {
+        display: block;
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #676b74;
+        letter-spacing: 0.05em;
+      }
+      .sources {
+        width: 220px;
+        flex: none;
+        font-size: 12.5px;
+      }
+      .sources h4 {
+        margin: 0 0 6px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--faint);
+      }
+      .sources .s {
+        padding: 6px 0;
+        border-top: 1px solid var(--line);
+      }
+      .banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: var(--warn-soft);
+        border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+      .banner button {
+        margin-left: auto;
+      }
+
+      /* ---------- Manufacture ---------- */
+      .mfg {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 14px;
+        height: 100%;
+      }
+      .thread {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .thread .th {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .thread .tb {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .thread .tf {
+        border-top: 1px solid var(--line);
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+      }
+      .thread .tf .draft {
+        flex: 1;
+        border: 1px dashed var(--agent);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+        background: var(--agent-soft);
+      }
+      .bubble {
+        max-width: 70%;
+        padding: 9px 12px;
+        border-radius: 12px;
+        font-size: 13.5px;
+      }
+      .bubble.them {
+        background: var(--surface-2);
+        align-self: flex-start;
+      }
+      .bubble.us {
+        background: var(--primary);
+        color: var(--on-primary);
+        align-self: flex-end;
+      }
+      .bubble .by {
+        font-size: 11px;
+        opacity: 0.65;
+        margin-bottom: 2px;
+      }
+      .partref {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        padding: 2px 8px;
+        border-radius: 7px;
+        font-size: 12px;
+        margin-top: 6px;
+      }
+      .quotes {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        padding: 8px;
+      }
+      .quote {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 10px;
+        font-size: 12.5px;
+        background: var(--surface);
+      }
+      .quote.sel {
+        border-color: var(--ok);
+      }
+      .quote .p {
+        font-family: var(--mono);
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .steps {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        flex-wrap: wrap;
+      }
+      .steps span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .steps .ln {
+        width: 16px;
+        height: 1px;
+        background: var(--line-strong);
+      }
+
+      /* ---------- Phone ---------- */
+      @media (max-width: 820px) {
+        body {
+          overflow: auto;
+        }
+        .top {
+          top: 10px;
+          left: 10px;
+          right: 10px;
+        }
+        .phases {
+          display: none;
+        }
+        .phase-compact {
+          display: inline-flex;
+        }
+        .top .right .hide-m,
+        .top .left .proj {
+          display: none;
+        }
+        .agent {
+          left: 0;
+          right: 0;
+          top: auto;
+          bottom: 0;
+          width: auto;
+          height: 200px;
+          border-radius: 16px 16px 0 0;
+        }
+        .agent .log {
+          padding: 8px 12px;
+          overflow: hidden;
+        }
+        .agent .log > :not(.peek) {
+          display: none;
+        }
+        .agent .log > .peek {
+          max-width: 100%;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          padding: 6px 10px;
+        }
+        .work {
+          left: 10px;
+          right: 10px;
+          top: 56px;
+          bottom: 264px;
+        }
+        body.p-model .work {
+          top: 56px;
+        }
+        .cadbar {
+          display: none !important;
+        }
+        .output {
+          left: 10px;
+          right: 10px;
+          bottom: 208px;
+        }
+        .output .bar .facts {
+          display: none;
+        }
+        .brief {
+          padding: 18px;
+        }
+        .field {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .index,
+        .browser,
+        .sources,
+        .oq {
+          display: none;
+        }
+        .docs,
+        .mfg {
+          grid-template-columns: 1fr;
+        }
+        .doclist {
+          max-height: 150px;
+        }
+        .quotes {
+          grid-template-columns: 1fr;
+        }
+        .sheet {
+          left: 10px;
+          right: 10px;
+          width: auto;
+          bottom: 264px;
+        }
+        .partcard,
+        .viewtog {
+          display: none;
+        }
+        .board-tools .row {
+          overflow-x: auto;
+          max-width: 100%;
+        }
+        .board-tools button {
+          white-space: nowrap;
+        }
+        .board {
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .concept .pv {
+          height: 100px;
+        }
+      }
+    </style>
+  </head>
+  <body class="p-brief">
+    <!-- Top bar -->
+    <div class="top">
+      <div class="left">
+        <span class="chip">◇ Mantel</span>
+        <span class="chip light proj">Harbor Crossing / Northline close</span>
+      </div>
+      <nav class="phases" id="phases">
+        <button data-p="brief">
+          <span class="n">1</span>Brief <span class="ck">✓</span>
+        </button>
+        <button data-p="concepts">
+          <span class="n">2</span>Concepts <span class="ck">✓</span>
+        </button>
+        <button data-p="model">
+          <span class="n">3</span>Model <span class="dot busy"></span>
+        </button>
+        <button data-p="documents">
+          <span class="n">4</span>Documents <span class="dot warn"></span>
+        </button>
+        <button data-p="manufacture">
+          <span class="n">5</span>Manufacture <span class="dot"></span>
+        </button>
+      </nav>
+      <div class="right">
+        <span class="chip phase-compact" id="compact">1 Brief ▾</span>
+        <span class="chip light hide-m" id="ctx-btn">Share</span>
+        <span class="chip light hide-m">⌕ Search</span>
+        <span class="chip light hide-m"
+          ><span class="dot busy"></span> Agent working</span
+        >
+        <span
+          class="chip light"
+          id="theme"
+          title="Toggle theme"
+          style="cursor: pointer"
+          >◐</span
+        >
+      </div>
+    </div>
+
+    <!-- CAD tool bar (Model only), second row under the phase bar -->
+    <div class="cadbar glass">
+      <div class="row">
+        <button>Sketch</button><button>Body</button><button>Extrude</button
+        ><button>Revolve</button><button>Hole</button><span class="sep"></span>
+        <button>Fillet</button><button>Chamfer</button><button>Shell ▾</button
+        ><span class="sep"></span> <button>Artwork</button
+        ><button>Pattern ▾</button><button>Construction plane ▾</button>
+      </div>
+    </div>
+
+    <!-- Agent panel -->
+    <aside class="agent">
+      <div class="head">
+        <b><span class="spark">✦</span> Mantel agent</b
+        ><span class="muted small" id="agent-phase">In Brief</span>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="input">
+        <button class="attach" title="Attach files">＋</button>
+        <textarea placeholder="Ask Mantel…"></textarea>
+        <button class="send">↑</button>
+      </div>
+    </aside>
+
+    <main class="work">
+      <!-- ================= BRIEF ================= -->
+      <section class="screen" id="s-brief">
+        <div class="brief-wrap">
+          <article class="card brief">
+            <h1>Design specification</h1>
+            <div class="sub">
+              <span class="tag">v2 draft</span
+              ><span>v1 approved by you · 6 Nov</span
+              ><span class="faint">·</span
+              ><span>2 fields changed since v1</span>
+            </div>
+
+            <div class="sec" id="b-occasion">
+              <h2>Occasion</h2>
+              <div class="field">
+                <div class="k">Deal<span class="req">*</span></div>
+                <div class="v">
+                  Harbor Crossing Holdings acquires Northline Ports<span
+                    class="src"
+                    >from file · closing-memo.pdf</span
+                  >
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Closing date<span class="req">*</span></div>
+                <div class="v">
+                  14 October 2026<span class="src"
+                    >from file · closing-memo.pdf</span
+                  >
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Quantity<span class="req">*</span></div>
+                <div class="v">40 units<span class="src">you</span></div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">The story</div>
+                <div class="v">
+                  A bridge joining two harbours: the two companies now one
+                  crossing<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-comm">
+              <h2>Commercials</h2>
+              <div class="field">
+                <div class="k">Budget<span class="req">*</span></div>
+                <div class="v">
+                  ≤ $180 per unit · $7,200 total<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">In hand by<span class="req">*</span></div>
+                <div class="v">
+                  12 December 2026<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-art">
+              <h2>Artwork</h2>
+              <div class="field">
+                <div class="k">Logos<span class="req">*</span></div>
+                <div class="v">
+                  <span class="file"
+                    ><span class="sw" style="background: #14365a">HC</span
+                    >harbor-crossing.svg
+                    <span class="tag ok">vector</span></span
+                  >
+                  <span class="file"
+                    ><span class="sw" style="background: #0f7a6a">NP</span
+                    >northline.png <span class="tag open">raster</span></span
+                  >
+                  <div class="warnline">
+                    northline.png is 640 px raster. Engraving needs vector
+                    artwork before modeling.
+                  </div>
+                  <span class="src">from file · 2 uploads</span>
+                </div>
+                <div class="acts"><span class="tag open">open</span></div>
+              </div>
+              <div class="field proposal">
+                <div class="k">Lettering</div>
+                <div class="v">
+                  "HARBOR CROSSING · NORTHLINE PORTS · 14.10.2026", deal date on
+                  the front of the base<span class="src ai"
+                    >✦ agent, from the conversation</span
+                  >
+                </div>
+                <div class="acts">
+                  <button class="secondary" style="padding: 3px 9px">
+                    ✓ Confirm</button
+                  ><button class="ghost">Edit</button>
+                </div>
+              </div>
+              <div class="field">
+                <div class="k">Colours</div>
+                <div class="v">
+                  Pantone 295 C (Harbor navy), Pantone 3285 C (Northline
+                  teal)<span class="src">from file · brand-guide.pdf</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-size">
+              <h2>Size</h2>
+              <div class="field">
+                <div class="k">Envelope<span class="req">*</span></div>
+                <div class="v mono">
+                  220 × 90 × 200 mm max<span
+                    class="src"
+                    style="font-family: Inter"
+                    >you · changed in v2, was 180 mm tall</span
+                  >
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Weight</div>
+                <div class="v">
+                  Heavy enough to feel solid, about 600 g<span class="src"
+                    >agent's guess</span
+                  >
+                </div>
+                <div class="acts"><span class="tag assumed">assumed</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-mat">
+              <h2>Materials and finish</h2>
+              <div class="field">
+                <div class="k">Primary<span class="req">*</span></div>
+                <div class="v">
+                  Cast zinc, satin nickel plate<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Base<span class="req">*</span></div>
+                <div class="v">
+                  Walnut, oiled, felt pad underneath<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Cables</div>
+                <div class="v">
+                  Stainless wire, polished<span class="src">agent's guess</span>
+                </div>
+                <div class="acts"><span class="tag assumed">assumed</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-form">
+              <h2>Form and features</h2>
+              <div class="field">
+                <div class="k">Subject</div>
+                <div class="v">
+                  Cable-stayed bridge<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Adjustability</div>
+                <div class="v">
+                  None: fixed sculpture<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+              <div class="field">
+                <div class="k">Assembly look<span class="req">*</span></div>
+                <div class="v">
+                  Seamless. No visible screws from the front or the top<span
+                    class="src"
+                    >you · changed in v2</span
+                  >
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-con">
+              <h2>Constraints</h2>
+              <div class="field">
+                <div class="k">Fragile details<span class="req">*</span></div>
+                <div class="v">
+                  Cables must survive shipping; no part under 1 mm
+                  unsupported<span class="src">you</span>
+                </div>
+                <div class="acts"><span class="tag ok">answered</span></div>
+              </div>
+            </div>
+
+            <div class="sec" id="b-pack">
+              <h2>Packaging</h2>
+              <div class="field missing">
+                <div class="k">Box<span class="req">*</span></div>
+                <div class="v">Not answered yet</div>
+                <div class="acts"><span class="tag open">open</span></div>
+              </div>
+            </div>
+          </article>
+
+          <nav class="card index">
+            <div class="muted small" style="margin-bottom: 6px">Sections</div>
+            <a href="#b-occasion">Occasion <span class="cnt">4/4</span></a>
+            <a href="#b-comm">Commercials <span class="cnt">2/2</span></a>
+            <a href="#b-art"
+              >Artwork <span class="cnt" style="color: var(--bad)">1/3</span></a
+            >
+            <a href="#b-size"
+              >Size <span class="cnt" style="color: var(--warn)">1+1</span></a
+            >
+            <a href="#b-mat"
+              >Materials
+              <span class="cnt" style="color: var(--warn)">2+1</span></a
+            >
+            <a href="#b-form">Form <span class="cnt">3/3</span></a>
+            <a href="#b-con">Constraints <span class="cnt">1/1</span></a>
+            <a href="#b-pack"
+              >Packaging
+              <span class="cnt" style="color: var(--bad)">0/1</span></a
+            >
+          </nav>
+        </div>
+      </section>
+
+      <!-- ================= CONCEPTS ================= -->
+      <section class="screen" id="s-concepts">
+        <div class="board-tools">
+          <div class="glass row">
+            <button>✦ Generate</button><button>✎ Sketch</button
+            ><button>⤒ Reference</button><span class="sep"></span>
+            <button>Vary selected</button><button>Compare</button>
+          </div>
+        </div>
+        <div class="board" id="board"></div>
+        <div class="tray">
+          <i></i><i></i> 3 discarded concepts, kept in the tray
+        </div>
+      </section>
+
+      <!-- ================= MODEL ================= -->
+      <section class="screen" id="s-model">
+        <div class="viewport">
+          <svg
+            class="bridge"
+            viewBox="0 0 1000 620"
+            preserveAspectRatio="xMidYMid meet"
+            id="bridge-svg"
+          ></svg>
+
+          <div class="glass partcard">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <b>Tower</b><span class="tag">part</span>
+            </div>
+            <div class="muted small" style="margin: 2px 0 8px">
+              Cast zinc · satin nickel
+            </div>
+            <div class="dim">
+              <span>Tower height</span><input value="196" /><span
+                class="muted small"
+                >mm</span
+              >
+            </div>
+            <div class="dim">
+              <span>Leg spacing</span><input value="34" /><span
+                class="muted small"
+                >mm</span
+              >
+            </div>
+            <div class="dim">
+              <span>Cable thickness</span><input value="0.8" /><span
+                class="muted small"
+                >mm</span
+              >
+            </div>
+            <div
+              style="
+                border-top: 1px solid var(--line);
+                margin-top: 8px;
+                padding-top: 6px;
+              "
+            >
+              <div class="rel">
+                ↳ <span><b>Cable anchors</b> follow tower height</span>
+              </div>
+              <div class="rel">
+                ⊥ <span><b>Cable thickness</b> independent</span>
+              </div>
+              <div class="rel">
+                ◎ <span><b>2 × M3 holes</b> belong to Tower, into Base</span>
+              </div>
+            </div>
+            <div class="ask">✦ Ask the agent to change this part…</div>
+          </div>
+
+          <div class="glass browser">
+            <b>Browser</b>
+            <h4>Parts</h4>
+            <div class="it sel">
+              <span>Tower</span><span class="faint mono">3 dims</span>
+            </div>
+            <div class="it">
+              <span>Deck</span><span class="faint mono">4 dims</span>
+            </div>
+            <div class="it">
+              <span>Cables ×12</span><span class="faint mono">1 dim</span>
+            </div>
+            <div class="it">
+              <span>Base</span><span class="faint mono">3 dims</span>
+            </div>
+            <div class="it">
+              <span>Logo plate</span><span class="faint mono">2 dims</span>
+            </div>
+            <h4>Artwork</h4>
+            <div class="it">
+              <span>harbor-crossing.svg</span
+              ><span class="faint small">engrave</span>
+            </div>
+            <div class="it">
+              <span>northline.svg</span><span class="faint small">engrave</span>
+            </div>
+            <div class="it">
+              <span>Deal date</span><span class="faint small">raised</span>
+            </div>
+            <h4>Origin</h4>
+            <div class="it faint">
+              <span>XY · XZ · YZ planes</span><span>○</span>
+            </div>
+          </div>
+
+          <div class="glass oq">
+            <div style="display: flex; justify-content: space-between">
+              <b>From the concept</b><span class="muted small">2 open</span>
+            </div>
+            <div class="row">
+              <input type="checkbox" checked />
+              <span class="muted" style="text-decoration: line-through"
+                >Tower height to span about 1.2 : 1</span
+              >
+            </div>
+            <div class="row">
+              <input type="checkbox" />
+              <span
+                >Can the cables be 0.8 mm stainless wire?
+                <span class="tag">maker</span></span
+              >
+            </div>
+            <div class="row">
+              <input type="checkbox" />
+              <span
+                >Deal date on the front or on the base?
+                <span class="tag">client</span></span
+              >
+            </div>
+          </div>
+
+          <div class="viewtog">
+            <span class="chip on" id="ghost-tog">◌ Concept ghost</span
+            ><span class="chip">Checks 11/12</span><span class="chip">Cut</span>
+          </div>
+          <div class="revs">
+            <span class="chip">● r5</span><span class="chip">● r6</span
+            ><span class="chip cur">● r7</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= DOCUMENTS ================= -->
+      <section class="screen" id="s-documents">
+        <div class="docs">
+          <div class="card doclist">
+            <div class="muted small" style="padding: 4px 10px 8px">
+              Release package for r7
+            </div>
+            <div class="doc sel">
+              <div>
+                <div class="t">Customer proof</div>
+                <div class="s">r7 · brief v2</div>
+              </div>
+              <span class="tag">needs review</span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Part drawings</div>
+                <div class="s">5 sheets · r6</div>
+              </div>
+              <span class="tag stale">stale</span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Parts list</div>
+                <div class="s">r7</div>
+              </div>
+              <span class="tag ok">approved</span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Assembly instructions</div>
+                <div class="s">r7 · 6 steps</div>
+              </div>
+              <span class="tag">draft</span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Manufacturing files</div>
+                <div class="s">STEP · STL · DXF · SVG</div>
+              </div>
+              <span class="tag ok">approved</span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Inspection checklist</div>
+                <div class="s">r7 · 14 checks</div>
+              </div>
+              <span class="tag">draft</span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Revision summary</div>
+                <div class="s">r1 → r7</div>
+              </div>
+              <span class="tag ok">approved</span>
+            </div>
+          </div>
+          <div class="card preview">
+            <div style="flex: 1; min-width: 0">
+              <div class="banner">
+                <span class="dot warn"></span
+                ><span
+                  ><b>Part drawings are stale.</b> Model changed r6 → r7: tower
+                  height 190 → 196 mm.</span
+                ><button class="secondary">Regenerate</button>
+              </div>
+              <div class="paper">
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                  "
+                >
+                  <h2>Customer proof</h2>
+                  <span style="font-size: 12px; color: #676b74"
+                    >For approval · not for production</span
+                  >
+                </div>
+                <div style="font-size: 13px; color: #676b74; margin-top: 2px">
+                  Harbor Crossing Holdings / Northline Ports · closing
+                  14.10.2026
+                </div>
+                <svg
+                  viewBox="0 0 600 300"
+                  style="width: 100%; margin-top: 12px"
+                  id="proof-svg"
+                ></svg>
+                <div class="tb">
+                  <div><b>Overall</b>210 × 84 × 196 mm</div>
+                  <div><b>Materials</b>Zinc, satin nickel · walnut</div>
+                  <div><b>Artwork</b>2 logos engraved, date raised</div>
+                  <div><b>Revision</b>r7 · brief v2</div>
+                </div>
+              </div>
+            </div>
+            <div class="sources">
+              <h4>Built from</h4>
+              <div class="s">
+                Overall size <span class="faint">· r7 bounds</span>
+              </div>
+              <div class="s">
+                Materials <span class="faint">· brief v2, Materials</span>
+              </div>
+              <div class="s">
+                Logos <span class="faint">· brief v2, Artwork</span>
+              </div>
+              <div class="s">
+                Lettering <span class="faint">· r7 text step</span>
+              </div>
+              <div class="s" style="color: var(--warn)">
+                Box <span>· no source (brief open)</span>
+              </div>
+              <div
+                style="
+                  margin-top: 12px;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 6px;
+                "
+              >
+                <button class="secondary">Share for client approval</button>
+                <button>Approve proof</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= MANUFACTURE ================= -->
+      <section class="screen" id="s-manufacture">
+        <div class="mfg">
+          <div class="card doclist">
+            <div class="muted small" style="padding: 4px 10px 8px">
+              Request for quote · release 1 · 40 units
+            </div>
+            <div class="doc sel">
+              <div>
+                <div class="t">Kestrel Diecast</div>
+                <div class="s">Quote in · 3 messages</div>
+              </div>
+              <span class="dot busy"></span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Brightwater Metalworks</div>
+                <div class="s">Quote in</div>
+              </div>
+              <span class="dot"></span>
+            </div>
+            <div class="doc">
+              <div>
+                <div class="t">Oakline Woodshop</div>
+                <div class="s">Base only · awaiting quote</div>
+              </div>
+              <span class="dot"></span>
+            </div>
+            <div style="padding: 10px">
+              <div class="muted small" style="margin-bottom: 6px">
+                Sent to every supplier
+              </div>
+              <div class="steps">
+                <span class="tag">STEP</span
+                ><span class="tag">drawings PDF</span
+                ><span class="tag">parts list</span
+                ><span class="tag">artwork SVG</span>
+              </div>
+            </div>
+          </div>
+          <div class="card thread">
+            <div class="th">
+              <div>
+                <b>Kestrel Diecast</b>
+                <div class="steps" style="margin-top: 4px">
+                  <span><span class="dot ok"></span>Quoted</span
+                  ><span class="ln"></span
+                  ><span><span class="dot"></span>Ordered</span
+                  ><span class="ln"></span
+                  ><span><span class="dot"></span>Sample</span
+                  ><span class="ln"></span
+                  ><span><span class="dot"></span>Production</span
+                  ><span class="ln"></span
+                  ><span><span class="dot"></span>Shipped</span>
+                </div>
+              </div>
+              <button class="secondary">Choose this quote</button>
+            </div>
+            <div class="quotes">
+              <div class="quote sel">
+                <div class="muted">Kestrel Diecast</div>
+                <div class="p">$152 / unit</div>
+                <div class="muted">Sample 10 days · run 18 days</div>
+              </div>
+              <div class="quote">
+                <div class="muted">Brightwater</div>
+                <div class="p">$171 / unit</div>
+                <div class="muted">Sample 7 days · run 21 days</div>
+              </div>
+              <div class="quote">
+                <div class="muted">Oakline (base)</div>
+                <div class="p">pending</div>
+                <div class="muted">Asked 2 days ago</div>
+              </div>
+            </div>
+            <div class="tb">
+              <div class="bubble them">
+                <div class="by">Kestrel · via the service · 9 Nov</div>
+                We can hold 196 mm on the tower. The 0.8 mm stainless cables
+                need a 1.2 mm crimp sleeve at each anchor. Is a visible sleeve
+                acceptable?<br /><span class="partref"
+                  >◇ Tower · cable anchors</span
+                >
+              </div>
+              <div class="bubble us">
+                <div class="by">You · 9 Nov</div>
+                Can the sleeve sit inside the tower so it isn't visible from the
+                front?
+              </div>
+              <div class="bubble them">
+                <div class="by">Kestrel · 10 Nov</div>
+                Yes, if the anchor holes are 1.6 mm with a 3 mm counterbore on
+                the back face.<br /><span class="partref"
+                  >◇ Tower · 12 anchor holes</span
+                >
+              </div>
+            </div>
+            <div class="tf">
+              <div class="draft">
+                <span style="color: var(--agent); font-weight: 600"
+                  >✦ Draft:</span
+                >
+                Thanks. We'll change the anchor holes to 1.6 mm with a 3 mm
+                counterbore on the back face and send revised drawings as r8.
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <button>Send</button
+                ><button class="secondary">Open in Model</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Decision sheet (Concepts) -->
+    <aside class="card sheet" id="sheet">
+      <div class="sh">
+        <b>Choose concept B</b><button class="ghost" id="sheet-x">✕</button>
+      </div>
+      <div class="sb">
+        <div>
+          <h3>Approved visual qualities</h3>
+          <label class="chk"
+            ><input type="checkbox" checked />
+            <span
+              ><b>Silhouette:</b> single A-frame tower, fan of cables to both
+              deck ends</span
+            ></label
+          >
+          <label class="chk"
+            ><input type="checkbox" checked />
+            <span
+              ><b>Proportions:</b> tower about 1.2 × the span's
+              half-length</span
+            ></label
+          >
+          <label class="chk"
+            ><input type="checkbox" checked />
+            <span
+              ><b>Material and finish:</b> satin nickel bridge on an oiled
+              walnut base</span
+            ></label
+          >
+          <label class="chk"
+            ><input type="checkbox" />
+            <span
+              ><b>Components:</b> tower, deck, 12 cables, base, logo plate</span
+            ></label
+          >
+        </div>
+        <div>
+          <h3>Targets for the model (not dimensions)</h3>
+          <div class="mono">≈ 210 × 84 × 196 mm</div>
+          <div class="muted small">
+            Base depth ≈ 84 mm · deck ≈ 70 mm above base
+          </div>
+        </div>
+        <div>
+          <h3>Open questions</h3>
+          <div class="q">
+            <span>Can the cables be 0.8 mm stainless wire?</span
+            ><span class="tag">maker</span>
+          </div>
+          <div class="q">
+            <span>Deal date on the front or on the base?</span
+            ><span class="tag">client</span>
+          </div>
+          <div class="q">
+            <span>How the tower fixes to the base without visible screws</span
+            ><span class="tag">model</span>
+          </div>
+        </div>
+        <div class="callout">
+          The approved brief allowed 180 mm in height and this concept is 196
+          mm. <b>Update the brief to 200 mm (v2)</b> or keep 180 and adjust in
+          the model?
+          <div style="display: flex; gap: 6px; margin-top: 8px">
+            <button class="secondary" style="padding: 4px 10px">
+              Update brief</button
+            ><button class="ghost">Keep brief</button>
+          </div>
+        </div>
+      </div>
+      <div
+        style="
+          padding: 12px 16px;
+          border-top: 1px solid var(--line);
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        "
+      >
+        <button class="secondary" id="sheet-cancel">Cancel</button
+        ><button>Choose concept</button>
+      </div>
+    </aside>
+
+    <!-- Output bar -->
+    <div class="output"><div class="bar" id="bar"></div></div>
+
+    <script>
+      const PHASES = {
+        brief: {
+          label: "Brief",
+          ctx: "Share",
+          bar: `<span class="what">Brief v2</span><span class="facts"><span>16 of 18 required</span><span><span class="dot warn"></span>2 assumed</span><span><span class="dot" style="background:var(--bad)"></span>2 open: Logos, Box</span></span><button disabled>Approve brief</button>`,
+          log: `
+      <div class="divider">Brief</div>
+      <div class="msg me">Here's the closing memo and both logos. Client wants something for the deal team, 40 of them.</div>
+      <div class="tool"><span><span class="ok">✓</span> Read closing-memo.pdf, filled 4 fields</span><span class="faint">brief</span></div>
+      <div class="tool"><span><span class="ok">✓</span> Attached 2 logos to Artwork</span><span class="faint">brief</span></div>
+      <div class="msg ai"><div class="who">Mantel</div>Got the deal, closing date and both marks. The Northline logo is a 640 px PNG, so engraving needs a vector version. Can you ask the client for an SVG or EPS?</div>
+      <div class="divider">You changed the envelope · v2</div>
+      <div class="msg ai"><div class="who">Mantel</div>Two required fields left: the Northline vector and the box. I've also guessed the weight and the cable material. Shall we settle the box now?</div>
+      <div class="quick"><button>Gift box with foam insert</button><button>Walnut presentation box</button><button>Ask the client</button></div>`,
+        },
+        concepts: {
+          label: "Concepts",
+          ctx: "Compare",
+          bar: `<span class="what">Concepts</span><span class="facts"><span>6 concepts</span><span>2 starred</span><span>B selected</span></span><button id="choose">Choose concept B…</button>`,
+          log: `
+      <div class="divider">Now in Concepts · brief v1</div>
+      <div class="msg ai"><div class="who">Mantel</div>From the brief, I've sketched four directions for "a bridge joining two harbours". They're rough, so judge the shape, not the details.</div>
+      <div class="tool"><span><span class="ok">✓</span> Generated 4 concepts</span><span class="faint">concepts</span></div>
+      <div class="msg me">B is close. Try it taller with a walnut base, and one with two towers.</div>
+      <div class="tool"><span><span class="ok">✓</span> Varied B: taller, walnut base</span><span class="faint">concepts</span></div>
+      <div class="tool"><span style="color:var(--agent)">◌ Generating B: two towers…</span><span class="faint">concepts</span></div>
+      <div class="msg ai"><div class="who">Mantel</div>Heads up: the taller B is 196 mm, over the 180 mm in the brief. If you choose it I'll ask whether to update the brief.</div>`,
+        },
+        model: {
+          label: "Model",
+          ctx: "Checks",
+          bar: `<span class="what">Revision r7</span><span class="facts"><span><span class="dot ok"></span>11 of 12 checks pass</span><span><span class="dot warn"></span>Envelope: 196 of 200 mm</span><span>2 open questions</span></span><button>Mark r7 ready for documents</button>`,
+          log: `
+      <div class="divider">Now in Model · concept B · brief v2</div>
+      <div class="tool"><span><span class="ok">✓</span> Design sheet from brief v2 and concept B</span><span class="faint">design</span></div>
+      <div class="tool"><span><span class="ok">✓</span> Built framework: Base, Deck, Tower, Cables, Logo plate</span><span class="faint">r5</span></div>
+      <div class="msg me">Make the tower 196 and keep the cables independent of it.</div>
+      <div class="tool"><span><span class="ok">✓</span> Tower height 190 → 196 mm</span><span class="faint">r7</span></div>
+      <div class="msg ai"><div class="who">Mantel</div>Done in r7. Cable thickness stays at 0.8 mm on its own; the anchors moved up with the tower. One check fails: the cable is under the 1 mm minimum in the brief's fragile rule. Make it 1 mm, or note it as a maker question?</div>
+      <div class="quick"><button>Make it 1 mm</button><button>Ask the maker</button></div>`,
+        },
+        documents: {
+          label: "Documents",
+          ctx: "Share",
+          bar: `<span class="what">Release package</span><span class="facts"><span>3 of 7 approved</span><span><span class="dot warn"></span>Part drawings stale (r6)</span></span><button disabled>Create release</button>`,
+          log: `
+      <div class="divider">Now in Documents · r7</div>
+      <div class="msg ai"><div class="who">Mantel</div>I've drafted the proof, the assembly steps and the inspection checklist from r7. The part drawings are from r6 and need regenerating.</div>
+      <div class="tool"><span><span class="ok">✓</span> Generated customer proof</span><span class="faint">r7</span></div>
+      <div class="tool"><span><span class="ok">✓</span> Drafted 6 assembly steps</span><span class="faint">r7</span></div>
+      <div class="msg ai"><div class="who">Mantel</div>The proof leaves the box blank because the brief has no answer yet. The checklist has no tolerance for cable spacing; shall I propose ±0.5 mm?</div>
+      <div class="quick"><button>Regenerate drawings</button><button>Propose ±0.5 mm</button></div>`,
+        },
+        manufacture: {
+          label: "Manufacture",
+          ctx: "Release 1",
+          bar: `<span class="what">Release 1</span><span class="facts"><span>2 quotes in</span><span>lowest $152 / unit</span><span>in hand by 12 Dec</span></span><button class="secondary">Compare quotes</button>`,
+          log: `
+      <div class="divider">Now in Manufacture · release 1</div>
+      <div class="tool"><span><span class="ok">✓</span> Sent request for quote to 3 suppliers</span><span class="faint">you</span></div>
+      <div class="msg ai"><div class="who">Mantel</div>Kestrel can hold the tower height but wants the cable anchors changed to 1.6 mm holes with a 3 mm counterbore on the back. That's a model change and would make the drawings stale.</div>
+      <div class="msg ai"><div class="who">Mantel</div>I've drafted a reply. You send it. Want me to open the Tower in Model with Kestrel's note attached?</div>
+      <div class="quick"><button>Open in Model</button><button>Summarise all quotes</button></div>`,
+        },
+      };
+
+      const order = ["brief", "concepts", "model", "documents", "manufacture"];
+      function show(p) {
+        document.body.className = "p-" + p;
+        document
+          .querySelectorAll(".screen")
+          .forEach((s) => s.classList.toggle("on", s.id === "s-" + p));
+        document
+          .querySelectorAll("#phases button")
+          .forEach((b) => b.classList.toggle("on", b.dataset.p === p));
+        const d = PHASES[p];
+        document.getElementById("bar").innerHTML = d.bar;
+        document.getElementById("log").innerHTML = d.log;
+        document.getElementById("agent-phase").textContent = "In " + d.label;
+        document.getElementById("ctx-btn").textContent = d.ctx;
+        document.getElementById("compact").textContent =
+          order.indexOf(p) + 1 + " " + d.label + " ▾";
+        document.getElementById("sheet").classList.remove("on");
+        const log = document.getElementById("log");
+        const ai = log.querySelectorAll(".msg.ai");
+        if (ai.length) ai[ai.length - 1].classList.add("peek");
+        log.scrollTop = log.scrollHeight;
+        const choose = document.getElementById("choose");
+        if (choose)
+          choose.onclick = () =>
+            document.getElementById("sheet").classList.add("on");
+        try {
+          history.replaceState(null, "", "#" + p);
+        } catch (e) {}
+      }
+      document
+        .querySelectorAll("#phases button")
+        .forEach((b) => (b.onclick = () => show(b.dataset.p)));
+      document.getElementById("compact").onclick = () =>
+        show(order[(order.indexOf(document.body.className.slice(2)) + 1) % 5]);
+      document.getElementById("sheet-x").onclick = document.getElementById(
+        "sheet-cancel",
+      ).onclick = () => document.getElementById("sheet").classList.remove("on");
+      document.getElementById("theme").onclick = () => {
+        const r = document.documentElement;
+        r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
+      };
+
+      /* Rough concept previews: line sketches, deliberately loose. */
+      const S =
+        'stroke="var(--muted)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+      const base = (w = "#8a6a4c") =>
+        `<path d="M30 122 L170 122 L190 112 L50 112 Z" fill="${w}" opacity=".55"/><path d="M30 122 L30 130 L170 130 L170 122" fill="${w}" opacity=".75"/>`;
+      const concepts = [
+        {
+          id: "A",
+          name: "Tied arch",
+          meta: "≈ 200 × 80 × 150 mm · 5 parts",
+          sw: ["#bfc3c8", "#8a6a4c"],
+          svg: `${base()}<path d="M45 100 L175 100" ${S}/><path d="M50 100 Q110 30 170 100" ${S}/>${[70, 90, 110, 130, 150].map((x) => `<path d="M${x} ${100 - (x < 110 ? (x - 50) * 1.1 : (170 - x) * 1.1)} L${x} 100" ${S} stroke-width="1"/>`).join("")}`,
+          star: false,
+        },
+        {
+          id: "B",
+          name: "Single tower, cable fan",
+          meta: "≈ 210 × 84 × 196 mm · 5 parts",
+          sw: ["#c8ccd1", "#7a5a3c"],
+          svg: `${base("#6b4a2e")}<path d="M40 98 L180 98" ${S} stroke-width="2.4"/><path d="M104 98 L110 22 L116 98" ${S} stroke-width="2"/>${[48, 64, 80, 140, 156, 172].map((x) => `<path d="M110 ${28 + Math.abs(x - 110) / 9} L${x} 98" ${S} stroke-width=".9"/>`).join("")}`,
+          star: true,
+          sel: true,
+          warn: "Taller than the 180 mm envelope (brief v1)",
+        },
+        {
+          id: "C",
+          name: "Two towers, suspension",
+          meta: "≈ 220 × 80 × 160 mm · 7 parts",
+          sw: ["#b9bec4", "#8a6a4c"],
+          svg: `${base()}<path d="M36 98 L184 98" ${S} stroke-width="2.2"/><path d="M70 98 L70 40 M150 98 L150 40" ${S} stroke-width="2.2"/><path d="M36 92 Q70 40 70 40 Q110 85 150 40 Q184 92 184 92" ${S}/>`,
+          star: true,
+        },
+        {
+          id: "D",
+          name: "Lucite block, embedded bridge",
+          meta: "≈ 120 × 60 × 160 mm · 2 parts",
+          sw: ["#d9eef2", "#b9bec4"],
+          svg: `<rect x="62" y="20" width="96" height="104" rx="4" fill="#cfe9ef" opacity=".45" stroke="var(--muted)" stroke-width="1.4"/><path d="M72 92 L148 92 M80 92 Q110 56 140 92" ${S}/>`,
+          star: false,
+          warn: "Lucite embed: confirm budget",
+        },
+        { id: "B2", name: "B · two towers (generating)", meta: "", gen: true },
+        {
+          id: "B3",
+          name: "B · walnut plinth, taller",
+          meta: "≈ 210 × 84 × 210 mm · 5 parts",
+          sw: ["#c8ccd1", "#5a3c22"],
+          svg: `<path d="M40 126 L180 126 L180 110 L40 110 Z" fill="#5a3c22" opacity=".7"/><path d="M40 98 L180 98" ${S} stroke-width="2.4"/><path d="M104 98 L110 14 L116 98" ${S} stroke-width="2"/>${[48, 64, 80, 140, 156, 172].map((x) => `<path d="M110 ${20 + Math.abs(x - 110) / 9} L${x} 98" ${S} stroke-width=".9"/>`).join("")}`,
+          star: false,
+          warn: "Over the 200 mm envelope",
+        },
+      ];
+      document.getElementById("board").innerHTML = concepts
+        .map((c) =>
+          c.gen
+            ? `
+  <div class="concept gen"><div class="pv"></div><div class="nm">${c.name}</div><div class="meta faint">resolving…</div></div>`
+            : `
+  <div class="concept ${c.sel ? "sel" : ""}" data-id="${c.id}">
+    <span class="ctag">Concept</span>${c.star ? '<span class="star">★</span>' : ""}
+    <div class="pv"><svg viewBox="0 0 220 140" width="100%" height="100%">${c.svg}</svg></div>
+    <div class="nm"><span>${c.id} · ${c.name}</span></div>
+    <div class="meta">${c.meta}</div>
+    <div class="sws">${c.sw.map((x) => `<i style="background:${x}"></i>`).join("")}<span class="faint small" style="margin-left:4px">rough</span></div>
+    ${c.warn ? `<div class="warns">⚠ ${c.warn}</div>` : ""}
+  </div>`,
+        )
+        .join("");
+      document.querySelectorAll(".concept[data-id]").forEach(
+        (el) =>
+          (el.onclick = () => {
+            document
+              .querySelectorAll(".concept")
+              .forEach((x) => x.classList.remove("sel"));
+            el.classList.add("sel");
+          }),
+      );
+
+      /* Model: flat isometric bridge with named parts. */
+      function iso(x, y, z) {
+        return [500 + (x - y) * 0.87, 430 + (x + y) * 0.5 - z];
+      }
+      function box(x, y, z, w, d, h, cls) {
+        const p = (a, b, c) => iso(a, b, c).join(",");
+        return `<polygon points="${p(x, y, z + h)} ${p(x + w, y, z + h)} ${p(x + w, y + d, z + h)} ${p(x, y + d, z + h)}" fill="var(--part-3)"/>
+  <polygon points="${p(x, y + d, z)} ${p(x + w, y + d, z)} ${p(x + w, y + d, z + h)} ${p(x, y + d, z + h)}" fill="var(--part)" ${cls || ""}/>
+  <polygon points="${p(x + w, y, z)} ${p(x + w, y + d, z)} ${p(x + w, y + d, z + h)} ${p(x + w, y, z + h)}" fill="var(--part-2)" ${cls || ""}/>`;
+      }
+      let g = "";
+      g += box(-260, -90, 0, 520, 180, 40)
+        .replace(/var\(--part\)/g, "#8a6a4c")
+        .replace(/var\(--part-2\)/g, "#6f5236")
+        .replace(/var\(--part-3\)/g, "#a3825f");
+      g += box(-230, -14, 150, 460, 28, 10);
+      g += box(-12, -26, 40, 24, 8, 330).replace(
+        /fill="var\(--part\)"/g,
+        'fill="var(--part)" stroke="var(--agent)" stroke-width="2"',
+      );
+      g += box(-12, 18, 40, 24, 8, 330).replace(
+        /fill="var\(--part\)"/g,
+        'fill="var(--part)" stroke="var(--agent)" stroke-width="2"',
+      );
+      [-210, -160, -110, -60, 60, 110, 160, 210].forEach((x) => {
+        const a = iso(0, 0, 330 + Math.abs(x) / 12),
+          b = iso(x, 0, 160);
+        g += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--muted)" stroke-width="1.3"/>`;
+      });
+      const lp = iso(-200, 90, 12);
+      g += `<text x="${lp[0] + 40}" y="${lp[1] - 2}" font-size="11" fill="#f3e7d8" font-family="ui-monospace,monospace" transform="skewY(-30) " opacity=".0">HC</text>`;
+      /* concept ghost */
+      const ghost = `<g id="ghost" opacity=".35" stroke="var(--agent)" stroke-dasharray="5 5" fill="none" stroke-width="1.4">${(() => {
+        const a = iso(0, 0, 390),
+          l = iso(-250, 0, 160),
+          r = iso(250, 0, 160);
+        return `<polyline points="${l} ${a} ${r}"/>`;
+      })()}</g>`;
+      const tag = iso(0, 0, 380);
+      document.getElementById("bridge-svg").innerHTML =
+        g +
+        ghost +
+        `<foreignObject x="${tag[0] + 16}" y="${tag[1] - 14}" width="200" height="30"><div xmlns="http://www.w3.org/1999/xhtml" class="presence">✦ Agent · Tower</div></foreignObject>`;
+      document.getElementById("ghost-tog").onclick = (e) => {
+        e.currentTarget.classList.toggle("on");
+        const gh = document.getElementById("ghost");
+        gh.style.display = gh.style.display === "none" ? "" : "none";
+      };
+
+      /* Proof drawing: simple front elevation with overall dims. */
+      document.getElementById("proof-svg").innerHTML = `
+  <g stroke="#1b1c20" fill="none" stroke-width="1.3">
+    <rect x="110" y="230" width="380" height="34" fill="#efe6dc"/>
+    <line x1="120" y1="170" x2="480" y2="170" stroke-width="3"/>
+    <path d="M292 230 L300 40 L308 230" stroke-width="2.2"/>
+    ${[130, 170, 210, 250, 350, 390, 430, 470].map((x) => `<line x1="300" y1="${50 + Math.abs(x - 300) / 10}" x2="${x}" y2="170" stroke-width=".8"/>`).join("")}
+  </g>
+  <g fill="#14365a"><rect x="140" y="240" width="40" height="14" rx="2"/></g>
+  <g fill="#0f7a6a"><rect x="420" y="240" width="40" height="14" rx="2"/></g>
+  <text x="300" y="252" text-anchor="middle" font-size="10" font-family="ui-monospace,monospace" fill="#1b1c20">14.10.2026</text>
+  <g stroke="#676b74" stroke-width=".8" fill="#676b74" font-size="10" font-family="ui-monospace,monospace">
+    <line x1="110" y1="282" x2="490" y2="282"/><text x="300" y="295" text-anchor="middle" stroke="none">210 mm</text>
+    <line x1="520" y1="40" x2="520" y2="264"/><text x="528" y="156" stroke="none">196 mm</text>
+  </g>`;
+
+      show(
+        (location.hash || "#brief").slice(1) in PHASES
+          ? location.hash.slice(1)
+          : "brief",
+      );
+    </script>
+  </body>
+</html>
