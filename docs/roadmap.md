@@ -11,6 +11,14 @@
 - Live agent sessions: verbatim prompts, progress notes, recorded tool calls, team notes delivered on the next tool call, WebSocket updates, click-to-edit part parameters and light/dark themes.
 - Accounts: Google sign-in and signup, owner-edited access levels with per-person adjustments, a read-only demo project, OAuth sign-in for MCP clients, and the Mantel sign-in screen.
 
+## Now: phased project workspace (UI first)
+
+The five phases from the [phased workspace design](superpowers/specs/2026-11-10-phased-project-workspace-design.md) are usable in the interface ([plan](superpowers/plans/2026-11-10-phased-workspace-ui.md)). Each of these stand-ins needs its own design next:
+
+1. **Phase data on the server.** Briefs, concepts, approvals, documents and suppliers are kept in the browser (`src/web/phase-store.ts`). They need D1 tables, permission-checked tools shared with MCP, and live updates, so that teammates and agents see the same state.
+2. **The built-in agent.** The panel shows deterministic guidance (`agentGuide`) and sends notes. A real in-app agent needs a provider and cost decision first.
+3. **Concept generation, client share links and the manufacturing service.** Their controls are disabled or labelled "saved here, not sent".
+
 ## Next: agent presence and change history
 
 Design sheets, change plans and the guard are in place (Part 1 of the [sequential editing design](superpowers/specs/2026-11-09-sequential-editing-and-agent-presence-design.md)). Next, each as its own plan:
