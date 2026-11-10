@@ -86,19 +86,30 @@ mod web {
             };
             let inbox: Inbox = Rc::default();
             let saved: Saved = Rc::default();
+            let repaint: Rc<RefCell<Option<eframe::egui::Context>>> = Rc::default();
             let bridge = Bridge::connect("mantelmesh", &canvas).map(Rc::new);
             let host: Box<dyn Host> = match &bridge {
                 Some(b) => {
                     let (b2, inbox2) = (b.clone(), inbox.clone());
                     let saved2 = saved.clone();
+                    let repaint2 = repaint.clone();
                     b.listen(move |m| {
                         if let Message::Saved { id } = m {
                             saved2.borrow_mut().push(id);
+                            if let Some(ctx) = repaint2.borrow().as_ref() {
+                                ctx.request_repaint();
+                            }
                         } else if let Message::Open { name, data } = m {
                             let (inbox, b) = (inbox2.clone(), b2.clone());
+                            let repaint3 = repaint2.clone();
                             wasm_bindgen_futures::spawn_local(async move {
                                 match read(data).await {
-                                    Some(bytes) => inbox.borrow_mut().push((name, bytes)),
+                                    Some(bytes) => {
+                                        inbox.borrow_mut().push((name, bytes));
+                                        if let Some(ctx) = repaint3.borrow().as_ref() {
+                                            ctx.request_repaint();
+                                        }
+                                    }
                                     None => {
                                         let _ = b.post_failed("MantelMesh couldn't read the file", None);
                                     }
@@ -123,7 +134,8 @@ mod web {
                 .start(
                     canvas,
                     options,
-                    Box::new(move |_cc| {
+                    Box::new(move |cc| {
+                        *repaint.borrow_mut() = Some(cc.egui_ctx.clone());
                         Ok(Box::new(App {
                             inner: MeshApp::new(Some(host)),
                             inbox: app_inbox,
