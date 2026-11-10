@@ -37,6 +37,7 @@ import { savedTools } from "./saved-tools";
 import { inspectTools } from "./inspect-tools";
 import { checkTools } from "./check-tools";
 import { DESIGN_WRITES, designTools } from "./design-tools";
+import { trashTools } from "./trash";
 import { stopSessionPlans } from "./design/plans";
 import { catalogIndex } from "./actions/catalog";
 import {
@@ -77,10 +78,10 @@ export const tools: Tool[] = [
     async (c) => {
       const [own, demo] = await c.env.DB.batch([
         c.env.DB.prepare(
-          "SELECT * FROM projects WHERE owner=? ORDER BY created_at DESC LIMIT 200",
+          "SELECT * FROM projects WHERE owner=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         ).bind(c.identity.email),
         c.env.DB.prepare(
-          "SELECT * FROM projects WHERE demo=1 AND owner<>? AND ?=1 ORDER BY created_at DESC LIMIT 20",
+          "SELECT * FROM projects WHERE demo=1 AND owner<>? AND ?=1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
         ).bind(
           c.identity.email,
           c.identity.permissions.has("demo.view") ? 1 : 0,
@@ -590,6 +591,7 @@ export const tools: Tool[] = [
   ...inspectTools,
   ...checkTools,
   ...designTools,
+  ...trashTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -654,6 +656,8 @@ function summarize(name: string, input: unknown, value: unknown) {
       return "Read the project";
     case "projects_create":
       return `Created project ${i.name}`;
+    case "projects_delete":
+      return `Moved project ${i.name} to the Trash`;
     case "actions_list":
       return "Read the action catalog";
     case "actions_describe":
