@@ -1456,6 +1456,12 @@ pub trait FaceBrep {
     fn brep(&self) -> &Brep;
 }
 
+impl FaceBrep for Brep {
+    fn brep(&self) -> &Brep {
+        self
+    }
+}
+
 impl FaceBrep for &Brep {
     fn brep(&self) -> &Brep {
         self
