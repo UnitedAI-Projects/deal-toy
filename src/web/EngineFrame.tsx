@@ -83,7 +83,12 @@ export function EngineFrame(props: {
   file?: { name: string; url: string };
   readOnly: boolean;
   onSaved: (file: PhaseFile) => void;
+  /** Back to Mantel's view of the phase; the engine stays loaded behind it. */
   onClose: () => void;
+  /** False while Mantel's view is showing: the engine keeps running, hidden. */
+  visible?: boolean;
+  /** Told whenever the engine gains or loses unsaved changes. */
+  onDirty?: (dirty: boolean) => void;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const artApi = useRef<ArtApi | undefined>(undefined);
@@ -405,22 +410,23 @@ export function EngineFrame(props: {
     addEventListener("beforeunload", guard);
     return () => removeEventListener("beforeunload", guard);
   }, [hasUnsavedWork]);
+  useEffect(() => {
+    props.onDirty?.(hasUnsavedWork);
+  }, [hasUnsavedWork]);
 
   return (
-    <div className="engine-frame" role="dialog" aria-label={name}>
+    <div
+      className={`engine-frame ${props.visible === false ? "hidden" : ""}`}
+      aria-label={name}
+      aria-hidden={props.visible === false}
+    >
       <div className="engine-bar">
         <button
           className="chip"
-          onClick={() => {
-            if (
-              hasUnsavedWork &&
-              !confirm(`${name} has unsaved changes. Close it anyway?`)
-            )
-              return;
-            props.onClose();
-          }}
+          title="Mantel's view of this phase; the engine keeps your unsaved work"
+          onClick={props.onClose}
         >
-          ← Back
+          ← Mantel view
         </button>
         <strong>{name}</strong>
         <span className="muted small">{status}</span>

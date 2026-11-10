@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ConnectedApp } from "./empty";
-import { mcpSetupPrompt } from "./setup";
 import {
   can,
   PERMISSIONS,
@@ -207,58 +206,11 @@ function Apps() {
     <>
       <h1>Connected apps</h1>
       <p className="muted lede">
-        Connect Claude Code or another MCP client by adding{" "}
-        <code>{location.origin}/mcp</code> and signing in when it asks. The app
-        acts as you and has your current access.
+        Mantel's own agent answers in every phase. Apps you connected earlier
+        through sign-in are listed here; disconnect any you no longer use.
       </p>
-      <SetupPrompt />
       <ConnectedApps />
     </>
-  );
-}
-
-/** Copyable instructions that let a member's AI app connect itself. */
-function SetupPrompt() {
-  const prompt = useMemo(() => mcpSetupPrompt(location.origin), []);
-  const [copied, setCopied] = useState<"" | "copied" | "failed">("");
-  // Wrapped so a missing clipboard (plain-HTTP pages) shows the error instead of throwing.
-  const copy = () =>
-    Promise.resolve()
-      .then(() => navigator.clipboard.writeText(prompt))
-      .then(
-        () => setCopied("copied"),
-        () => setCopied("failed"),
-      );
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(""), 2500);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <div>
-          <h2>Set up your AI</h2>
-          <p className="muted small">
-            Copy this and paste it into Claude Code, Codex, Claude or another AI
-            app. It walks the app through connecting and signing in.
-          </p>
-        </div>
-        <button className="setup-copy" onClick={copy}>
-          {copied === "copied" ? "Copied" : "Copy instructions"}
-        </button>
-      </div>
-      <div className="panel-body">
-        {copied === "failed" && (
-          <p className="inline-error">
-            Couldn't copy. Select the text below and copy it yourself.
-          </p>
-        )}
-        <pre className="code setup-prompt" aria-label="Setup instructions">
-          {prompt}
-        </pre>
-      </div>
-    </div>
   );
 }
 

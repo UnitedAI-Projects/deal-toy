@@ -484,7 +484,7 @@ export function agentGuide(
       return {
         text: latestRevision
           ? `Revision r${latestRevision} is the latest.`
-          : "No model yet. Pick a tool or connect an agent to start.",
+          : "No model yet. Pick a tool above, ask me here, or switch to MantelCAD to start.",
         suggestions: [],
       };
     case "documents": {

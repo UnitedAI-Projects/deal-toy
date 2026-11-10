@@ -3671,3 +3671,70 @@ label.cadbar-button.disabled {
     display: none;
   }
 }
+
+/* Mantel's view or the phase engine's professional one. */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 999px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+.view-switch button {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.view-switch button:hover:not(.on) {
+  background: var(--surface-2);
+  filter: none;
+}
+.view-switch button.on {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.dot-unsaved {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+/* The engine sits under the top bar, so the phase bar and the view switch stay in reach. */
+.engine-frame {
+  top: 60px;
+  z-index: 20;
+}
+/* The phase top bar stays above the engine, so its menus open over it. */
+.phase-page .topbar,
+.workspace.with-phases .topbar {
+  z-index: 30;
+}
+.engine-frame.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.workspace.with-agent .chat-shell {
+  left: 368px;
+}
+.workspace.with-agent .output-shell {
+  left: 368px;
+}
+@media (max-width: 860px) {
+  .workspace.with-agent .chat-shell,
+  .workspace.with-agent .output-shell {
+    left: 10px;
+  }
+  .engine-frame {
+    top: 56px;
+  }
+}

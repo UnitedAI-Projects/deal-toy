@@ -274,9 +274,7 @@ function Library(props: {
       <div className="library-head">
         <div>
           <h1>Projects</h1>
-          <p className="muted">
-            Every design, its agent sessions and revisions.
-          </p>
+          <p className="muted">Every deal toy, from brief to manufacture.</p>
         </div>
         {props.canCreate && (
           <button onClick={() => setCreate(!create)}>New project</button>
@@ -336,8 +334,8 @@ function Library(props: {
         <div className="empty">
           <h2>Start your first project</h2>
           <p className="muted">
-            Create a project, then point your agent at it. Its prompt and every
-            step show up live next to the model.
+            Create a project and Mantel walks you through it: the brief, art,
+            concepts, the model, documents and manufacture.
           </p>
           <button onClick={() => setCreate(true)}>Create project</button>
         </div>

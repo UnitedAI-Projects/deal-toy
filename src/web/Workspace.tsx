@@ -129,6 +129,10 @@ type Props = {
   onSignOut: () => void;
   /** Set by the project shell: the phase bar in the top bar and the phase's output bar. */
   phaseBar?: ReactNode;
+  /** Set by the project shell: the view switch, first in the top bar's right group. */
+  topRight?: ReactNode;
+  /** Set by the project shell: the built-in phase agent, in place of external agents' activity. */
+  agentPanel?: ReactNode;
   outputBar?: ReactNode;
 };
 export function Workspace(props: Props) {
@@ -935,7 +939,9 @@ export function Workspace(props: Props) {
         ? "Agent idle"
         : "No agent yet";
   return (
-    <div className={`workspace ${props.phaseBar ? "with-phases" : ""}`}>
+    <div
+      className={`workspace ${props.phaseBar ? "with-phases" : ""} ${props.agentPanel ? "with-agent" : ""}`}
+    >
       <Suspense fallback={<div className="viewer" />}>
         <Viewer
           artifactId={asOf?.glb ?? glb?.id}
@@ -1017,6 +1023,7 @@ export function Workspace(props: Props) {
           <div className="topbar-center">{props.phaseBar}</div>
         )}
         <div className="topbar-right">
+          {props.topRight}
           {model && (
             <button
               className={`chip checks-chip wide-only ${checksOpen ? "on" : ""}`}
@@ -1033,17 +1040,19 @@ export function Workspace(props: Props) {
               onChoose={(id) => void openAction(id)}
             />
           )}
-          <span
-            className="chip status"
-            title={connected ? "Live" : "Reconnecting…"}
-          >
+          {!props.agentPanel && (
             <span
-              className={`dot ${running ? "on" : ""} ${connected ? "" : "offline"}`}
-            />
-            <span className="status-text">
-              {connected ? status : "Reconnecting…"}
+              className="chip status"
+              title={connected ? "Live" : "Reconnecting…"}
+            >
+              <span
+                className={`dot ${running ? "on" : ""} ${connected ? "" : "offline"}`}
+              />
+              <span className="status-text">
+                {connected ? status : "Reconnecting…"}
+              </span>
             </span>
-          </span>
+          )}
           <button
             className="chip icon"
             aria-label="Menu"
@@ -1056,6 +1065,7 @@ export function Workspace(props: Props) {
         </div>
         {menu && (
           <Menu
+            connect={!props.agentPanel}
             onClose={() => setMenu(false)}
             choice={props.themeChoice}
             chooseTheme={props.chooseTheme}
@@ -1125,22 +1135,45 @@ export function Workspace(props: Props) {
           }}
           onOpenStep={(name) => void editStep(name).catch(() => {})}
         />
-        <button className="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
-          {chatOpen ? "Hide activity" : "Agent activity"}
-          {running && <span className="dot on" />}
-        </button>
-        {chatOpen && (
-          <ChatPanel
-            activity={activity}
-            revisions={data.revisions}
-            jobs={data.jobs}
-            me={props.me.email}
-            onViewRevision={viewRevision}
-          />
+        {!props.agentPanel && (
+          <>
+            <button
+              className="chat-toggle"
+              onClick={() => setChatOpen(!chatOpen)}
+            >
+              {chatOpen ? "Hide activity" : "Agent activity"}
+              {running && <span className="dot on" />}
+            </button>
+            {chatOpen && (
+              <ChatPanel
+                activity={activity}
+                revisions={data.revisions}
+                jobs={data.jobs}
+                me={props.me.email}
+                onViewRevision={viewRevision}
+              />
+            )}
+          </>
         )}
       </div>
+      {props.agentPanel}
 
-      {start && (
+      {start && props.agentPanel && (
+        <div className="canvas-empty">
+          <span className="mark large" aria-hidden="true" />
+          <h2>Start the model</h2>
+          <p>
+            Pick a tool above to begin, ask Mantel in the panel, or switch to
+            MantelCAD for the full CAD interface.
+          </p>
+          <div className="row">
+            <button className="secondary" onClick={() => setDrawer("code")}>
+              Write the model yourself
+            </button>
+          </div>
+        </div>
+      )}
+      {start && !props.agentPanel && (
         <div className="canvas-empty">
           <span className="mark large" aria-hidden="true" />
           <h2>{start.heading}</h2>
@@ -1611,6 +1644,8 @@ function Menu(props: {
   hasSource: boolean;
   sheetLabel: string;
   hasSheet: boolean;
+  /** External agents (MCP); off where the built-in agent is the chat. */
+  connect: boolean;
   demo?: { on: boolean; toggle: () => void };
   onDelete?: () => void;
 }) {
@@ -1640,9 +1675,11 @@ function Menu(props: {
       >
         {props.sheetLabel}
       </button>
-      <button role="menuitem" onClick={() => props.open("connect")}>
-        Connect an agent
-      </button>
+      {props.connect && (
+        <button role="menuitem" onClick={() => props.open("connect")}>
+          Connect an agent
+        </button>
+      )}
       {props.demo && (
         <button
           role="menuitem"

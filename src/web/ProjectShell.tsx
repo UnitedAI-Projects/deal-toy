@@ -17,7 +17,8 @@ import {
   type PhaseState,
 } from "./phases";
 import { Workspace, type WorkspaceProps } from "./Workspace";
-import { EngineFrame, type EngineId } from "./EngineFrame";
+import { ENGINE_NAMES, EngineFrame, type EngineId } from "./EngineFrame";
+import { defaultTarget, PHASE_ENGINE } from "./engine-views";
 import { call, type PhaseFile } from "./api";
 import { latestBuild } from "./DocumentsPhase";
 import { withConceptSave } from "./phases";
@@ -92,19 +93,50 @@ export function ProjectShell(props: WorkspaceProps) {
     conceptId?: string;
   } | null>(null);
   const [filesVersion, setFilesVersion] = useState(0);
+  // Each phase shows Mantel's simplified view or its engine's professional one. The engine stays
+  // loaded while the person switches back, so its unsaved work and undo history survive.
+  const [views, setViews] = useState<
+    Partial<Record<PhaseId, "mantel" | "engine">>
+  >({});
+  const [engineDirty, setEngineDirty] = useState(false);
+  const [allFiles, setAllFiles] = useState<PhaseFile[]>([]);
+  useEffect(() => {
+    call<{ files: PhaseFile[] }>("phase_files_list", { projectId })
+      .then((r) => setAllFiles(r.files))
+      .catch(() => setAllFiles([]));
+  }, [projectId, filesVersion]);
   const openEngine = (
     e: EngineId,
     p: string,
     file?: EngineFile,
     conceptId?: string,
-  ) =>
-    setEngine({
-      engine: e,
-      phase: p,
-      file,
-      conceptId:
-        conceptId ?? (e === "mantelmesh" ? crypto.randomUUID() : undefined),
-    });
+  ) => {
+    const same =
+      engine &&
+      engine.engine === e &&
+      engine.phase === p &&
+      engine.file?.url === file?.url;
+    if (
+      !same &&
+      engine &&
+      engineDirty &&
+      !confirm(
+        `${ENGINE_NAMES[engine.engine]} has unsaved changes. Open something else anyway?`,
+      )
+    )
+      return;
+    if (!same) {
+      setEngineDirty(false);
+      setEngine({
+        engine: e,
+        phase: p,
+        file,
+        conceptId:
+          conceptId ?? (e === "mantelmesh" ? crypto.randomUUID() : undefined),
+      });
+    }
+    setViews((v) => ({ ...v, [p as PhaseId]: "engine" }));
+  };
   const back = () => {
     history.replaceState(null, "", location.pathname);
     props.onBack();
@@ -145,6 +177,46 @@ export function ProjectShell(props: WorkspaceProps) {
         },
       }));
   };
+  const view = views[phase] ?? "mantel";
+  const phaseEngine = PHASE_ENGINE[phase];
+  const showEngine = view === "engine" && engine?.phase === phase;
+  const showView = (next: "mantel" | "engine") => {
+    if (next === "mantel")
+      return setViews((v) => ({ ...v, [phase]: "mantel" }));
+    if (engine?.phase === phase)
+      return setViews((v) => ({ ...v, [phase]: "engine" }));
+    const target = defaultTarget(
+      phase,
+      state,
+      allFiles,
+      latestBuild(data)?.artifacts ?? [],
+    );
+    if (target)
+      openEngine(target.engine, target.phase, target.file, target.conceptId);
+  };
+  const viewSwitch = phaseEngine ? (
+    <div className="view-switch" role="group" aria-label="View">
+      <button
+        className={view === "mantel" || !showEngine ? "on" : ""}
+        aria-pressed={!showEngine}
+        onClick={() => showView("mantel")}
+        title="Mantel's simplified view of this phase"
+      >
+        Mantel
+      </button>
+      <button
+        className={showEngine ? "on" : ""}
+        aria-pressed={showEngine}
+        onClick={() => showView("engine")}
+        title={`The full ${ENGINE_NAMES[phaseEngine]} interface`}
+      >
+        {ENGINE_NAMES[phaseEngine]}
+        {engineDirty && engine?.phase === phase && (
+          <span className="dot-unsaved" aria-label="unsaved" />
+        )}
+      </button>
+    </div>
+  ) : null;
   const engineView = engine ? (
     <EngineFrame
       key={`${engine.engine}:${engine.file?.url ?? ""}`}
@@ -153,10 +225,30 @@ export function ProjectShell(props: WorkspaceProps) {
       phase={engine.phase}
       file={engine.file}
       readOnly={!owns}
+      visible={showEngine}
       onSaved={kept}
-      onClose={() => setEngine(null)}
+      onDirty={setEngineDirty}
+      onClose={() => showView("mantel")}
     />
   ) : null;
+  const agentFor = (p: PhaseId) => (
+    <PhaseAgent
+      phase={p}
+      state={state}
+      latestRevision={latestRevision}
+      projectId={projectId}
+      canNote={owns && can(me, "notes.write")}
+      onSuggestion={(text) => {
+        if (text === "New artwork") {
+          openEngine("mantelart", "art");
+          return true;
+        }
+        const target = PHASES.find((x) => text === `Go to ${x.label}`);
+        if (target) go(target.id);
+        return !!target;
+      }}
+    />
+  );
   const phaseBar = (
     <PhaseBar
       state={state}
@@ -182,6 +274,8 @@ export function ProjectShell(props: WorkspaceProps) {
           {...props}
           onBack={back}
           phaseBar={phaseBar}
+          topRight={viewSwitch}
+          agentPanel={agentFor("model")}
           outputBar={
             <ModelOutput
               state={state}
@@ -225,23 +319,9 @@ export function ProjectShell(props: WorkspaceProps) {
         onBack={back}
         onSettings={props.onSettings}
         onSignOut={props.onSignOut}
+        right={viewSwitch}
       />
-      <PhaseAgent
-        phase={phase}
-        state={state}
-        latestRevision={latestRevision}
-        projectId={projectId}
-        canNote={owns && can(me, "notes.write")}
-        onSuggestion={(text) => {
-          if (text === "New artwork") {
-            openEngine("mantelart", "art");
-            return true;
-          }
-          const target = PHASES.find((p) => text === `Go to ${p.label}`);
-          if (target) go(target.id);
-          return !!target;
-        }}
-      />
+      {agentFor(phase)}
       <main className="phase-work">
         {phase === "brief" && <BriefPhase {...shared} />}
         {phase === "art" && <ArtPhase {...shared} />}
