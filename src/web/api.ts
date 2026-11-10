@@ -1,3 +1,12 @@
+/** A failed API request, with its HTTP status (409 means someone else saved first). */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
 /** Calls the app's API with the browser's session cookie. */
 export async function request(path: string, init: RequestInit = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...init });
@@ -5,9 +14,33 @@ export async function request(path: string, init: RequestInit = {}) {
     const error = await response
       .json()
       .catch(() => ({ error: `Request failed (${response.status})` }));
-    throw new Error(error.error);
+    throw new ApiError(error.error, response.status);
   }
   return response;
+}
+export type PhaseFile = {
+  id: string;
+  phase: string;
+  name: string;
+  media_type: string;
+  size: number;
+  url: string;
+};
+/** Stores a file in one of a project's phases (logos, sketches, references, engine saves). */
+export async function uploadPhaseFile(
+  projectId: string,
+  phase: string,
+  name: string,
+  body: Blob,
+): Promise<PhaseFile> {
+  const q = new URLSearchParams({ phase, name });
+  return (
+    await request(`/api/projects/${projectId}/phase-files?${q}`, {
+      method: "POST",
+      headers: { "Content-Type": body.type || "application/octet-stream" },
+      body,
+    })
+  ).json();
 }
 export async function send<T>(
   path: string,
@@ -201,6 +234,8 @@ export type Activity = { sessions: Session[]; events: ProjectEvent[] };
 export type LiveMessage =
   | { type: "event"; event: ProjectEvent }
   | { type: "workspace" }
+  /** Someone saved the project's phases. */
+  | { type: "phases"; version: number }
   /** The agent points at faces or parts of a build in every watching viewer. */
   | {
       type: "highlight";

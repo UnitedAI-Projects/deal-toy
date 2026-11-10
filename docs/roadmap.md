@@ -15,7 +15,7 @@
 
 The five phases from the [phased workspace design](superpowers/specs/2026-11-10-phased-project-workspace-design.md) are usable in the interface ([plan](superpowers/plans/2026-11-10-phased-workspace-ui.md)). Each of these stand-ins needs its own design next:
 
-1. **Phase data on the server.** Briefs, concepts, approvals, documents and suppliers are kept in the browser (`src/web/phase-store.ts`). They need D1 tables, permission-checked tools shared with MCP, and live updates, so that teammates and agents see the same state.
+1. **Phase data on the server.** Done: `phase_states` and `phase_files` (migration 0012), `phases_get`, `phases_save` and `phase_files_list` for the UI and MCP, approval stamping and the agent guard, live updates, and a one-time import from browser storage.
 2. **The built-in agent.** The panel shows deterministic guidance (`agentGuide`) and sends notes. A real in-app agent needs a provider and cost decision first.
 3. **Concept generation, client share links and the manufacturing service.** Their controls are disabled or labelled "saved here, not sent".
 

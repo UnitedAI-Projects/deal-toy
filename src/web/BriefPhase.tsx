@@ -1,6 +1,7 @@
 /* Phase 1: the brief, a specification that edits in place. Each field says where its value
    came from and whether it is answered, assumed or still open. */
 import { useEffect, useState, type DragEvent } from "react";
+import { uploadPhaseFile } from "./api";
 import { Banner, OutputBar } from "./PhaseFrame";
 import type { PhaseProps } from "./ProjectShell";
 import {
@@ -14,27 +15,25 @@ import {
 } from "./phases";
 
 const VECTOR = /\.(svg|eps|ai|pdf)$/i;
-const MAX_INLINE = 1.5 * 1024 * 1024;
 const LONG = new Set(["story", "lettering", "notes", "fragile", "avoid"]);
 
 export const isVector = (name: string) => VECTOR.test(name);
 
-function readFile(file: File, field: string): Promise<BriefFile> {
-  const base = {
-    id: `${Date.now()}-${file.name}`,
+/** Stores a file in the project's brief and describes it for the brief's file list. */
+async function storeFile(
+  projectId: string,
+  file: File,
+  field: string,
+): Promise<BriefFile> {
+  const stored = await uploadPhaseFile(projectId, "brief", file.name, file);
+  return {
+    id: stored.id,
     name: file.name,
     type: file.type,
     size: file.size,
     field,
+    url: stored.url,
   };
-  if (!file.type.startsWith("image/") || file.size > MAX_INLINE)
-    return Promise.resolve(base);
-  return new Promise((resolve) => {
-    const r = new FileReader();
-    r.onload = () => resolve({ ...base, dataUrl: String(r.result) });
-    r.onerror = () => resolve(base);
-    r.readAsDataURL(file);
-  });
 }
 
 export function BriefPhase(props: PhaseProps) {
@@ -48,7 +47,16 @@ export function BriefPhase(props: PhaseProps) {
   const draft = !brief.approved || brief.version !== brief.approved.version;
 
   async function attach(files: FileList | File[], field = "logos") {
-    const read = await Promise.all([...files].map((f) => readFile(f, field)));
+    let read: BriefFile[];
+    try {
+      setError("");
+      read = await Promise.all(
+        [...files].map((f) => storeFile(props.data.project.id, f, field)),
+      );
+    } catch (e) {
+      setError(`Couldn't attach: ${(e as Error).message}`);
+      return;
+    }
     update((s) => {
       const all = [...s.brief.files, ...read];
       const logos = all.filter((f) => f.field === "logos");
@@ -106,6 +114,11 @@ export function BriefPhase(props: PhaseProps) {
             stay on v{brief.approved!.version} until you approve v
             {brief.version}.
           </Banner>
+        )}
+        {error && !confirming && (
+          <p className="error" role="alert">
+            {error}
+          </p>
         )}
         {BRIEF_SECTIONS.map(({ section }) => (
           <section className="brief-sec" key={section} id={anchor(section)}>
@@ -301,8 +314,8 @@ function FieldRow(props: {
           <div className="file-row">
             {props.files.map((x) => (
               <span className="file" key={x.id}>
-                {x.dataUrl ? (
-                  <img src={x.dataUrl} alt="" />
+                {(x.url ?? x.dataUrl) && x.type.startsWith("image/") ? (
+                  <img src={x.url ?? x.dataUrl} alt="" />
                 ) : (
                   <span className="file-sw">
                     {x.name.split(".").pop()?.toUpperCase()}

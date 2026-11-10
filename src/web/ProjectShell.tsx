@@ -46,13 +46,15 @@ export function initialPhase(s: PhaseState, latestRevision: number): PhaseId {
 export function ProjectShell(props: WorkspaceProps) {
   const { data, me } = props;
   const projectId = data.project.id;
-  const [state, update, saveError] = usePhases(projectId);
+  const owns = data.project.owner === me.email;
+  const store = usePhases(projectId, owns);
   const latestRevision = Math.max(0, ...data.models.map((m) => m.revision));
-  const [phase, setPhase] = useState<PhaseId>(
-    () => fromHash() ?? initialPhase(state, latestRevision),
-  );
+  const [chosen, setPhase] = useState<PhaseId | null>(fromHash);
+  // A project opens on the first phase not yet approved, once its phases have loaded.
+  const phase =
+    chosen ?? (store.state ? initialPhase(store.state, latestRevision) : null);
   useEffect(() => {
-    history.replaceState(null, "", `#${phase}`);
+    if (phase) history.replaceState(null, "", `#${phase}`);
   }, [phase]);
   useEffect(() => {
     const on = () => {
@@ -62,12 +64,20 @@ export function ProjectShell(props: WorkspaceProps) {
     addEventListener("hashchange", on);
     return () => removeEventListener("hashchange", on);
   }, []);
-  const owns = data.project.owner === me.email;
   const go = (p: PhaseId) => setPhase(p);
   const back = () => {
     history.replaceState(null, "", location.pathname);
     props.onBack();
   };
+  if (!store.state || !phase)
+    return (
+      <div className="splash">
+        {store.error
+          ? `Couldn't open the phases: ${store.error}`
+          : "Opening the project…"}
+      </div>
+    );
+  const { state, update } = store;
   const phaseBar = (
     <PhaseBar
       state={state}
@@ -76,9 +86,13 @@ export function ProjectShell(props: WorkspaceProps) {
       onChoose={go}
     />
   );
-  const saveNote = saveError ? (
+  const saveNote = store.error ? (
     <div className="toast" role="alert">
-      Not saved in this browser: {saveError}
+      Not saved: {store.error}
+    </div>
+  ) : store.saving ? (
+    <div className="save-chip" role="status">
+      Saving…
     </div>
   ) : null;
 
