@@ -10,6 +10,8 @@ Repository: `UnitedAI-Projects/deal-toy`. The product is named Mantel: an AI-nat
 - `src/web/` owns the project library, modeling workspace and extension interface. Native CAD runs in containers; the browser displays derived GLB geometry.
 - `skills/` contains workflow guidance. Skills cannot grant permissions. New executable tools require implementation, tests and deployment; Markdown cannot install code.
 
+- `engines/` holds the phase engines (MantelPDF, MantelArt, MantelCAD, MantelDocs, and MantelMesh once built), each its own Cargo workspace imported with `git subtree --squash`. Follow each engine's own `AGENTS.md` inside its directory, keep its licences and notices, and record imports and updates in `engines/README.md`. MantelCAD's `ui-kit`, `look` and `theme` crates are brand-licensed: no other engine may link them. `engines.yml` tests and builds only engines whose files changed.
+
 Before changing contracts, persistence or deployment, read `docs/architecture.md` and `docs/deployment.md`. Before adding drawing or handoff features, read `docs/manufacturing.md`. Use `docs/roadmap.md` to distinguish current functionality from planned capabilities.
 
 ## Delivery
