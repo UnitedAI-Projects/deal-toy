@@ -1,0 +1,27 @@
+[package]
+name = "mantelcad-doc"
+description = "MantelCAD document model: parameters and expressions, sketches and features on a parametric timeline, incremental evaluation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mantelcad-viewport = { workspace = true }
+solidcore-record = { workspace = true }
+solidcore-tess = { workspace = true }
+mantelcad-color = { workspace = true }
+mantelcad-geom = { workspace = true }
+mantelcad-sketch = { workspace = true }
+mantelcad-kernel = { workspace = true }
+mantelcad-profile = { workspace = true }
+mantelcad-render = { workspace = true }
+mantelcad-derive = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
+thiserror = { workspace = true }
+log = { workspace = true }
+sha2 = { workspace = true }
+web-time = { workspace = true }

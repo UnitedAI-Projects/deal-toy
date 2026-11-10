@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=MantelCAD
+GenericName=3D CAD
+Comment=Parametric 3D CAD: sketch, constrain, extrude, and change a parameter to rebuild
+Exec=mantelcad %f
+TryExec=mantelcad
+Icon=com.ichen27.mantelcad
+Terminal=false
+StartupNotify=true
+StartupWMClass=com.ichen27.mantelcad
+Categories=Graphics;3DGraphics;Engineering;
+Keywords=cad;3d;parametric;sketch;step;stl;modelling;modeling;
+MimeType=application/x-mantelcad;model/step;model/iges;model/stl;model/3mf;

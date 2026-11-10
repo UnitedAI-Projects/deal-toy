@@ -1,0 +1,32 @@
+{
+  "en": {
+    "ui.agent_chat_state_no_design": "No design access",
+    "ui.agent_chat_no_design_hint": "The agent runs without MantelCAD's tools, so it can't read or change the design: mantelcad-cli was not found next to the app. Install MantelCAD with mantelcad-cli beside it (on Windows, the MSI or the portable zip), or set MANTELCAD_CLI to its path, then connect again.",
+    "ui.agent_chat_tools_not_started": "The agent runs without MantelCAD's tools, so it can't read or change the design: mantelcad-cli was found, but its tools did not start (the error in the chat says why). Connect again; if it keeps happening, reinstall MantelCAD."
+  },
+  "ar": {
+    "ui.agent_chat_state_no_design": "لا وصول إلى التصميم",
+    "ui.agent_chat_no_design_hint": "يعمل الوكيل دون أدوات MantelCAD، لذا لا يستطيع قراءة التصميم أو تغييره: لم يُعثر على mantelcad-cli بجانب التطبيق. ثبّت MantelCAD مع mantelcad-cli بجانبه (في Windows: حزمة MSI أو ملف zip المحمول)، أو اضبط MANTELCAD_CLI على مساره، ثم اتصل مرة أخرى.",
+    "ui.agent_chat_tools_not_started": "يعمل الوكيل دون أدوات MantelCAD، لذا لا يستطيع قراءة التصميم أو تغييره: عُثر على mantelcad-cli، لكن أدواته لم تبدأ (رسالة الخطأ في المحادثة توضح السبب). اتصل مرة أخرى، وإذا تكرر ذلك فأعد تثبيت MantelCAD."
+  },
+  "he": {
+    "ui.agent_chat_state_no_design": "אין גישה לתכן",
+    "ui.agent_chat_no_design_hint": "הסוכן פועל בלי הכלים של MantelCAD, ולכן אינו יכול לקרוא או לשנות את התכן: mantelcad-cli לא נמצא ליד היישום. התקינו את MantelCAD עם mantelcad-cli לצידו (ב-Windows: קובץ ה-MSI או ה-zip הנייד), או הגדירו את MANTELCAD_CLI לנתיב שלו, ואז התחברו שוב.",
+    "ui.agent_chat_tools_not_started": "הסוכן פועל בלי הכלים של MantelCAD, ולכן אינו יכול לקרוא או לשנות את התכן: mantelcad-cli נמצא, אבל הכלים שלו לא הופעלו (הודעת השגיאה בצ'אט מסבירה למה). התחברו שוב, ואם זה חוזר, התקינו מחדש את MantelCAD."
+  },
+  "ja": {
+    "ui.agent_chat_state_no_design": "デザインにアクセスできません",
+    "ui.agent_chat_no_design_hint": "エージェントは MantelCAD のツールなしで動作しているため、デザインを読み取ることも変更することもできません。アプリの隣に mantelcad-cli が見つかりませんでした。mantelcad-cli が同梱された MantelCAD をインストールするか（Windows では MSI またはポータブル zip）、MANTELCAD_CLI にそのパスを設定してから、もう一度接続してください。",
+    "ui.agent_chat_tools_not_started": "エージェントは MantelCAD のツールなしで動作しているため、デザインを読み取ることも変更することもできません。mantelcad-cli は見つかりましたが、そのツールが起動しませんでした（理由はチャットのエラーに表示されています）。もう一度接続してください。繰り返し起きる場合は MantelCAD を再インストールしてください。"
+  },
+  "vi": {
+    "ui.agent_chat_state_no_design": "Không truy cập được thiết kế",
+    "ui.agent_chat_no_design_hint": "Tác tử đang chạy mà không có công cụ của MantelCAD, nên không thể đọc hay thay đổi thiết kế: không tìm thấy mantelcad-cli cạnh ứng dụng. Hãy cài MantelCAD có mantelcad-cli đi kèm (trên Windows: bản MSI hoặc bản zip di động), hoặc đặt MANTELCAD_CLI thành đường dẫn của nó, rồi kết nối lại.",
+    "ui.agent_chat_tools_not_started": "Tác tử đang chạy mà không có công cụ của MantelCAD, nên không thể đọc hay thay đổi thiết kế: đã tìm thấy mantelcad-cli, nhưng công cụ của nó không khởi động được (lỗi trong cuộc trò chuyện cho biết lý do). Hãy kết nối lại; nếu vẫn xảy ra, hãy cài lại MantelCAD."
+  },
+  "zh": {
+    "ui.agent_chat_state_no_design": "无法访问设计",
+    "ui.agent_chat_no_design_hint": "代理在没有 MantelCAD 工具的情况下运行，因此无法读取或修改设计：在应用旁边找不到 mantelcad-cli。请安装附带 mantelcad-cli 的 MantelCAD（在 Windows 上为 MSI 或便携版 zip），或将 MANTELCAD_CLI 设置为它的路径，然后重新连接。",
+    "ui.agent_chat_tools_not_started": "代理在没有 MantelCAD 工具的情况下运行，因此无法读取或修改设计：已找到 mantelcad-cli，但其工具未能启动（聊天中的错误信息说明了原因）。请重新连接；如果问题仍然出现，请重新安装 MantelCAD。"
+  }
+}

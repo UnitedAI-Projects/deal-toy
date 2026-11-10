@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- shared-mime-info definitions for types the system database may not have.
+     Installed to /usr/share/mime/packages/ (update-mime-database runs on install). -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-mantelcad">
+    <comment>MantelCAD design</comment>
+    <icon name="com.ichen27.mantelcad"/>
+    <sub-class-of type="application/json"/>
+    <!-- shared-mime-info also gives *.sc to Scala scripts (text/x-scala, weight 50); with
+         MantelCAD installed its designs win. -->
+    <glob pattern="*.sc" weight="60"/>
+    <!-- Compatibility shim (docs/compatibility.md): designs saved before .sc, and before the rename. -->
+    <glob pattern="*.solidcraft"/>
+    <glob pattern="*.solvecraft"/>
+  </mime-type>
+</mime-info>

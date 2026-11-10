@@ -1,0 +1,40 @@
+[package]
+name = "mantelcad-gpu"
+description = "MantelCAD GPU rendering: the viewport's render pipelines, offscreen captures, and display tessellation plans evaluated in a compute shader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mantelcad-viewport-gpu = { workspace = true }
+mantelcad-viewport = { workspace = true }
+solidcore-record = { workspace = true }
+solidcore-tess = { workspace = true }
+robust = "1.2"
+mantelcad-color = { workspace = true }
+mantelcad-geom = { workspace = true }
+mantelcad-render = { workspace = true }
+wgpu = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+robust = { workspace = true }
+pollster = { workspace = true }
+# Native backends, so tests and the CLI can open a device without a window.
+wgpu = { workspace = true, features = ["metal", "vulkan", "dx12", "gles"] }
+
+[dev-dependencies]
+image = { workspace = true }
+mantelcad-kernel = { workspace = true }
+# Headless pictures of real designs (capture tests), built by the real kernel, solidcore, as in the
+# apps.
+mantelcad-engine = { workspace = true, features = ["bundled-render-library"] }
+mantelcad-io = { workspace = true }
+serde_json = { workspace = true }
+# The HLSL the D3D12 backend compiles (tests check it suits FXC).
+naga = { workspace = true, features = ["wgsl-in", "hlsl-out"] }

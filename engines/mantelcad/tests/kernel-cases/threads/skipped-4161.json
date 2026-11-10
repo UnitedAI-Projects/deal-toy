@@ -1,0 +1,102 @@
+[
+ {
+  "source": "ichen27/mantelcad#4183",
+  "why": "no reproduction: a thread failure shown by screenshot only"
+ },
+ {
+  "source": "ichen27/mantelcad#4281",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a modelled thread facets the body; no sizes"
+ },
+ {
+  "source": "ichen27/mantelcad#4378",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a modelled M12 thread facets the body; no steps"
+ },
+ {
+  "source": "ichen27/mantelcad#4414",
+  "why": "no geometry: left-handed threads (feature request)"
+ },
+ {
+  "source": "ichen27/mantelcad#4494",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a modelled thread re-faceting the body's other faces (a fillet here)"
+ },
+ {
+  "source": "ichen27/mantelcad#4537",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a second modelled thread on the same body finds no cylinder"
+ },
+ {
+  "source": "ichen27/mantelcad#4577",
+  "why": "no geometry: custom thread designations exist (M33.25x1.25 works)"
+ },
+ {
+  "source": "ichen27/mantelcad#4665",
+  "why": "no geometry: the GPU pick buffer (render)"
+ },
+ {
+  "source": "ichen27/mantelcad#4672",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a modelled thread facets the other round faces; no sizes"
+ },
+ {
+  "source": "ichen27/mantelcad#4684",
+  "why": "no geometry: gear generator and offsettable threads (feature requests)"
+ },
+ {
+  "source": "ichen27/mantelcad#4727",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: modelled threads are faceted; no sizes"
+ },
+ {
+  "source": "ichen27/mantelcad#4734",
+  "why": "no geometry: see-through bodies sorted per triangle (render)"
+ },
+ {
+  "source": "ichen27/mantelcad#4735",
+  "why": "no geometry: a tapered coil (feature request)"
+ },
+ {
+  "source": "ichen27/mantelcad#4736",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a modelled thread facets the body; no sizes"
+ },
+ {
+  "source": "ichen27/mantelcad#4799",
+  "why": "no geometry: cosmetic threads don't cut the model, by design"
+ },
+ {
+  "source": "ichen27/mantelcad#4913",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a second modelled thread after the first"
+ },
+ {
+  "source": "ichen27/mantelcad#4963",
+  "why": "no geometry: a modelled thread needs the tap-drill hole, by design"
+ },
+ {
+  "source": "ichen27/mantelcad#4971",
+  "why": "no geometry: no coarse M28 in ISO metric (designation; M28x2 works)"
+ },
+ {
+  "source": "ichen27/mantelcad#5055",
+  "why": "no geometry: no coarse thread past M56 (designation; M75x2 works)"
+ },
+ {
+  "source": "ichen27/mantelcad#5238",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a second modelled thread on the same body"
+ },
+ {
+  "source": "ichen27/mantelcad#5277",
+  "why": "no reproduction: a slow modelled M8x1 thread on an unknown large part, no design"
+ },
+ {
+  "source": "ichen27/mantelcad#5282",
+  "why": "no geometry: a 20 mm hole is refused for a modelled M20 by design (drill 17.5)"
+ },
+ {
+  "source": "ichen27/mantelcad#5382",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded: a second modelled M8 thread on the same body"
+ },
+ {
+  "source": "ichen27/mantelcad#5384",
+  "why": "duplicate of threads/3311-two-tapped-holes-both-modelled-threaded (and #5382)"
+ },
+ {
+  "source": "ichen27/mantelcad#5417",
+  "why": "no reproduction: \"tree too deep\" on an M12x1.5 modelled thread in an unknown hole (dup of #2892)"
+ }
+]
