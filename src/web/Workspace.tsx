@@ -55,6 +55,7 @@ import {
 } from "./origin";
 import { refFromPick } from "./refs";
 import { Toolbar, type ToolbarAction } from "./Toolbar";
+import { Triad, type TriadHandle } from "./AxisTriad";
 import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
@@ -144,6 +145,7 @@ export function Workspace(props: Props) {
     error: string;
     busy: boolean;
   } | null>(null);
+  const triad = useRef<TriadHandle>(null);
   // Shown or hidden by hand in the Browser; otherwise the origin follows originVisible.
   const [originOverrides, setOriginOverrides] = useState<
     Partial<Record<OriginItem, boolean>>
@@ -911,6 +913,7 @@ export function Workspace(props: Props) {
           handle={posed ? null : handle}
           pose={pose}
           move={move}
+          onView={(q) => triad.current?.update(q)}
           origin={{
             visible: originShown,
             bounds: asOf ? null : originBounds,
@@ -938,6 +941,7 @@ export function Workspace(props: Props) {
           }}
         />
       </Suspense>
+      <Triad ref={triad} />
 
       <header className="topbar">
         <div className="topbar-left">

@@ -2135,3 +2135,13 @@ tr.selected {
   gap: 2px;
   min-width: 0;
 }
+
+/* The model axes in the view's top-right corner, under any open panel. */
+.triad {
+  position: absolute;
+  top: 60px;
+  right: 14px;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}

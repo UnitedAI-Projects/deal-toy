@@ -91,6 +91,8 @@ type Props = {
     onRelease: () => void;
     onCancel: () => void;
   } | null;
+  /** The camera's orientation (x, y, z, w), reported whenever the view changes. */
+  onView?: (q: [number, number, number, number]) => void;
   /**
    * The origin planes and axes, drawn in the model's frame even before the first build. While
    * `pickPlanes` is set, a click on a plane reports it instead of selecting a part.
@@ -148,6 +150,11 @@ export function Viewer(props: Props) {
     camera.position.set(160, 110, 180);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    const reportView = () => {
+      const q = camera.quaternion;
+      latest.current.onView?.([q.x, q.y, q.z, q.w]);
+    };
+    controls.addEventListener("change", reportView);
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f98, 2.2));
     const key = new THREE.DirectionalLight(0xffffff, 2.6);
     key.position.set(90, 160, 120);
@@ -184,6 +191,7 @@ export function Viewer(props: Props) {
       frame = requestAnimationFrame(draw);
     };
     draw();
+    reportView();
     // A click (not a drag) selects the labelled part under the pointer.
     let down: { x: number; y: number } | null = null;
     const onDown = (e: PointerEvent) => {
@@ -242,6 +250,7 @@ export function Viewer(props: Props) {
     return () => {
       cancelAnimationFrame(frame);
       resize.disconnect();
+      controls.removeEventListener("change", reportView);
       controls.dispose();
       renderer.domElement.removeEventListener("pointerdown", onDown);
       renderer.domElement.removeEventListener("pointerup", onUp);
