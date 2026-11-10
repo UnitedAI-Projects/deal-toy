@@ -68,6 +68,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: engines/${{ matrix.engine }}
+          cache-on-failure: true
       - name: Install Trunk 0.22.1
         run: |
           curl -fsSL -o trunk.tgz https://github.com/trunk-rs/trunk/releases/download/v0.22.1/trunk-x86_64-unknown-linux-gnu.tar.gz
@@ -87,11 +88,11 @@ jobs:
             # Desktop tests include cold graphics-driver initialization and real socket deadlines.
             # Run that package serially so hardware probes cannot stall the daemon's reader tests.
             cargo test --package mantelcad --locked --profile ci -- --test-threads=1
-            cargo test --workspace --exclude mantelcad --locked --profile ci
+            cargo test --workspace --exclude mantelcad --locked --profile ci --no-fail-fast
           elif grep -q '^\[profile.ci\]' Cargo.toml; then
-            cargo test --workspace --locked --profile ci
+            cargo test --workspace --locked --profile ci --no-fail-fast
           else
-            cargo test --workspace --locked
+            cargo test --workspace --locked --no-fail-fast
           fi
       - id: tree
         run: echo "tree=$(git rev-parse HEAD:engines/${{ matrix.engine }})" >> "$GITHUB_OUTPUT"
