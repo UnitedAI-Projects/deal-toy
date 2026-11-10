@@ -5,6 +5,39 @@
 import { useEffect, useRef, useState } from "react";
 import { request, uploadPhaseFile, type PhaseFile } from "./api";
 
+type ArtApi = {
+  openFile: (name: string, bytes: Uint8Array) => boolean;
+  captureDownloads: (on: boolean) => void;
+  files: () => { path: string; size: number }[];
+  readFile: (path: string) => Uint8Array;
+  execute: (
+    command: string,
+    params?: unknown,
+  ) => Promise<Record<string, unknown>>;
+};
+const fromBase64 = (b64: string) => {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+
+const MEDIA: Record<string, string> = {
+  svg: "image/svg+xml",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  pdf: "application/pdf",
+  dxf: "image/vnd.dxf",
+  step: "model/step",
+  stp: "model/step",
+  vectorcraft: "application/json",
+};
+/** The media type a saved file is stored with, from its name. */
+export const mediaTypeFor = (name: string) =>
+  MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ??
+  "application/octet-stream";
+
 export type EngineId = "manteldocs" | "mantelpdf" | "mantelart" | "mantelcad";
 export const ENGINE_NAMES: Record<EngineId, string> = {
   manteldocs: "MantelDocs",
@@ -39,6 +72,31 @@ export function EngineFrame(props: {
   onClose: () => void;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
+  const artApi = useRef<ArtApi | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  /** MantelArt: save the document and an SVG export into the project, through its commands. */
+  async function saveArt() {
+    const api = artApi.current;
+    if (!api) return;
+    setBusy(true);
+    setError("");
+    try {
+      const info = await api.execute("document.inspect", {});
+      const base =
+        props.file?.name.replace(/\.[^.]+$/, "") ||
+        (typeof info.fileInfoTitle === "string" && info.fileInfoTitle) ||
+        "Artwork";
+      const doc = await api.execute("document.save", {});
+      await keep(`${base}.vectorcraft`, fromBase64(String(doc.dataBase64)));
+      const svg = await api.execute("document.export", { format: "svg" });
+      await keep(`${base}.svg`, fromBase64(String(svg.dataBase64)));
+      setStatus(`Saved ${base}.vectorcraft and ${base}.svg`);
+    } catch (err) {
+      setError(`Couldn't save to the project: ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
   const [status, setStatus] = useState("Starting…");
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState<Saved[]>([]);
@@ -58,7 +116,9 @@ export function EngineFrame(props: {
 
   async function keep(fileName: string, bytes: ArrayBuffer | Uint8Array) {
     if (props.readOnly) throw new Error("This project is view-only");
-    const body = new Blob([bytes as BlobPart]);
+    const body = new Blob([bytes as BlobPart], {
+      type: mediaTypeFor(fileName),
+    });
     const file = await uploadPhaseFile(
       props.projectId,
       props.phase,
@@ -145,12 +205,6 @@ export function EngineFrame(props: {
   // MantelArt: its page API. Saves are kept in the page and collected here.
   useEffect(() => {
     if (props.engine !== "mantelart") return;
-    type Api = {
-      openFile: (name: string, bytes: Uint8Array) => boolean;
-      captureDownloads: (on: boolean) => void;
-      files: () => { path: string; size: number }[];
-      readFile: (path: string) => Uint8Array;
-    };
     let stopped = false;
     const seen = new Map<string, string>();
     const digest = async (b: Uint8Array) =>
@@ -163,13 +217,15 @@ export function EngineFrame(props: {
         .map((x) => x.toString(16).padStart(2, "0"))
         .join("");
     void (async () => {
-      let api: Api | undefined;
+      let api: ArtApi | undefined;
       for (let i = 0; i < 240 && !stopped && !api; i++) {
-        api = (frame.current?.contentWindow as unknown as { vectorcraft?: Api })
-          ?.vectorcraft;
+        api = (
+          frame.current?.contentWindow as unknown as { vectorcraft?: ArtApi }
+        )?.vectorcraft;
         if (!api) await new Promise((r) => setTimeout(r, 250));
       }
       if (!api || stopped) return;
+      artApi.current = api;
       api.captureDownloads(!props.readOnly);
       if (props.file) {
         try {
@@ -236,6 +292,11 @@ export function EngineFrame(props: {
             {saved.length} {saved.length === 1 ? "save" : "saves"} kept in the
             project
           </span>
+        )}
+        {props.engine === "mantelart" && !props.readOnly && (
+          <button disabled={busy} onClick={() => void saveArt()}>
+            {busy ? "Saving…" : "Save to project"}
+          </button>
         )}
         {props.engine === "mantelcad" && (
           <span className="muted small">

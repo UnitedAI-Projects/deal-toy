@@ -11,6 +11,7 @@ import {
   emptyPhaseState,
   phaseStatus,
   releaseReady,
+  withBriefLogo,
   DOCS,
   type Concept,
   type PhaseState,
@@ -121,6 +122,42 @@ describe("phaseStatus", () => {
     expect(phaseStatus(s, "model", 6)).toBe("approved");
     expect(phaseStatus(s, "model", 7)).toBe("stale");
     expect(phaseStatus(emptyPhaseState(), "model", 3)).toBe("active");
+  });
+});
+
+describe("art", () => {
+  it("is none until there is artwork, then active, approved and stale", () => {
+    let s = emptyPhaseState();
+    expect(phaseStatus(s, "art", 0)).toBe("none");
+    s = { ...s, art: { kinds: { "logo.svg": "logo" } } };
+    expect(phaseStatus(s, "art", 0)).toBe("active");
+    s = approveBrief(complete(s), by, at);
+    s = {
+      ...s,
+      art: { ...s.art, approved: { files: ["f1"], briefVersion: 1, by, at } },
+    };
+    expect(phaseStatus(s, "art", 0)).toBe("approved");
+    s = approveBrief(editBriefField(s, "box", { value: "walnut box" }), by, at);
+    expect(phaseStatus(s, "art", 0)).toBe("stale");
+  });
+
+  it("sends a file to the brief's logos and answers the field", () => {
+    const s = withBriefLogo(emptyPhaseState(), {
+      id: "f1",
+      name: "harbor.svg",
+      type: "image/svg+xml",
+      size: 10,
+      field: "logos",
+      url: "/api/phase-files/f1",
+    });
+    expect(s.brief.files.map((f) => f.id)).toEqual(["f1"]);
+    expect(s.brief.fields.find((f) => f.key === "logos")).toMatchObject({
+      value: "harbor.svg",
+      state: "answered",
+      source: "file",
+    });
+    // Sending it again doesn't add it twice.
+    expect(withBriefLogo(s, s.brief.files[0]).brief.files).toHaveLength(1);
   });
 });
 

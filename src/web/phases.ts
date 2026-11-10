@@ -1,11 +1,12 @@
-/* The five phases of a project and the rules between them: brief progress and versions,
+/* The six phases of a project and the rules between them: brief progress and versions,
    approvals, and what turns stale when something upstream changes. Pure; the UI and the
    store build on it. People approve; nothing here approves on anyone's behalf. */
 
 export type PhaseId =
-  "brief" | "concepts" | "model" | "documents" | "manufacture";
+  "brief" | "art" | "concepts" | "model" | "documents" | "manufacture";
 export const PHASES: { id: PhaseId; label: string }[] = [
   { id: "brief", label: "Brief" },
+  { id: "art", label: "Art" },
   { id: "concepts", label: "Concepts" },
   { id: "model", label: "Model" },
   { id: "documents", label: "Documents" },
@@ -110,8 +111,23 @@ export const ORDER_STAGES = [
   "Shipped",
 ] as const;
 export type OrderStage = (typeof ORDER_STAGES)[number];
+export const ART_KINDS = [
+  "logo",
+  "lettering",
+  "illustration",
+  "other",
+] as const;
+export type ArtKind = (typeof ART_KINDS)[number];
+/** The Art phase: artwork made in MantelArt and kept as the project's "art" files. */
+export type Art = {
+  /** What each piece of artwork is, by file name. */
+  kinds: Record<string, ArtKind>;
+  /** The artwork a person approved for production: the file versions, against a brief. */
+  approved?: Approval & { files: string[]; briefVersion: number };
+};
 export type PhaseState = {
   brief: Brief;
+  art: Art;
   concepts: Concept[];
   decision?: ConceptDecision;
   modelReady?: Stamp;
@@ -216,6 +232,7 @@ export function emptyPhaseState(): PhaseState {
   for (const d of DOCS) docs[d.kind] = { kind: d.kind, content: "" };
   return {
     brief: { version: 1, fields: briefTemplate(), files: [] },
+    art: { kinds: {} },
     concepts: [],
     docs,
     suppliers: [],
@@ -311,6 +328,10 @@ export function phaseStatus(
       return s.brief.approved && s.brief.version === s.brief.approved.version
         ? "approved"
         : "active";
+    case "art":
+      if (s.art.approved)
+        return s.art.approved.briefVersion < bv ? "stale" : "approved";
+      return Object.keys(s.art.kinds).length ? "active" : "none";
     case "concepts":
       if (s.decision)
         return s.decision.briefVersion < bv ? "stale" : "approved";
@@ -413,6 +434,28 @@ export function agentGuide(
           : ["Go to Concepts"],
       };
     }
+    case "art": {
+      const pieces = Object.keys(s.art.kinds).length;
+      if (phaseStatus(s, "art", latestRevision) === "stale")
+        return {
+          text: `The brief changed to v${bv} after the artwork was approved. Check it still matches, then approve again.`,
+          suggestions: ["What changed in the brief?"],
+        };
+      if (s.art.approved)
+        return {
+          text: "The artwork is approved. Concepts is next.",
+          suggestions: ["Go to Concepts"],
+        };
+      if (!pieces)
+        return {
+          text: "Draw or redraw the logos and lettering in MantelArt. Vector artwork here is what gets engraved or printed.",
+          suggestions: ["New artwork"],
+        };
+      return {
+        text: `${pieces} ${pieces === 1 ? "piece" : "pieces"} of artwork. Mark what each one is, send finished logos to the brief, then approve the set.`,
+        suggestions: [],
+      };
+    }
     case "concepts": {
       const live = s.concepts.filter((c) => !c.discarded);
       if (phaseStatus(s, "concepts", latestRevision) === "stale")
@@ -469,4 +512,18 @@ export function agentGuide(
         suggestions: [],
       };
   }
+}
+
+const VECTOR_NAME = /\.(svg|eps|ai|pdf)$/i;
+/** Adds a file to the brief's logos and updates the Logos field from the logo files. */
+export function withBriefLogo(s: PhaseState, file: BriefFile): PhaseState {
+  const files = [...s.brief.files.filter((f) => f.id !== file.id), file];
+  const logos = files.filter((f) => f.field === "logos");
+  const next = { ...s, brief: { ...s.brief, files } };
+  return editBriefField(next, "logos", {
+    value: logos.map((f) => f.name).join(", "),
+    state: logos.some((f) => VECTOR_NAME.test(f.name)) ? "answered" : "open",
+    source: "file",
+    note: `${logos.length} ${logos.length === 1 ? "file" : "files"}`,
+  });
 }

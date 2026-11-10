@@ -2,6 +2,7 @@
    bar passed in; the other phases share the frame in PhaseFrame. */
 import { useEffect, useState } from "react";
 import { can } from "./api";
+import { ArtPhase } from "./ArtPhase";
 import { BriefPhase } from "./BriefPhase";
 import { ConceptsPhase } from "./ConceptsPhase";
 import { DocumentsPhase } from "./DocumentsPhase";
@@ -202,6 +203,10 @@ export function ProjectShell(props: WorkspaceProps) {
         projectId={projectId}
         canNote={owns && can(me, "notes.write")}
         onSuggestion={(text) => {
+          if (text === "New artwork") {
+            openEngine("mantelart", "art");
+            return true;
+          }
           const target = PHASES.find((p) => text === `Go to ${p.label}`);
           if (target) go(target.id);
           return !!target;
@@ -209,6 +214,7 @@ export function ProjectShell(props: WorkspaceProps) {
       />
       <main className="phase-work">
         {phase === "brief" && <BriefPhase {...shared} />}
+        {phase === "art" && <ArtPhase {...shared} />}
         {phase === "concepts" && <ConceptsPhase {...shared} />}
         {phase === "documents" && <DocumentsPhase {...shared} />}
         {phase === "manufacture" && <ManufacturePhase {...shared} />}

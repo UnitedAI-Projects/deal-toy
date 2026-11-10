@@ -242,7 +242,8 @@ function PhaseStrip({ projectId }: { projectId: string }) {
   if (!s) return null;
   const rev = s.modelReady?.revision ?? 0;
   const marks = PHASES.map((ph) => ({ ...ph, st: phaseStatus(s, ph.id, rev) }));
-  const current = marks.find((m) => m.st !== "approved") ?? marks[4];
+  const current =
+    marks.find((m) => m.st !== "approved") ?? marks[marks.length - 1];
   return (
     <span
       className="phase-strip"

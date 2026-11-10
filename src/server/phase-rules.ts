@@ -40,6 +40,9 @@ export function checkShape(state: unknown) {
   if (present(state.brief) && !isObject(state.brief))
     throw new AppError(400, "brief must be an object");
   if (isObject(state.brief)) slot("brief.approved", state.brief.approved);
+  if (present(state.art) && !isObject(state.art))
+    throw new AppError(400, "art must be an object");
+  if (isObject(state.art)) slot("art.approved", state.art.approved);
   slot("decision", state.decision);
   slot("modelReady", state.modelReady);
   slot("release", state.release);
@@ -85,6 +88,7 @@ export function approvals(state: unknown): Map<string, Json> {
     if (isObject(v)) out.set(path, v);
   };
   if (isObject(state.brief)) add("brief.approved", state.brief.approved);
+  if (isObject(state.art)) add("art.approved", state.art.approved);
   if (isObject(state.decision)) {
     add("decision", state.decision);
     const qs = state.decision.questions;
