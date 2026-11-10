@@ -1,0 +1,15 @@
+[package]
+name = "manteldocs-constraints"
+description = "MantelDocs parametric solver: geometric and dimensional constraints (own damped Gauss-Newton solver), expressions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+manteldocs-geom = { workspace = true }
+manteldocs-doc = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=MantelDocs
+GenericName=Computer-Aided Design
+Comment=Draft, dimension and plot 2D drawings; open DXF and DWG files
+Exec=manteldocs %F
+TryExec=manteldocs
+Icon=com.manteldocs.app
+Terminal=false
+StartupNotify=true
+StartupWMClass=com.manteldocs.app
+Categories=Graphics;Engineering;VectorGraphics;
+MimeType=image/vnd.dxf;image/vnd.dwg;application/x-dxf;application/acad;
+Keywords=cad;drafting;dxf;dwg;drawing;engineering;architecture;mechanical;
