@@ -164,6 +164,93 @@ describe("phases", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
+  it("counts any value in an approval slot as an approval", async () => {
+    const p = await project("Phases bypass");
+    // No `by`: still an approval, so an agent can't write one.
+    for (const state of [
+      { ...brief(), brief: { ...brief().brief, approved: { version: 1 } } },
+      { ...brief(), modelReady: { revision: 9 } },
+      {
+        ...brief(),
+        docs: { proof: { content: "x", approved: { revision: 1 } } },
+      },
+    ])
+      await expect(
+        mcp(alice, "phases_save", { projectId: p, expectedVersion: 0, state }),
+      ).rejects.toMatchObject({ status: 403 });
+    // From a person, the same save is stamped.
+    const saved = (await http(alice, "phases_save", {
+      projectId: p,
+      expectedVersion: 0,
+      state: { ...brief(), modelReady: { revision: 9 } },
+    })) as { state: { modelReady: { by: string; revision: number } } };
+    expect(saved.state.modelReady).toMatchObject({
+      by: "alice@ph.test",
+      revision: 9,
+    });
+  });
+
+  it("refuses states whose approvals can't be read unambiguously", async () => {
+    const p = await project("Phases shapes");
+    const bad = [
+      { ...brief(), modelReady: "yes" },
+      { ...brief(), docs: { "proof.approved": {} } },
+      { ...brief(), decision: { conceptId: "c", questions: [{ id: "a.b" }] } },
+      {
+        ...brief(),
+        decision: { conceptId: "c", questions: [{ id: "q" }, { id: "q" }] },
+      },
+      {
+        ...brief(),
+        decision: { conceptId: "c", questions: [{ text: "no id" }] },
+      },
+    ];
+    for (const state of bad)
+      await expect(
+        http(alice, "phases_save", { projectId: p, expectedVersion: 0, state }),
+      ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("lets an agent add and edit questions without touching the decision", async () => {
+    const p = await project("Phases questions");
+    const decision = {
+      conceptId: "c1",
+      qualities: [],
+      targets: "",
+      briefVersion: 0,
+      questions: [] as unknown[],
+    };
+    const saved = (await http(alice, "phases_save", {
+      projectId: p,
+      expectedVersion: 0,
+      state: { ...brief(), decision },
+    })) as { state: { decision: typeof decision }; version: number };
+    const next = structuredClone(saved.state);
+    next.decision.questions.push({
+      id: "q1",
+      text: "Cable gauge?",
+      owner: "maker",
+    });
+    await expect(
+      mcp(alice, "phases_save", {
+        projectId: p,
+        expectedVersion: saved.version,
+        state: next,
+      }),
+    ).resolves.toMatchObject({ version: 2 });
+    const resolved = structuredClone(next) as {
+      decision: { questions: { resolved?: unknown }[] };
+    };
+    resolved.decision.questions[0].resolved = { by: "alice@ph.test", at: "x" };
+    await expect(
+      mcp(alice, "phases_save", {
+        projectId: p,
+        expectedVersion: 2,
+        state: resolved,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
   it("lets demo viewers read without seeing who approved, and not write", async () => {
     const p = await project("Phases demo", true);
     await http(alice, "phases_save", {
@@ -245,6 +332,26 @@ describe("phase files", () => {
       { method: "POST", headers: { Cookie: cookie }, body: "x" },
     );
     expect(crossSite.status).toBe(403);
+    const tooBig = await exports.default.fetch(
+      `${origin}/api/projects/${p}/phase-files?phase=brief&name=big.bin`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          "Content-Type": "application/octet-stream",
+        },
+        body: new ReadableStream({
+          start(controller) {
+            const chunk = new Uint8Array(1024 * 1024);
+            for (let i = 0; i < 26; i++) controller.enqueue(chunk);
+            controller.close();
+          },
+        }),
+        duplex: "half",
+      } as RequestInit,
+    );
+    expect(tooBig.status).toBe(413);
     const noPhase = await exports.default.fetch(
       `${origin}/api/projects/${p}/phase-files?name=x.png`,
       {

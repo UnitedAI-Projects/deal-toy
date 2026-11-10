@@ -5,6 +5,7 @@ import { AppError, id, projectAccess, type Context } from "./core";
 import { notify } from "./activity";
 import {
   changedApprovals,
+  checkShape,
   removedApprovals,
   stamp,
   withoutPeople,
@@ -69,6 +70,7 @@ export const phaseTools: Tool[] = [
     false,
     async (c, i) => {
       await projectAccess(c, i.projectId);
+      checkShape(i.state);
       const text = JSON.stringify(i.state);
       if (text.length > MAX_STATE_BYTES)
         throw new AppError(
@@ -142,6 +144,31 @@ export const phaseTools: Tool[] = [
   ),
 ];
 
+/** Reads a request body, stopping as soon as it passes the limit. */
+async function boundedBytes(request: Request, limit: number) {
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw new AppError(413, "Files are limited to 25 MB");
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return out;
+}
+
 /** Stores one uploaded file for a phase. The caller has checked the request's origin. */
 export async function addPhaseFile(
   c: Context,
@@ -161,10 +188,8 @@ export async function addPhaseFile(
   const declared = Number(request.headers.get("Content-Length") ?? "0");
   if (declared > MAX_FILE_BYTES)
     throw new AppError(413, "Files are limited to 25 MB");
-  const bytes = new Uint8Array(await request.arrayBuffer());
+  const bytes = await boundedBytes(request, MAX_FILE_BYTES);
   if (!bytes.byteLength) throw new AppError(400, "The file is empty");
-  if (bytes.byteLength > MAX_FILE_BYTES)
-    throw new AppError(413, "Files are limited to 25 MB");
   const mediaType =
     (request.headers.get("Content-Type") ?? "").split(";")[0].trim() ||
     "application/octet-stream";
