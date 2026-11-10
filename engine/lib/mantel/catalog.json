@@ -32,6 +32,7 @@
       "version": 1,
       "title": "Body",
       "category": "Create",
+      "featured": true,
       "summary": "Add a new labelled part from a box, rounded box, cylinder, cone or sphere.",
       "description": "Use for the blocks, bases and plinths a deal toy starts from. The step name becomes the part label, and the part gets named sides (top, bottom, left, right, front, back) for later steps. Do not use it to cut material: use extrude with operation cut, hole, or combine.",
       "inputs": {
@@ -231,6 +232,7 @@
       "version": 1,
       "title": "Construction plane",
       "category": "Construct",
+      "featured": true,
       "summary": "Add a named construction plane: offset from a face, angled about an edge, midway between faces, or through 3 points.",
       "description": "Use to place features where no face exists, such as text floating on a mid-plane or a cut through the middle of a part. A plane adds no material. Later steps refer to it with m.datum(name). The origin planes XY, XZ and YZ are always available as m.datum('XY') and so on, and no step may take those names.",
       "inputs": {
@@ -429,6 +431,7 @@
       "version": 1,
       "title": "Extrude",
       "category": "Create",
+      "featured": true,
       "summary": "Extrude a rectangle, rounded rectangle, circle, slot or polygon from a face to add, cut or make a part.",
       "description": "Use for pockets, bosses, slots and recesses with a simple outline. Use hole for round holes with counterbores or countersinks, text for lettering, and combine to cut one existing part from another. Negative distances go into the part.",
       "inputs": {
@@ -732,6 +735,8 @@
       "version": 1,
       "title": "Hole",
       "category": "Modify",
+      "group": "Create",
+      "featured": true,
       "summary": "Cut a simple, counterbored or countersunk round hole into a face, to a depth, through all or up to a face.",
       "description": "Use for mounting and screw holes. The hole is drilled perpendicular to the face at the point at. For non-round cavities use extrude with operation cut; to make a cavity shaped like another part, use combine.",
       "inputs": {
@@ -942,6 +947,7 @@
       "version": 1,
       "title": "Fillet",
       "category": "Modify",
+      "featured": true,
       "summary": "Round the selected edges with a radius.",
       "description": "Use to soften the edges of blocks and bases. A radius that is too large for an edge is reduced to the largest that builds, and the step reports a warning. For a flat bevel use chamfer.",
       "inputs": {
@@ -1018,6 +1024,7 @@
       "version": 1,
       "title": "Chamfer",
       "category": "Modify",
+      "featured": true,
       "summary": "Bevel the selected edges by a distance, optionally at an angle.",
       "description": "Use for flat bevels on edges, such as a lead-in on a hole or a crisp edge on a plaque. For rounded edges use fillet.",
       "inputs": {
@@ -1247,6 +1254,7 @@
       "version": 1,
       "title": "Combine",
       "category": "Combine",
+      "group": "Modify",
       "summary": "Join, cut or intersect one part with another; cut and keep the tool to make an embed cavity.",
       "description": "Use to merge parts, to cut one part's shape out of another, or to keep only their overlap. Cutting with keep_tool makes the cavity an embedded object sits in, such as a coin in an acrylic block. The tool part is removed unless keep_tool is true.",
       "inputs": {
@@ -1329,6 +1337,7 @@
       "version": 1,
       "title": "Move",
       "category": "Arrange",
+      "featured": true,
       "summary": "Translate or rotate a part, or align one of its faces to another face.",
       "description": "Use to place parts relative to each other, such as setting a figure on its base. Align moves the part so its face lies against the target face, facing it, at the offset. Moving changes no shapes.",
       "inputs": {
@@ -2063,6 +2072,7 @@
       "version": 1,
       "title": "Shell",
       "category": "Modify",
+      "featured": true,
       "summary": "Hollow out a part to a wall thickness, leaving the chosen faces open.",
       "description": "Use to turn a solid body into a vessel: a cup from a solid loft, a box with an open top. Open faces must belong to the target. With inward true the outside stays where it is. For a revolved cup, drawing the wall in the revolve profile is simpler and more robust.",
       "inputs": {
@@ -2160,6 +2170,7 @@
       "version": 1,
       "title": "Appearance",
       "category": "Modify",
+      "group": "Modify",
       "summary": "Give a whole part a colour and a finish: matte, satin, gloss or metallic.",
       "description": "Use for glazes, paints and metal finishes the person asked for. The colour applies to the whole part and stays through later cuts and joins on it. To colour one area differently, such as a gold rim on a white cup, make that area its own part first. Adds and removes no material.",
       "inputs": {

@@ -369,6 +369,15 @@ actions = [
     },
 ]
 
+# The tool bar: a group where it differs from the category, and the actions shown as buttons.
+GROUPS = {"hole": "Create", "combine": "Modify", "appearance": "Modify"}
+FEATURED = {"body", "extrude", "hole", "fillet", "chamfer", "shell", "move", "plane"}
+for action in actions:
+    if action["id"] in GROUPS:
+        action["group"] = GROUPS[action["id"]]
+    if action["id"] in FEATURED:
+        action["featured"] = True
+
 for action in actions:
     action["version"] = 1
     sel = []
@@ -382,8 +391,9 @@ for action in actions:
             sel.append({"input": name, "kind": k, "min": 1 if name in action["inputs"]["required"] else 0, "max": count})
     action["selections"] = sel
 
-ordered = [{k: a[k] for k in ["id", "version", "title", "category", "summary", "description", "inputs",
-                               "selections", "creates", "failures", "preview", "example"]} for a in actions]
+ordered = [{k: a[k] for k in ["id", "version", "title", "category", "group", "featured", "summary",
+                               "description", "inputs", "selections", "creates", "failures", "preview",
+                               "example"] if k in a} for a in actions]
 states = [
     {"state": "ok", "meaning": "The step ran and produced valid geometry."},
     {"state": "warning", "meaning": "The step ran, but something needs attention, such as a fillet radius that was reduced or text that runs past the face."},

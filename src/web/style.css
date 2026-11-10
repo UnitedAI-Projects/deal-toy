@@ -1086,22 +1086,95 @@ button.wide {
 .step-detail {
   color: var(--muted);
 }
-.toolbar {
-  position: relative;
+/* The floating tool bar (layout B): groups of featured buttons, each with a ▾ list. */
+.cadbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  max-width: calc(100% - 28px);
 }
-.toolbar-menu {
-  right: 0;
-  top: 40px;
-  width: 320px;
+.cadbar-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.cadbar-group + .cadbar-group {
+  border-left: 1px solid var(--line);
+  padding-left: 2px;
+  margin-left: 2px;
+}
+.cadbar-button,
+.cadbar-more {
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 9px;
+  width: auto;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cadbar-more {
+  color: var(--muted);
+  padding: 5px 6px;
+}
+/* With featured buttons beside it, the ▾ alone stands for the group on a wide screen. */
+.cadbar-more.has-featured .cadbar-group-name {
+  display: none;
+}
+.cadbar-button:hover:not(:disabled),
+.cadbar-more:hover:not(:disabled),
+.cadbar-more[aria-expanded="true"] {
+  background: var(--surface-2);
+}
+.cadbar button:disabled {
+  opacity: 0.5;
+}
+.cadbar-menu {
+  left: 0;
+  top: 38px;
+  width: 300px;
   max-height: 70vh;
   overflow-y: auto;
 }
-.toolbar-menu h3 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--faint);
-  margin: 6px 0 2px;
+.command-search {
+  position: relative;
+}
+.command-results {
+  right: 0;
+  top: 40px;
+  width: 320px;
+}
+.command-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.toolbar-item.active {
+  background: var(--surface-2);
+}
+/* Between phone and wide desktop the bar takes its own row under the top bar. */
+@media (max-width: 1240px) {
+  .cadbar {
+    top: 58px;
+  }
 }
 .toolbar-item {
   display: flex;
@@ -1536,11 +1609,27 @@ textarea.code.editor.short {
     right: 10px;
     top: 132px;
   }
-  .toolbar-menu {
+  .cadbar {
+    top: 56px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    max-width: none;
+    justify-content: space-between;
+  }
+  .cadbar-more.has-featured .cadbar-group-name {
+    display: inline;
+  }
+  .cadbar-more {
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .cadbar-menu,
+  .command-results {
     position: fixed;
     left: 10px;
     right: 10px;
-    top: 60px;
+    top: 96px;
     width: auto;
     max-height: 70vh;
   }

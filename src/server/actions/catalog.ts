@@ -4,12 +4,18 @@ import { AppError } from "../core";
 /** A JSON Schema object in the subset `validate.ts` understands. */
 export type JsonSchema = Record<string, unknown>;
 export type SelectionKind = "face" | "edge" | "plane" | "point" | "part";
+import type { ToolbarGroup } from "../../shared/toolbar";
+export type { ToolbarGroup } from "../../shared/toolbar";
 export type ActionRecord = {
   id: string;
   version: number;
   title: string;
   category:
     "Create" | "Modify" | "Construct" | "Combine" | "Arrange" | "Custom";
+  /** The tool bar group, when it differs from the category. */
+  group?: ToolbarGroup;
+  /** Shown as a button in its group rather than only in the group's list. */
+  featured?: boolean;
   summary: string;
   description: string;
   inputs: JsonSchema;

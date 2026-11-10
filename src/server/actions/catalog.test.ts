@@ -17,6 +17,36 @@ function walk(
 }
 
 describe("action catalog", () => {
+  it("every record's group is a tool bar group", () => {
+    const groups = [
+      "Sketch",
+      "Create",
+      "Modify",
+      "Arrange",
+      "Construct",
+      "Custom",
+    ];
+    for (const a of actions) expect(groups).toContain(a.group ?? a.category);
+    expect(getAction("combine").group).toBe("Modify");
+    expect(getAction("appearance").group).toBe("Modify");
+  });
+  it("the featured actions are body, extrude, hole, fillet, chamfer, shell, move and plane", () => {
+    expect(
+      actions
+        .filter((a) => a.featured)
+        .map((a) => a.id)
+        .sort(),
+    ).toEqual([
+      "body",
+      "chamfer",
+      "extrude",
+      "fillet",
+      "hole",
+      "move",
+      "plane",
+      "shell",
+    ]);
+  });
   it("has the built-in actions, custom last", () => {
     expect(actions.map((a) => a.id)).toEqual([
       "body",

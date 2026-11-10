@@ -55,6 +55,7 @@ import {
 } from "./origin";
 import { refFromPick } from "./refs";
 import { Toolbar, type ToolbarAction } from "./Toolbar";
+import { CommandSearch } from "./CommandSearch";
 import { Triad, type TriadHandle } from "./AxisTriad";
 import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
@@ -542,26 +543,37 @@ export function Workspace(props: Props) {
     });
   }
   async function submitForm() {
-    if (!form || !model || !latest) return;
+    if (!form || (form.editing && (!model || !latest))) return;
     const inputs = submitValues(form.action, form.values);
     const body = form.savedKey ? { ...inputs, action: form.savedKey } : inputs;
     setForm({ ...form, busy: true, error: "" });
     try {
       if (form.editing)
         await call("steps_edit", {
-          modelId: model.id,
-          expectedRevision: latest.number,
+          modelId: model!.id,
+          expectedRevision: latest!.number,
           name: form.editing,
           inputs: body,
         });
-      else
+      else {
+        // A project with no model yet gets one; the first step saves its revision 1.
+        const id =
+          model?.id ??
+          (
+            await call<{ id: string }>("models_create", {
+              projectId,
+              name: "Model 01",
+            })
+          ).id;
+        if (!model) setModelId(id);
         await call("steps_add", {
-          modelId: model.id,
-          expectedRevision: latest.number,
+          modelId: id,
+          expectedRevision: latest?.number ?? 0,
           action: form.savedKey ? "custom" : form.action.id,
           name: form.name.trim(),
           inputs: body,
         });
+      }
       setForm(null);
       setFollow(true);
       await props.reload();
@@ -683,14 +695,17 @@ export function Workspace(props: Props) {
           paramValues,
         )
       : null;
+  // A model with no revision yet is started by its first step, so only saved models are checked.
   const toolbarReason = () =>
     !canEdit
       ? "Only the project owner can add steps"
-      : !facts?.steps
-        ? "This model has no steps section; ask the agent to adopt the standard layout"
-        : !editable
-          ? "View the latest revision to add steps"
-          : undefined;
+      : !latest
+        ? undefined
+        : !facts?.steps
+          ? "This model has no steps section; ask the agent to adopt the standard layout"
+          : !editable
+            ? "View the latest revision to add steps"
+            : undefined;
   // The model as it was after one step, from a view-as-of preview build.
   const [asOf, setAsOf] = useState<{
     step: string;
@@ -984,12 +999,13 @@ export function Workspace(props: Props) {
               Checks
             </button>
           )}
-          <Toolbar
-            actions={[...builtins, ...savedActions]}
-            disabledReason={toolbarReason()}
-            onOpen={() => void loadCatalog()}
-            onChoose={(id) => void openAction(id)}
-          />
+          {canEdit && (
+            <CommandSearch
+              actions={[...builtins, ...savedActions]}
+              disabledReason={toolbarReason()}
+              onChoose={(id) => void openAction(id)}
+            />
+          )}
           <span
             className="chip status"
             title={connected ? "Live" : "Reconnecting…"}
@@ -1057,6 +1073,14 @@ export function Workspace(props: Props) {
           />
         )}
       </header>
+      {canEdit && (
+        <Toolbar
+          actions={[...builtins, ...savedActions]}
+          disabledReason={toolbarReason()}
+          onOpen={() => void loadCatalog()}
+          onChoose={(id) => void openAction(id)}
+        />
+      )}
 
       <div className={`chat-shell ${chatOpen ? "open" : ""}`}>
         <button className="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
