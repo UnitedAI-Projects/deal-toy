@@ -532,8 +532,8 @@ export function withBriefLogo(s: PhaseState, file: BriefFile): PhaseState {
 
 /**
  * A MantelMesh save in the Concepts phase: a .mmesh becomes the concept's model, a .png its
- * picture. It goes to the concept it was opened from, else the one named like the file, else a
- * new concept.
+ * picture. An editor session supplies a stable concept id, including before its first save.
+ * Legacy callers without an id fall back to the file name.
  */
 export function withConceptSave(
   s: PhaseState,
@@ -543,9 +543,9 @@ export function withConceptSave(
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (ext !== "mmesh" && ext !== "png") return s;
   const base = file.name.replace(/\.[^.]+$/, "");
-  const target =
-    s.concepts.find((c) => c.id === conceptId) ??
-    s.concepts.find((c) => c.name === base && !c.discarded);
+  const target = conceptId
+    ? s.concepts.find((c) => c.id === conceptId)
+    : s.concepts.find((c) => c.name === base && !c.discarded);
   const patch = ext === "mmesh" ? { mesh: file.url } : { image: file.url };
   if (target)
     return {
@@ -559,7 +559,7 @@ export function withConceptSave(
     concepts: [
       ...s.concepts,
       {
-        id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        id: conceptId ?? crypto.randomUUID(),
         name: base,
         size: "",
         materials: "",

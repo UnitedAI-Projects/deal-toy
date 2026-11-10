@@ -181,6 +181,26 @@ describe("MantelMesh saves in Concepts", () => {
   });
 });
 
+it("keeps separate mesh concepts with the same default name and pairs their previews", () => {
+  let s = withConceptSave(
+    emptyPhaseState(),
+    { name: "Concept.mmesh", url: "/a" },
+    "a",
+  );
+  s = withConceptSave(s, { name: "Concept.png", url: "/b-png" }, "b");
+  s = withConceptSave(s, { name: "Concept.mmesh", url: "/b" }, "b");
+  s = withConceptSave(s, { name: "Concept.png", url: "/a-png" }, "a");
+  expect(s.concepts).toHaveLength(2);
+  expect(s.concepts.find((c) => c.id === "a")).toMatchObject({
+    mesh: "/a",
+    image: "/a-png",
+  });
+  expect(s.concepts.find((c) => c.id === "b")).toMatchObject({
+    mesh: "/b",
+    image: "/b-png",
+  });
+});
+
 describe("conceptWarnings", () => {
   const withEnvelope = (v: string) =>
     approveBrief(editBriefField(complete(), "envelope", { value: v }), by, at);

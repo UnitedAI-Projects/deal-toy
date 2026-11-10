@@ -1,4 +1,4 @@
-/* A project in five phases. Model is the existing workspace with the phase bar and output
+/* A project in six phases. Model is the existing workspace with the phase bar and output
    bar passed in; the other phases share the frame in PhaseFrame. */
 import { useEffect, useState } from "react";
 import { can } from "./api";
@@ -97,7 +97,14 @@ export function ProjectShell(props: WorkspaceProps) {
     p: string,
     file?: EngineFile,
     conceptId?: string,
-  ) => setEngine({ engine: e, phase: p, file, conceptId });
+  ) =>
+    setEngine({
+      engine: e,
+      phase: p,
+      file,
+      conceptId:
+        conceptId ?? (e === "mantelmesh" ? crypto.randomUUID() : undefined),
+    });
   const back = () => {
     history.replaceState(null, "", location.pathname);
     props.onBack();
