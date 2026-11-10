@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import toyJson from "../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
 import boxJson from "../../engine/tests/fixtures/enclosure_inspect.inspect.json";
+import fitJson from "../../engine/tests/fixtures/display_box_fit.inspect.json";
 import type { Check, CheckResult } from "../shared/checks";
 import type { InspectRecord } from "../shared/inspect-types";
 import {
@@ -12,6 +13,7 @@ import {
 
 const toy = toyJson as unknown as InspectRecord;
 const box = boxJson as unknown as InspectRecord;
+const fit = fitJson as unknown as InspectRecord;
 const kinds = (drafts: { kind: string }[]) => drafts.map((d) => d.kind);
 const by = { email: "a@example.test", agent: false };
 const check = (kind: Check["kind"], extra: Partial<Check> = {}): Check => ({
@@ -164,5 +166,18 @@ describe("resultText and limitText", () => {
     ).toBe("≤ 80.00 × 60.00 × 32.00 mm");
     expect(limitText(check("no_overlap"))).toBe("≤ 0.001 mm³");
     expect(limitText(check("draft", { limit: { min: 1 } }))).toBe("≥ 1.0°");
+    expect(
+      limitText(
+        check("dimension", { limit: { nominal: 0, tolerance: 1 } }),
+        "deg",
+      ),
+    ).toBe("0.0 ± 1.0°");
+  });
+  it("offers a picked part's placement as a dimension check", () => {
+    const drafts = checkFromSelection(fit, [{ label: "Drawer" }]);
+    expect(drafts.map((d) => d.name)).toContain("Drawer travel");
+    expect(
+      checkFromSelection(fit, [{ label: "Base" }]).map((d) => d.name),
+    ).not.toContain("Drawer travel");
   });
 });

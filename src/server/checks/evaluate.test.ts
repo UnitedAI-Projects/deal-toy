@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import toyJson from "../../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
 import boxJson from "../../../engine/tests/fixtures/enclosure_inspect.inspect.json";
+import fitJson from "../../../engine/tests/fixtures/display_box_fit.inspect.json";
 import type { Check, CheckLimit, CheckTarget } from "../../shared/checks";
 import type { InspectRecord } from "../../shared/inspect-types";
 import { evaluateChecks, signatureOf } from "./evaluate";
 
 const toy = toyJson as unknown as InspectRecord;
 const box = boxJson as unknown as InspectRecord;
+const fit = fitJson as unknown as InspectRecord;
 const by = { email: "a@example.test", agent: false };
 const at = "2026-11-09T00:00:00.000Z";
 let n = 0;
@@ -75,6 +77,30 @@ describe("evaluateChecks", () => {
       one(toy, check("dimension", { dimension: "Nope" }, { nominal: 1 }))
         .reason,
     ).toBe('No declared dimension named "Nope"');
+  });
+
+  it("dimension works on a placement, in its own unit, on the moving part", () => {
+    const result = one(
+      fit,
+      check(
+        "dimension",
+        { dimension: "Lid angle" },
+        { nominal: 0, tolerance: 1 },
+      ),
+    );
+    expect(result).toMatchObject({
+      status: "pass",
+      value: 0,
+      unit: "deg",
+      parts: [1],
+    });
+    expect(result).not.toHaveProperty("faces");
+    expect(
+      one(
+        fit,
+        check("dimension", { dimension: "Drawer travel" }, { nominal: 10 }),
+      ).unit,
+    ).toBe("mm");
   });
 
   it("clearance between parts uses the pair; overlapping parts fail", () => {

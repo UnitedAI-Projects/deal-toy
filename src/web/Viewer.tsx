@@ -5,6 +5,13 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { request } from "./api";
 import { alongAxis } from "./adjust";
 import {
+  angleAround,
+  applyDirection,
+  applyPoint,
+  invertRigid,
+  type Mat4,
+} from "./fit";
+import {
   sceneScale,
   toModel,
   toScene,
@@ -59,6 +66,24 @@ type Props = {
     onRelease: () => void;
     onCancel: () => void;
   } | null;
+  /**
+   * Where each part is shown, as model-frame matrices indexed like the record's parts (from
+   * fit.ts). Null shows the build as it is. `key` changes whenever the matrices do.
+   */
+  pose?: { key: string; matrices: Mat4[] } | null;
+  /**
+   * Dragging a part along its joint. `joints` lists the record joints that may be dragged, and
+   * `frames` where each record joint's frame is now. Deltas are mm for a linear joint and degrees
+   * for a revolute one; release commits and Escape cancels.
+   */
+  move?: {
+    joints: number[];
+    frames: Mat4[];
+    onStart: (joint: number) => void;
+    onMove: (delta: number) => void;
+    onRelease: () => void;
+    onCancel: () => void;
+  } | null;
 };
 type Scene = {
   scene: THREE.Scene;
@@ -71,6 +96,8 @@ type Scene = {
   size: THREE.Vector3;
   renderer: THREE.WebGLRenderer;
   caps: THREE.Object3D | null;
+  /** Each labelled part node's local matrix as loaded, so a pose can always be undone exactly. */
+  rest: Map<THREE.Object3D, THREE.Matrix4>;
 };
 export function Viewer(props: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -124,6 +151,7 @@ export function Viewer(props: Props) {
       size: new THREE.Vector3(1, 1, 1),
       renderer,
       caps: null,
+      rest: new Map(),
     };
     const resize = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
@@ -171,6 +199,12 @@ export function Viewer(props: Props) {
           [local.x, local.y, local.z],
           sceneScale(record, [size.x, size.z, size.y]),
         );
+        // A moved part's hit maps back to where the record measured that part.
+        const index = node
+          ? record.parts.findIndex((p) => nodeName(p.label) === node!.name)
+          : -1;
+        const m = latest.current.pose?.matrices[index];
+        if (m) model = applyPoint(invertRigid(m), model);
       }
       latest.current.onSelect(
         node ? (labels.get(node.name) ?? null) : null,
@@ -228,12 +262,19 @@ export function Viewer(props: Props) {
           return;
         }
         const object = gltf.scene;
-        // Each mesh gets its own material so a selection highlight affects only its part.
+        // Each mesh gets its own material so a selection highlight affects only its part. The
+        // export has no materials, and glTF's default is fully metallic, which renders faces turned
+        // away from the lights (an opened lid's underside) black; half as metallic, every face reads.
+        const matte = (m: THREE.Material) => {
+          const copy = m.clone();
+          if (copy instanceof THREE.MeshStandardMaterial) copy.metalness = 0.5;
+          return copy;
+        };
         object.traverse((o) => {
           if (o instanceof THREE.Mesh)
             o.material = Array.isArray(o.material)
-              ? o.material.map((m) => m.clone())
-              : o.material.clone();
+              ? o.material.map(matte)
+              : matte(o.material);
         });
         const box = new THREE.Box3().setFromObject(object);
         const center = box.getCenter(new THREE.Vector3());
@@ -247,6 +288,12 @@ export function Viewer(props: Props) {
         s.scene.add(object);
         s.object = object;
         s.size = size.clone();
+        s.rest = new Map();
+        object.updateWorldMatrix(true, true);
+        for (const label of latest.current.parts) {
+          const node = object.getObjectByName(nodeName(label));
+          if (node) s.rest.set(node, node.matrix.clone());
+        }
         setLoaded((n) => n + 1);
         if (s.fittedFor !== latest.current.modelKey) {
           // Portrait screens need more distance to fit the model's width.
@@ -307,15 +354,194 @@ export function Viewer(props: Props) {
             : h.tone === "warn"
               ? 0xf97316
               : palette[props.theme].highlight;
-      for (const child of overlayGroup(record, h.faces, scale, color).children)
-        group.add(child.clone());
+      for (const child of overlayGroup(record, h.faces, scale, color, {
+        byPart: true,
+      }).children) {
+        const part = Number(child.name.slice("part-".length));
+        const m = props.pose?.matrices[part];
+        if (m) {
+          child.matrixAutoUpdate = false;
+          child.matrix.copy(sceneMatrix(m, scale));
+        }
+        group.add(child);
+      }
     }
     object.add(group);
     return () => {
       group.removeFromParent();
       group.traverse(disposeMesh);
     };
-  }, [props.record, props.highlights, props.theme, loaded]);
+  }, [props.record, props.highlights, props.theme, props.pose?.key, loaded]);
+
+  // Parts shown where the pose puts them; with no pose, exactly where the build put them.
+  useEffect(() => {
+    const s = state.current;
+    const object = s?.object;
+    const record = props.record;
+    if (!s || !object) return;
+    const scale = record
+      ? sceneScale(record, [s.size.x, s.size.z, s.size.y])
+      : 1;
+    object.updateWorldMatrix(true, false);
+    const toObject = object.matrixWorld.clone().invert();
+    for (const [node, rest] of s.rest) {
+      const index =
+        record?.parts.findIndex((p) => nodeName(p.label) === node.name) ?? -1;
+      const m = props.pose?.matrices[index];
+      let local = rest.clone();
+      if (m && node.parent) {
+        node.parent.updateWorldMatrix(true, false);
+        // The parent's frame relative to the loaded scene, where the record's frame lives.
+        const parent = toObject.clone().multiply(node.parent.matrixWorld);
+        local = parent
+          .clone()
+          .invert()
+          .multiply(sceneMatrix(m, scale))
+          .multiply(parent)
+          .multiply(rest);
+      }
+      local.decompose(node.position, node.quaternion, node.scale);
+    }
+    object.updateWorldMatrix(true, true);
+  }, [props.pose?.key, props.record, loaded]);
+
+  // Dragging a part along its joint: the gesture starts on a part the drag may move.
+  useEffect(() => {
+    const s = state.current;
+    const object = s?.object;
+    const record = props.record;
+    if (!s || !object || !record || !props.move) return;
+    const element = s.renderer.domElement;
+    const scale = sceneScale(record, [s.size.x, s.size.z, s.size.y]);
+    const rayAt = (e: PointerEvent) => {
+      const rect = element.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(
+        new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1,
+        ),
+        s.camera,
+      );
+      const from = object.worldToLocal(ray.ray.origin.clone());
+      const to = object.worldToLocal(
+        ray.ray.origin.clone().add(ray.ray.direction),
+      );
+      return {
+        ray,
+        origin: toModel([from.x, from.y, from.z], scale),
+        direction: toModel([to.x - from.x, to.y - from.y, to.z - from.z], 1),
+      };
+    };
+    let active: {
+      joint: number;
+      origin: Vec3;
+      axis: Vec3;
+      ref?: Vec3;
+      start: number;
+      last: number;
+      total: number;
+    } | null = null;
+    // Mm along a linear axis, or the angle about a revolute one, measured from where the drag began.
+    const measure = (e: PointerEvent) => {
+      const a = active!;
+      const r = rayAt(e);
+      const kind = record.joints![a.joint].kind;
+      if (kind === "linear")
+        return alongAxis(r.origin, r.direction, a.origin, a.axis);
+      return angleAround(r.origin, r.direction, a.origin, a.axis, a.ref!);
+    };
+    const move = (e: PointerEvent) => {
+      if (!active) return;
+      const value = measure(e);
+      if (value === null || !Number.isFinite(value)) return;
+      if (record.joints![active.joint].kind === "linear")
+        active.total = value - active.start;
+      else {
+        // Unwrap across ±180° so a long turn keeps counting.
+        let step = value - active.last;
+        if (step > 180) step -= 360;
+        if (step < -180) step += 360;
+        active.total += step;
+      }
+      active.last = value;
+      latest.current.move?.onMove(active.total);
+    };
+    const finish = (commit: boolean) => {
+      if (!active) return;
+      active = null;
+      s.controls.enabled = true;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (commit) latest.current.move?.onRelease();
+      else latest.current.move?.onCancel();
+    };
+    const up = () => finish(true);
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") finish(false);
+    };
+    const down = (e: PointerEvent) => {
+      const m = latest.current.move;
+      if (!m || active) return;
+      const r = rayAt(e);
+      const hit = r.ray.intersectObject(object, true)[0];
+      let node: THREE.Object3D | null = hit?.object ?? null;
+      const names = record.parts.map((p) => nodeName(p.label));
+      while (node && !names.includes(node.name)) node = node.parent;
+      if (!node) return;
+      const part = names.indexOf(node.name);
+      const joint = record.joints?.findIndex((j) => j.part === part) ?? -1;
+      if (joint < 0 || !m.joints.includes(joint)) return;
+      const j = record.joints![joint];
+      const frame = m.frames[joint];
+      const origin = frame ? applyPoint(frame, j.origin) : j.origin;
+      const axis = frame ? applyDirection(frame, j.axis) : j.axis;
+      // The gesture is the drag's: no orbit, and no click-to-select on release.
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      s.controls.enabled = false;
+      const local = object.worldToLocal(hit.point.clone());
+      const point = toModel([local.x, local.y, local.z], scale);
+      // A turn is measured across the hinge through the grabbed point, so the drag starts exactly
+      // where the person took hold and follows the pointer from there.
+      const length = Math.hypot(...axis) || 1;
+      const along =
+        ((point[0] - origin[0]) * axis[0] +
+          (point[1] - origin[1]) * axis[1] +
+          (point[2] - origin[2]) * axis[2]) /
+        length;
+      const pivot: Vec3 =
+        j.kind === "revolute"
+          ? [
+              origin[0] + (axis[0] / length) * along,
+              origin[1] + (axis[1] / length) * along,
+              origin[2] + (axis[2] / length) * along,
+            ]
+          : origin;
+      active = {
+        joint,
+        origin: pivot,
+        axis,
+        ref: [point[0] - pivot[0], point[1] - pivot[1], point[2] - pivot[2]],
+        start: 0,
+        last: 0,
+        total: 0,
+      };
+      const first = measure(e);
+      active.start = first ?? 0;
+      active.last = first ?? 0;
+      m.onStart(joint);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    };
+    element.addEventListener("pointerdown", down, { capture: true });
+    window.addEventListener("keydown", key);
+    return () => {
+      finish(false);
+      element.removeEventListener("pointerdown", down, { capture: true });
+      window.removeEventListener("keydown", key);
+    };
+  }, [!!props.move, props.record, loaded]);
 
   // A drag handle for a declared dimension: a cone on the face, pointing along its normal.
   useEffect(() => {
@@ -473,7 +699,14 @@ export function Viewer(props: Props) {
       });
       s.caps = null;
     };
-  }, [props.section, props.record, props.theme, props.highlights, loaded]);
+  }, [
+    props.section,
+    props.record,
+    props.theme,
+    props.highlights,
+    props.pose?.key,
+    loaded,
+  ]);
 
   return (
     <div className="viewer">
@@ -486,6 +719,34 @@ export function Viewer(props: Props) {
       )}
     </div>
   );
+}
+/**
+ * A model-frame matrix (mm) as the same motion in the loaded scene's frame: toScene maps
+ * (x, y, z) to (x, z, -y) times `scale`, so the scene matrix is S · M · S⁻¹.
+ */
+function sceneMatrix(m: Mat4, scale: number) {
+  const s = new THREE.Matrix4().set(
+    scale,
+    0,
+    0,
+    0,
+    0,
+    0,
+    scale,
+    0,
+    0,
+    -scale,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+  );
+  return s
+    .clone()
+    .multiply(new THREE.Matrix4().fromArray(m))
+    .multiply(s.clone().invert());
 }
 /** GLTFLoader rewrites node names (spaces become underscores); compare the same way. */
 function nodeName(label: string) {

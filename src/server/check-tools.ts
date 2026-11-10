@@ -101,7 +101,7 @@ async function listOf(c: Context, modelId: string) {
 }
 
 /** A build's record, read after the caller's access to its model was checked. */
-async function recordOf(
+export async function recordOf(
   env: Env,
   buildId: string,
 ): Promise<InspectRecord | null> {
@@ -116,7 +116,7 @@ async function recordOf(
 }
 
 /** The newest successful full build of a model's revision (by number), if any. */
-async function buildOf(
+export async function buildOf(
   env: Env,
   modelId: string,
   number: number,
@@ -202,6 +202,19 @@ const num = (v: number | undefined, unit?: string) =>
     : unit === "deg"
       ? `${v.toFixed(1)}°`
       : `${v.toFixed(2)} ${unit ?? ""}`.trim();
+
+/** One line for the agent's model summary naming each placement and its parameter. */
+export function placementsLine(record: InspectRecord | null): string | null {
+  const placed = (record?.dimensions ?? []).filter(
+    (d) => d.joint !== undefined,
+  );
+  if (!placed.length) return null;
+  const items = placed.map(
+    (d) =>
+      `${d.name} ${num(d.value, d.unit === "deg" ? "deg" : "mm")}${d.param ? ` (${d.param})` : ""}`,
+  );
+  return `Placements: ${items.join(", ")}`.slice(0, 400);
+}
 
 /** One line for the agent's model summary: counts, failures first. */
 export function checksLine(evaluation: Evaluation): string | null {

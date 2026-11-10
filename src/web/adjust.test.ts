@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import boxJson from "../../engine/tests/fixtures/enclosure_inspect.inspect.json";
 import toyJson from "../../engine/tests/fixtures/deal_toy_inspect.inspect.json";
+import fitJson from "../../engine/tests/fixtures/display_box_fit.inspect.json";
 import type { DimensionRecord, InspectRecord } from "../shared/inspect-types";
 import { alongAxis, dimensionEdit, dragAxis, dragValue } from "./adjust";
 
 const box = boxJson as unknown as InspectRecord;
 const toy = toyJson as unknown as InspectRecord;
+const fit = fitJson as unknown as InspectRecord;
 const dim = (record: InspectRecord, name: string) =>
   record.dimensions!.find((d) => d.name === name)!;
 const params = {
@@ -33,6 +35,17 @@ describe("dimensionEdit", () => {
     expect(dimensionEdit(dim(box, "Wall thickness"), params, 9)).toEqual({
       error: "Wall thickness must be between 1.00 and 4.00 mm",
     });
+  });
+  it("states a placement's range in its own unit", () => {
+    const lid = { LID_ANGLE: { value: 0, min: 0, max: 110 } };
+    expect(dimensionEdit(dim(fit, "Lid angle"), lid, 120)).toEqual({
+      error: "Lid angle must be between 0.0 and 110.0°",
+    });
+    expect(dimensionEdit(dim(fit, "Lid angle"), lid, 60)).toEqual({
+      name: "LID_ANGLE",
+      value: 60,
+    });
+    expect(dragAxis(fit, dim(fit, "Lid angle"))).toBeNull();
   });
   it("refuses a declaration that does not match its parameter", () => {
     expect(dimensionEdit(dim(toy, "Engraving depth"), params, 0.6)).toEqual({

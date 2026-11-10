@@ -40,14 +40,35 @@ export type PairRecord = {
   distance: number;
   overlap_volume: number;
 };
+/**
+ * A declared dimension: the distance between two faces, or a placement, whose value is a joint's
+ * position (mm) or angle (deg). A missing unit means mm.
+ */
 export type DimensionRecord = {
   name: string;
   param?: string;
   value: number;
-  faces: [number, number];
+  faces?: [number, number];
   moves?: number;
+  joint?: number;
+  unit?: "mm" | "deg";
   matches_param: boolean;
   scale: number;
+};
+/**
+ * How one part attaches to another: `part` moves relative to `to`. `origin` and `axis` are the
+ * joint's frame on `to` at build time; `value` is its position (mm) or angle (deg) in this build.
+ */
+export type JointRecord = {
+  name: string;
+  kind: "rigid" | "linear" | "revolute";
+  part: number;
+  to: number;
+  origin: Vec3;
+  axis: Vec3;
+  range: [number, number | null];
+  value: number;
+  unit: "mm" | "deg";
 };
 export type EmbedRecord = {
   part: number;
@@ -80,5 +101,6 @@ export type InspectRecord = {
   embeds?: EmbedRecord[];
   stability?: StabilityRecord | null;
   draft?: DraftRecord[];
+  joints?: JointRecord[];
   faces_truncated: boolean;
 };

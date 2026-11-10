@@ -270,7 +270,7 @@ export function ChecksPanel(props: {
                 <strong>{check.name}</strong>
                 <span className="muted small">
                   {text.value ? `${text.value} · ` : ""}
-                  {limitText(check)}
+                  {limitText(check, r?.unit)}
                 </span>
               </div>
               {r?.reason && !r.reason.startsWith("Limit not set") && (

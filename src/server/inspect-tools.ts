@@ -21,6 +21,7 @@ const SECTIONS = [
   "materials",
   "embeds",
   "stability",
+  "joints",
   "warnings",
 ] as const;
 
@@ -115,7 +116,7 @@ export const inspectTools: Tool[] = [
   ),
   define(
     "inspect_get",
-    "Read a build's exact measurements from OCCT: parts (volume, area, bounding box, centre of mass), faces (type, area, normal, diameter or radius, thickness through the part), holes (diameter, depth, through), part pairs (minimum distance, overlap volume), declared dimensions with their measured values, materials, embeds (contained, wall to the outside) and stability (centre of mass, footprint, tip angle). Ask for sections, parts or faces to keep the result small.",
+    "Read a build's exact measurements from OCCT: parts (volume, area, bounding box, centre of mass), faces (type, area, normal, diameter or radius, thickness through the part), holes (diameter, depth, through), part pairs (minimum distance, overlap volume), declared dimensions with their measured values (including placements, whose value is a joint's position in mm or angle in degrees), materials, embeds (contained, wall to the outside), stability (centre of mass, footprint, tip angle) and joints (which part moves relative to which: rigid, linear or revolute, with axis, range and current value). Set a placement with models_set_parameter. Ask for sections, parts or faces to keep the result small.",
     {
       jobId: id,
       sections: z.array(z.enum(SECTIONS)).max(SECTIONS.length).optional(),
@@ -128,13 +129,17 @@ export const inspectTools: Tool[] = [
       const wanted = new Set<string>(
         i.sections ?? (i.parts || i.faces ? [] : SECTIONS),
       );
-      if (i.parts) wanted.add("parts");
+      if (i.parts) wanted.add("parts").add("joints");
       if (i.faces) wanted.add("faces");
       const out: Record<string, unknown> = {};
       for (const key of wanted) out[key] = record[key];
       if (i.parts)
         out.parts = (record.parts as { index: number }[]).filter((p) =>
           i.parts!.includes(p.index),
+        );
+      if (i.parts && Array.isArray(record.joints))
+        out.joints = (record.joints as { part: number; to: number }[]).filter(
+          (j) => i.parts!.includes(j.part) || i.parts!.includes(j.to),
         );
       if (i.faces)
         out.faces = (record.faces as { index: number }[]).filter((f) =>

@@ -221,6 +221,42 @@ Branch `feat/inspect-checks`, implementing `docs/superpowers/plans/2026-11-09-in
 - Costs, measured in the CAD image: inspection takes 0.06 s on the enclosure (55 faces, 16.2 KiB record) and 0.02 s on the deal toy (23 faces, 7.3 KiB), and one measure job takes 1.0–1.3 s.
 - Known limits: failure colours on a part fully inside another (the coin in its block) are hidden by the host and by section caps, as pick highlights already are. The check row still names the failure. The drag preview is a square of the face's area, not its outline.
 
+## Inspect fit — 2026-11-09
+
+Branch `feat/inspect-fit`, implementing `docs/superpowers/plans/2026-11-09-inspect-fit.md`. Local evidence; not deployed.
+
+- **Engine tests:**
+  - The presentation-box fixture records three joints with their kind, frame, range and value: the lid is revolute on the base (0–110°), the drawer is linear on the base (0–40 mm), and the plaque is rigid on the lid.
+  - Its two placements match their parameters. A copy whose connect call ignores `DRAWER_OUT` reports `matches_param: false`.
+  - The following cases each record only what the viewer can move, and leave a warning:
+    - a part moved by two joints;
+    - a cycle of joints;
+    - a rigid joint connected to a sliding one;
+    - a ball joint.
+
+    An unbounded range is written as `null`.
+
+  - A test pins `RevoluteJoint._angle`, which build123d 0.13 keeps private.
+  - Reloading the new example's STEP keeps every face index.
+  - The engine suite passed inside the CAD image (`ci/engine-tests-in-image.sh`, 103 passed).
+- **Viewer math:** `src/web/fit.test.ts` applies the browser's joint transforms to the closed box's record and compares the result with build123d's record of the same box opened (lid at 60°, drawer out 25 mm). Every part's centre of mass agrees to 1e-4 mm, including the plaque, which moves only because it rides on the lid. Flipping the hinge's sign makes the test fail.
+- **In the app** (local `wrangler dev` with the CAD container):
+  - **Explode:** the box explodes along its joints: the lid lifts, the drawer slides out, and the plaque lifts off the lid along its joint's axis. The enclosure has no joints, so its parts stack along Z around the housing, and the ribs rise out of it.
+  - **Picking:** a face picked on the exploded drawer reads the record's values (5880.00 mm², normal (0, 0, 1), 14.00 mm thick), with its highlight on the moved part (`docs/images/workspace-explode.png`).
+  - **Section:** a cut works while exploded, with every moved part's cut filled.
+  - **Dragging:** in **Move parts**, dragging the lid upward showed "Lid angle 32.0° · Preview". Release saved revision 2, `LID_ANGLE` 0 → 32, and the rebuilt lid landed where the preview showed it. Escape cancelled a drag and restored the lid.
+  - **Demo viewer:** a drawer drag by a demo viewer stopped at the joint's 40 mm and showed "View only: not saved". It saved nothing (still 3 revisions), and Reset put the drawer back (`docs/images/workspace-move.png`).
+  - **Part popover:** the lid's popover says `Attached to Base by "hinge" (revolute) · 32.0° (0.0–110.0°)`.
+  - **Phone width:** at 390 px the explode slider wraps onto its own row, Move parts is hidden, and the page does not scroll sideways (`docs/images/workspace-explode-mobile.png`).
+  - Checked in light and dark themes.
+- **Viewer fix:** the export has no materials, and three.js then uses glTF's default, which is fully metallic. Faces turned away from the lights rendered black, which an opened lid made obvious. The viewer now uses half that metalness.
+- **Agent summary:** the placements line (`Placements: Lid angle 0.0° (LID_ANGLE), Drawer travel 0.00 mm (DRAWER_OUT)`) and `inspect_get`'s `joints` section are covered by Worker tests. They were not exercised over a live MCP client.
+- **Cost:** reading joints takes 0.47 ms on the box, whose whole record takes 0.042 s (34 faces, 10.6 KiB), measured on the Mac mini.
+- **Known limits:**
+  - The camera does not refit while exploding, so a far part can leave the frame until you zoom out.
+  - Models without joints explode only along Z.
+  - Dragging works on linear and revolute joints only, and only on desktop.
+
 ## Empty project with a connected agent — 2026-11-09
 
 A teammate connected Claude's custom connector over MCP sign-in. Their app was listed in Settings and created a project, but the empty project still said "Start with your agent" and "Connect an agent", which read as if the connection had failed. The empty screen now loads the member's connected apps. When at least one is connected it says, for example, "Claude is connected. Ask it to build a model in “Bridge Tombstone”." Its connect button becomes the secondary "Add another agent". It falls back to the original wording while the list loads or if loading it fails. The Connect drawer now leads with adding the server URL and signing in, and keeps API keys for clients without sign-in.

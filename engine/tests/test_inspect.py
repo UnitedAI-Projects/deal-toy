@@ -221,7 +221,7 @@ def test_enclosure_fixture(tmp_path):
     assert record["warnings"] == []
 
 
-@pytest.mark.parametrize("example", ["bridge.py", "deal_toy_inspect.py", "deal_toy_steps.py", "enclosure_inspect.py"])
+@pytest.mark.parametrize("example", ["bridge.py", "deal_toy_inspect.py", "deal_toy_steps.py", "enclosure_inspect.py", "display_box_fit.py"])
 def test_step_reload_keeps_face_indices(tmp_path, example):
     build(ROOT / "examples" / example, tmp_path)
     record = json.loads((tmp_path / "inspect.json").read_text())
@@ -249,10 +249,124 @@ def _close(a, b, path="record"):
         assert a == b, path
 
 
-@pytest.mark.parametrize("name", ["deal_toy_inspect", "enclosure_inspect"])
+@pytest.mark.parametrize("name", ["deal_toy_inspect", "enclosure_inspect", "display_box_fit", "display_box_fit_posed"])
 def test_stored_worker_fixtures_are_current(name):
     sys.path.insert(0, str(ENGINE / "tools"))
     from gen_fixtures import FIXTURES, record_of
 
     stored = json.loads((ENGINE / "tests" / "fixtures" / f"{name}.inspect.json").read_text())
     _close(record_of(FIXTURES[name]), stored)
+
+
+BOX = ROOT / "examples/display_box_fit.py"
+
+
+def box_record(tmp_path, angle=None, out=None, source=None):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    text = source or BOX.read_text()
+    if angle is not None:
+        text += f'\nPARAMS["LID_ANGLE"]["value"] = {angle}\n'
+    if out is not None:
+        text += f'\nPARAMS["DRAWER_OUT"]["value"] = {out}\n'
+    return run_fixture(tmp_path, text)
+
+
+def test_display_box_joints(tmp_path):
+    record = box_record(tmp_path)
+    labels = [p["label"] for p in record["parts"]]
+    assert labels == ["Base", "Lid", "Drawer", "Plaque"]
+    joints = {labels[j["part"]]: j for j in record["joints"]}
+    assert list(joints) == ["Lid", "Drawer", "Plaque"]
+    lid, drawer, plaque = joints["Lid"], joints["Drawer"], joints["Plaque"]
+    assert (lid["kind"], lid["name"], labels[lid["to"]]) == ("revolute", "hinge", "Base")
+    assert lid["value"] == 0 and lid["range"] == [0, 110] and lid["unit"] == "deg"
+    assert lid["origin"] == pytest.approx([0, 40, 40]) and lid["axis"] == pytest.approx([-1, 0, 0])
+    assert (drawer["kind"], labels[drawer["to"]], drawer["unit"]) == ("linear", "Base", "mm")
+    assert drawer["value"] == 0 and drawer["range"] == [0, 40]
+    assert drawer["origin"] == pytest.approx([0, -40, 6]) and drawer["axis"] == pytest.approx([0, -1, 0])
+    assert (plaque["kind"], labels[plaque["to"]], plaque["range"], plaque["value"]) == ("rigid", "Lid", [0, 0], 0)
+    assert record["warnings"] == []
+
+
+def test_placement_dimensions(tmp_path):
+    record = box_record(tmp_path)
+    dims = {d["name"]: d for d in record["dimensions"]}
+    lid, drawer = dims["Lid angle"], dims["Drawer travel"]
+    assert (lid["param"], lid["unit"], lid["matches_param"], lid["value"]) == ("LID_ANGLE", "deg", True, 0)
+    assert (drawer["param"], drawer["unit"], drawer["matches_param"]) == ("DRAWER_OUT", "mm", True)
+    assert record["joints"][lid["joint"]]["kind"] == "revolute"
+    assert record["joints"][drawer["joint"]]["kind"] == "linear"
+    assert "faces" not in lid and "moves" not in lid
+    fixed = BOX.read_text().replace("position=out", "position=0")
+    stale = box_record(tmp_path / "stale", out=12, source=fixed)
+    assert {d["name"]: d["matches_param"] for d in stale["dimensions"]}["Drawer travel"] is False
+
+
+def test_joint_value_follows_param(tmp_path):
+    closed = box_record(tmp_path / "closed")
+    opened = box_record(tmp_path / "open", angle=60, out=25)
+    values = {j["name"]: j["value"] for j in opened["joints"]}
+    assert values["hinge"] == pytest.approx(60) and values["slide"] == pytest.approx(25)
+    com = {p["label"]: p["center_of_mass"] for p in closed["parts"]}
+    moved = {p["label"]: p["center_of_mass"] for p in opened["parts"]}
+    assert moved["Drawer"] == pytest.approx([com["Drawer"][0], com["Drawer"][1] - 25, com["Drawer"][2]])
+    assert moved["Plaque"] != pytest.approx(com["Plaque"])
+
+
+def _blocks(*labels):
+    return [labelled(bd.Pos(20 * k, 0, 0) * bd.Box(10, 10, 10, align=BOTTOM), label) for k, label in enumerate(labels)]
+
+
+def test_joint_edge_cases():
+    a, b, c = _blocks("A", "B", "C")
+    j1 = bd.LinearJoint("j1", a, axis=bd.Axis((0, 0, 10), (0, 0, 1)), linear_range=(0, 5))
+    j2 = bd.LinearJoint("j2", c, axis=bd.Axis((40, 0, 10), (0, 0, 1)), linear_range=(0, 5))
+    held = bd.RigidJoint("held", b, bd.Location((20, 0, 0)))
+    j1.connect_to(held, position=0)
+    j2.connect_to(held, position=0)
+    record = inspect_record(compound(a, b, c), None)
+    assert [(j["name"], j["part"]) for j in record["joints"]] == [("j1", 1)]
+    assert 'Part "B" is moved by two joints; only "j1" is used' in record["warnings"]
+
+    a, b = _blocks("A", "B")
+    ab = bd.RigidJoint("ab", a, bd.Location((10, 0, 0)))
+    ba = bd.RigidJoint("ba", b, bd.Location((20, 0, 0)))
+    ab.connect_to(ba)
+    back = bd.RigidJoint("back", b, bd.Location((20, 0, 0)))
+    front = bd.RigidJoint("front", a, bd.Location((10, 0, 0)))
+    back.connect_to(front)
+    record = inspect_record(compound(a, b), None)
+    assert len(record["joints"]) == 1
+    assert any("cycle" in w for w in record["warnings"])
+
+    a, b = _blocks("A", "B")
+    rigid = bd.RigidJoint("seat", a, bd.Location((0, 0, 10)))
+    slider = bd.LinearJoint("rail", b, axis=bd.Axis((20, 0, 0), (0, 0, 1)), linear_range=(0, 5))
+    rigid.connect_to(slider, position=0)
+    record = inspect_record(compound(a, b), None)
+    assert record["joints"][0]["kind"] == "rigid"
+    assert 'Joint "seat": connect from the LinearJoint on "B" to record its motion' in record["warnings"]
+
+    a, b = _blocks("A", "B")
+    ball = bd.BallJoint("ball", a, bd.Location((0, 0, 10)))
+    cap = bd.RigidJoint("cap", b, bd.Location((20, 0, 0)))
+    ball.connect_to(cap)
+    record = inspect_record(compound(a, b), None)
+    assert record["joints"][0]["kind"] == "rigid"
+    assert any("BallJoint" in w for w in record["warnings"])
+
+    a, b = _blocks("A", "B")
+    open_rail = bd.LinearJoint("open", a, axis=bd.Axis((0, 0, 10), (0, 0, 1)))
+    stop = bd.RigidJoint("stop", b, bd.Location((20, 0, 0)))
+    open_rail.connect_to(stop, position=3)
+    record = inspect_record(compound(a, b), None)
+    assert record["joints"][0]["range"] == [0, None] and record["joints"][0]["value"] == 3
+    json.dumps(record, allow_nan=False)
+
+
+def test_revolute_angle_attribute_is_still_private_angle():
+    # The record reads RevoluteJoint._angle; fail loudly if a build123d upgrade renames it.
+    a, b = _blocks("A", "B")
+    hinge = bd.RevoluteJoint("h", a, axis=bd.Axis((0, 0, 10), (1, 0, 0)), angular_range=(0, 90))
+    hinge.connect_to(bd.RigidJoint("p", b, bd.Location((20, 0, 0))), angle=30)
+    assert hinge._angle == 30

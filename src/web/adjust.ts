@@ -10,6 +10,7 @@ export type ParamRange = { value: number; min?: number; max?: number };
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const mm = (v: number) => v.toFixed(2);
+const deg = (v: number) => v.toFixed(1);
 
 /** The one parameter edit a typed value makes, or why it cannot be made. */
 export function dimensionEdit(
@@ -34,7 +35,9 @@ export function dimensionEdit(
     return {
       error:
         spec.min !== undefined && spec.max !== undefined
-          ? `${dim.name} must be between ${mm(spec.min * scale)} and ${mm(spec.max * scale)} mm`
+          ? dim.unit === "deg"
+            ? `${dim.name} must be between ${deg(spec.min * scale)} and ${deg(spec.max * scale)}°`
+            : `${dim.name} must be between ${mm(spec.min * scale)} and ${mm(spec.max * scale)} mm`
           : `${dim.name} is outside ${dim.param}'s range`,
     };
   return { name: dim.param, value: Math.round(next * 1e6) / 1e6 };
@@ -48,10 +51,11 @@ export function dragAxis(
   record: InspectRecord,
   dim: DimensionRecord,
 ): { origin: Vec3; direction: Vec3; sign: 1 | -1 } | null {
-  if (dim.moves === undefined || !dim.param || !dim.matches_param) return null;
+  if (dim.moves === undefined || !dim.faces || !dim.param || !dim.matches_param)
+    return null;
   const face = record.faces.find((f) => f.index === dim.moves);
   const other = record.faces.find(
-    (f) => f.index === dim.faces.find((i) => i !== dim.moves),
+    (f) => f.index === dim.faces!.find((i) => i !== dim.moves),
   );
   if (!face?.plane || !other) return null;
   const away = dot(face.plane.normal, sub(face.center, other.center));

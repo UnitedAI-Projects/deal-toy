@@ -115,19 +115,46 @@ export function faceOverlay(
   return new THREE.Box3Helper(box, color);
 }
 
+/**
+ * Highlights for `faces`. With `byPart`, each part's highlights sit in their own child group,
+ * named `part-<index>`, so the viewer can move them with an exploded or posed part.
+ */
 export function overlayGroup(
   record: InspectRecord,
   faces: number[],
   scale: number,
   color: number,
+  options: { byPart?: boolean } = {},
 ) {
   const group = new THREE.Group();
   group.name = "inspect-overlay";
+  const parts = new Map<number, THREE.Group>();
   for (const index of faces) {
     const face = record.faces[index];
-    if (face) group.add(faceOverlay(face, scale, color));
+    if (!face) continue;
+    const overlay = faceOverlay(face, scale, color);
+    if (!options.byPart) {
+      group.add(overlay);
+      continue;
+    }
+    let part = parts.get(face.part);
+    if (!part) {
+      part = new THREE.Group();
+      part.name = `part-${face.part}`;
+      parts.set(face.part, part);
+    }
+    part.add(overlay);
   }
+  for (const key of [...parts.keys()].sort((a, b) => a - b))
+    group.add(parts.get(key)!);
   return group;
+}
+
+/** Whether an object is a highlight drawn over the model rather than the model itself. */
+function isOverlay(o: THREE.Object3D) {
+  for (let n: THREE.Object3D | null = o.parent; n; n = n.parent)
+    if (n.name === "inspect-overlay") return true;
+  return false;
 }
 
 /**
@@ -165,8 +192,7 @@ export function sectionCaps(
   // stencil count and the cap colour are per part.
   const byPart = new Map<string, THREE.Mesh[]>();
   object.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o.parent?.name === "inspect-overlay")
-      return;
+    if (!(o instanceof THREE.Mesh) || isOverlay(o)) return;
     let node: THREE.Object3D | null = o;
     while (node && !partNodes.includes(node.name)) node = node.parent;
     const key = node?.name ?? "";

@@ -75,7 +75,7 @@ export function checkFromSelection(
         ),
       );
     for (const d of record.dimensions ?? [])
-      if (d.faces.includes(pick.face))
+      if (d.faces?.includes(pick.face))
         out.push(
           draft(
             d.name,
@@ -90,6 +90,16 @@ export function checkFromSelection(
     return out;
   }
   const index = record.parts.findIndex((p) => p.label === pick.label);
+  for (const d of record.dimensions ?? [])
+    if (d.joint !== undefined && record.joints?.[d.joint]?.part === index)
+      out.push(
+        draft(
+          d.name,
+          "dimension",
+          { dimension: d.name },
+          { nominal: null, tolerance: null },
+        ),
+      );
   if (record.embeds?.some((e) => e.part === index))
     out.push(
       draft(
@@ -204,18 +214,20 @@ const TBD = "TBD: confirm with your maker";
 const set = (v: number | null | undefined): v is number =>
   typeof v === "number" && Number.isFinite(v);
 
-/** A check's limit in words, or TBD when nobody has entered it. */
-export function limitText(check: Check): string {
+/** A check's limit in words, or TBD when nobody has entered it. `unit` is its result's unit. */
+export function limitText(check: Check, unit?: CheckResult["unit"]): string {
   const l = check.limit ?? {};
-  const deg = check.kind === "stability" || check.kind === "draft";
+  const deg =
+    check.kind === "stability" || check.kind === "draft" || unit === "deg";
   const one = (v: number) => (deg ? `${v.toFixed(1)}°` : mm(v));
   switch (check.kind) {
     case "no_overlap":
       return "≤ 0.001 mm³";
     case "dimension":
-      return set(l.nominal)
-        ? `${l.nominal.toFixed(2)} ± ${(set(l.tolerance) ? l.tolerance : 0).toFixed(2)} mm`
-        : TBD;
+      if (!set(l.nominal)) return TBD;
+      return deg
+        ? `${l.nominal.toFixed(1)} ± ${(set(l.tolerance) ? l.tolerance : 0).toFixed(1)}°`
+        : `${l.nominal.toFixed(2)} ± ${(set(l.tolerance) ? l.tolerance : 0).toFixed(2)} mm`;
     case "envelope":
       return l.size?.every(set)
         ? `≤ ${l.size.map((v) => v.toFixed(2)).join(" × ")} mm`
