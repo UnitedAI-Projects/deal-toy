@@ -22,6 +22,7 @@ import { catalog, dispatch } from "./tools";
 import { authorize } from "./consent";
 import { serve } from "./oauth";
 import { purgeExpired } from "./trash";
+import { addPhaseFile, getPhaseFile } from "./phase-tools";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
 /** The app itself: every route except the OAuth endpoints and /mcp, which the provider owns. */
@@ -167,6 +168,17 @@ export const app = {
           }),
         );
       }
+      const uploadMatch =
+        /^\/api\/projects\/([a-f0-9-]{36})\/phase-files$/.exec(url.pathname);
+      if (uploadMatch && request.method === "POST")
+        return secure(
+          Response.json(await addPhaseFile(c, uploadMatch[1], request)),
+        );
+      const phaseFileMatch = /^\/api\/phase-files\/([a-f0-9-]{36})$/.exec(
+        url.pathname,
+      );
+      if (phaseFileMatch && request.method === "GET")
+        return await getPhaseFile(c, phaseFileMatch[1]);
       const toolMatch = /^\/api\/tools\/([a-z_]+)$/.exec(url.pathname);
       if (toolMatch && request.method === "POST") {
         if (

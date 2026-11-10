@@ -50,6 +50,8 @@ function purgeStatements(db: D1Database, projectId: string) {
     `DELETE FROM check_lists WHERE model_id IN (${models})`,
     `DELETE FROM design_sheets WHERE model_id IN (${models})`,
     `DELETE FROM documents WHERE project_id=?1`,
+    `DELETE FROM phase_files WHERE project_id=?1`,
+    `DELETE FROM phase_states WHERE project_id=?1`,
     `DELETE FROM jobs WHERE revision_id IN (${revisions})`,
     `DELETE FROM project_events WHERE project_id=?1`,
     `DELETE FROM revisions WHERE model_id IN (${models})`,
@@ -82,7 +84,12 @@ export async function purge(env: Env, projectId: string) {
   )
     .bind(projectId)
     .all<{ object_key: string }>();
-  const keys = results.map((r) => r.object_key);
+  const phaseFiles = await env.DB.prepare(
+    "SELECT object_key FROM phase_files WHERE project_id=?",
+  )
+    .bind(projectId)
+    .all<{ object_key: string }>();
+  const keys = [...results, ...phaseFiles.results].map((r) => r.object_key);
   for (let i = 0; i < keys.length; i += 1000)
     await env.ARTIFACTS.delete(keys.slice(i, i + 1000));
   await env.DB.batch(purgeStatements(env.DB, projectId));
