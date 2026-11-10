@@ -12,6 +12,7 @@ import {
   phaseStatus,
   releaseReady,
   withBriefLogo,
+  withConceptSave,
   DOCS,
   type Concept,
   type PhaseState,
@@ -158,6 +159,25 @@ describe("art", () => {
     });
     // Sending it again doesn't add it twice.
     expect(withBriefLogo(s, s.brief.files[0]).brief.files).toHaveLength(1);
+  });
+});
+
+describe("MantelMesh saves in Concepts", () => {
+  it("make a card, then update it by id or by name", () => {
+    let s = withConceptSave(emptyPhaseState(), {
+      name: "Tower.mmesh",
+      url: "/m1",
+    });
+    expect(s.concepts).toHaveLength(1);
+    expect(s.concepts[0]).toMatchObject({ name: "Tower", mesh: "/m1" });
+    s = withConceptSave(s, { name: "Tower.png", url: "/p1" });
+    expect(s.concepts).toHaveLength(1);
+    expect(s.concepts[0].image).toBe("/p1");
+    const id = s.concepts[0].id;
+    s = withConceptSave(s, { name: "Concept.mmesh", url: "/m2" }, id);
+    expect(s.concepts).toHaveLength(1);
+    expect(s.concepts[0].mesh).toBe("/m2");
+    expect(withConceptSave(s, { name: "notes.txt", url: "/x" })).toBe(s);
   });
 });
 

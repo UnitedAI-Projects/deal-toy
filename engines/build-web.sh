@@ -10,6 +10,7 @@ case "$engine" in
   mantelcad) app=apps/mantelcad-web ;;
   mantelart) app=apps/vectorcraft-web ;;
   mantelpdf) app=apps/pdfcraft-web ;;
+  mantelmesh) app=apps/mantelmesh-web ;;
   *)
     echo "unknown engine: $engine" >&2
     exit 2

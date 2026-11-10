@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MantelMesh</title>
+  <meta name="description" content="MantelMesh mesh modeller">
+  <link data-trunk rel="rust" data-bin="mantelmesh-web" data-wasm-opt="z" />
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f1f1ee; }
+    #mantelmesh_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+    #mantelmesh_loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #676b74; font: 14px system-ui, sans-serif; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <canvas id="mantelmesh_canvas"></canvas>
+  <div id="mantelmesh_loading">Loading MantelMesh&hellip;</div>
+</body>
+</html>

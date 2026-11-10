@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 const BUCKET = "deal-toy-artifacts";
-const ENGINES = ["manteldocs", "mantelpdf", "mantelart", "mantelcad"];
+const ENGINES = ["manteldocs", "mantelpdf", "mantelart", "mantelcad", "mantelmesh"];
 const TYPES = {
   html: "text/html; charset=utf-8",
   js: "text/javascript; charset=utf-8",

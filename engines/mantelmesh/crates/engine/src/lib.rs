@@ -78,7 +78,12 @@ pub const COMMANDS: &[Command] = &[
             input("height", "mm", false, "Cylinder height (default 20)"),
             input("segments", "integer", false, "Sides or segments around (default 32)"),
             input("rings", "integer", false, "Sphere rings (default 16)"),
-            input("at", "[x, y, z] mm", false, "Where to place it"),
+            input(
+                "at",
+                "[x, y, z] mm",
+                false,
+                "Where to place its centre (default: standing on the ground at the origin)",
+            ),
         ],
     },
     Command {
@@ -425,8 +430,13 @@ impl Session {
                     _ => "Sphere",
                 });
                 let id = self.doc.add(label, mesh);
-                if let (Some(at), Some(o)) = (v3(p, "at")?, self.doc.get_mut(id)) {
-                    o.transform.translation = at;
+                let at = v3(p, "at")?;
+                if let Some(o) = self.doc.get_mut(id) {
+                    // Without a place, a new shape stands on the ground at the origin.
+                    o.transform.translation = match at {
+                        Some(at) => at,
+                        None => [0.0, 0.0, -o.mesh.bounds().map(|(lo, _)| lo[2]).unwrap_or(0.0)],
+                    };
                 }
                 let o = self.doc.get(id);
                 Ok(json!({ "object": id, "name": o.map(|o| o.name.clone()), "faces": o.map(|o| o.mesh.faces.len()) }))

@@ -10,6 +10,7 @@ export const ENGINES = [
   "mantelpdf",
   "mantelart",
   "mantelcad",
+  "mantelmesh",
 ] as const;
 export type Engine = (typeof ENGINES)[number];
 type Manifest = Partial<Record<Engine, { tree: string }>>;

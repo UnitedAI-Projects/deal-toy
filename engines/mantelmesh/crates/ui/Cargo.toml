@@ -1,0 +1,20 @@
+[package]
+name = "mantelmesh-ui"
+description = "MantelMesh's interface: outliner, properties, tools and a WebGL2 viewport with face picking, over the command engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mantelmesh-mesh.workspace = true
+mantelmesh-doc.workspace = true
+mantelmesh-engine.workspace = true
+egui.workspace = true
+egui_glow.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+
+[lints]
+workspace = true

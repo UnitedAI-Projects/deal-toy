@@ -54,6 +54,8 @@ export type Concept = {
   components: string;
   notes: string;
   image?: string;
+  /** The concept's MantelMesh model (/api/phase-files/<id>), when it has one. */
+  mesh?: string;
   starred: boolean;
   discarded: boolean;
   createdAt: string;
@@ -526,4 +528,48 @@ export function withBriefLogo(s: PhaseState, file: BriefFile): PhaseState {
     source: "file",
     note: `${logos.length} ${logos.length === 1 ? "file" : "files"}`,
   });
+}
+
+/**
+ * A MantelMesh save in the Concepts phase: a .mmesh becomes the concept's model, a .png its
+ * picture. It goes to the concept it was opened from, else the one named like the file, else a
+ * new concept.
+ */
+export function withConceptSave(
+  s: PhaseState,
+  file: { name: string; url: string },
+  conceptId?: string,
+): PhaseState {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (ext !== "mmesh" && ext !== "png") return s;
+  const base = file.name.replace(/\.[^.]+$/, "");
+  const target =
+    s.concepts.find((c) => c.id === conceptId) ??
+    s.concepts.find((c) => c.name === base && !c.discarded);
+  const patch = ext === "mmesh" ? { mesh: file.url } : { image: file.url };
+  if (target)
+    return {
+      ...s,
+      concepts: s.concepts.map((c) =>
+        c.id === target.id ? { ...c, ...patch } : c,
+      ),
+    };
+  return {
+    ...s,
+    concepts: [
+      ...s.concepts,
+      {
+        id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        name: base,
+        size: "",
+        materials: "",
+        components: "",
+        notes: "",
+        starred: false,
+        discarded: false,
+        createdAt: new Date().toISOString(),
+        ...patch,
+      },
+    ],
+  };
 }

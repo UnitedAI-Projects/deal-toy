@@ -2,7 +2,9 @@
 
 A polygon mesh modeller for the Concepts phase of [Mantel](../../README.md): rough shapes, proportions, depth, materials and components, quickly, before anything is dimensioned. Built like the other Mantel engines, in Rust, with one command engine shared by the interface, a CLI and (next) an MCP server and the browser app. See the [design](../../docs/superpowers/specs/2026-11-10-mantelmesh-design.md).
 
-![The bridge concept example](examples/bridge-concept.png)
+![MantelMesh in Mantel: a box with its top face extruded](examples/mantelmesh-web.png)
+
+![The bridge concept example, rendered by document.render](examples/bridge-concept-render.png)
 
 ## Status
 
@@ -16,7 +18,9 @@ The first release, in progress:
   - Undo and redo.
   - Files: native `.mmesh`, GLB (with `KHR_materials_transmission` for clear acrylic), OBJ in and out, and binary STL.
   - The command registry and `mantelmesh-cli`.
-- **Next:** the browser app (viewport, selection, transform tools and outliner, with the Craft host bridge), then modifiers (subdivision, mirror, array, solidify, bevel, boolean), loop cut and bevel edits, renders and MCP, and sculpting.
+- **Done:** the browser app (`apps/mantelmesh-web`, 4.6 MB): an outliner, a WebGL2 viewport (orbit, pan, zoom, click and shift-click face selection), properties (placement, material presets), the face tools, a live topology check, undo and redo, and the Craft host bridge. In Mantel, Concepts opens it, and each Save keeps a `.mmesh` and a PNG render as the concept's card.
+- **Done:** `document.render`, a CPU still render to PNG for cards, agents and the CLI (`--out concept.png`).
+- **Next:** modifiers (subdivision, mirror, array, solidify, bevel, boolean), loop cut and bevel edits, an MCP server, and sculpting.
 
 ## Prerequisites
 
@@ -40,8 +44,20 @@ A script is a JSON list of `{"command", "params"}` steps. The output's extension
 | `crates/ops` | Primitives and edits as pure functions: a mesh in, a new mesh and a report out. |
 | `crates/doc` | Objects, transforms, materials and the snapshot undo journal. |
 | `crates/io` | `.mmesh`, GLB, OBJ and STL. |
+| `crates/render` | CPU still renders to PNG. |
 | `crates/engine` | The session and the self-describing command registry. |
+| `crates/ui` | The egui interface, orbit camera, face picking and WebGL2 viewport. |
 | `apps/mantelmesh-cli` | Batch scripts and exports. |
+| `apps/mantelmesh-web` | The browser app (eframe, glow) with the Craft host bridge. |
+
+## Browser app
+
+```bash
+cd apps/mantelmesh-web
+trunk build --release
+```
+
+Serve `dist/web` over HTTP. Inside Mantel it is built by `engines/build-web.sh mantelmesh` and served at `/apps/mantelmesh/`.
 
 ## Validate
 

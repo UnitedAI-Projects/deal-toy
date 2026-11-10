@@ -32,20 +32,24 @@ const MEDIA: Record<string, string> = {
   step: "model/step",
   stp: "model/step",
   vectorcraft: "application/json",
+  mmesh: "application/json",
+  glb: "model/gltf-binary",
 };
 /** The media type a saved file is stored with, from its name. */
 export const mediaTypeFor = (name: string) =>
   MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ??
   "application/octet-stream";
 
-export type EngineId = "manteldocs" | "mantelpdf" | "mantelart" | "mantelcad";
+export type EngineId =
+  "manteldocs" | "mantelpdf" | "mantelart" | "mantelcad" | "mantelmesh";
 export const ENGINE_NAMES: Record<EngineId, string> = {
   manteldocs: "MantelDocs",
   mantelpdf: "MantelPDF",
   mantelart: "MantelArt",
   mantelcad: "MantelCAD",
+  mantelmesh: "MantelMesh",
 };
-const BRIDGED: EngineId[] = ["manteldocs", "mantelpdf"];
+const BRIDGED: EngineId[] = ["manteldocs", "mantelpdf", "mantelmesh"];
 
 /** Which engine opens a file, by its name; null when none does. */
 export function engineFor(name: string): EngineId | null {
@@ -55,6 +59,7 @@ export function engineFor(name: string): EngineId | null {
   if (ext === "svg" || ext === "vectorcraft" || ext === "drawcraft")
     return "mantelart";
   if (ext === "step" || ext === "stp" || ext === "sc") return "mantelcad";
+  if (ext === "mmesh") return "mantelmesh";
   return null;
 }
 

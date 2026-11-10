@@ -19,6 +19,7 @@ import {
 import { Workspace, type WorkspaceProps } from "./Workspace";
 import { EngineFrame, type EngineId } from "./EngineFrame";
 import type { PhaseFile } from "./api";
+import { withConceptSave } from "./phases";
 
 export type PhaseProps = {
   state: PhaseState;
@@ -30,11 +31,20 @@ export type PhaseProps = {
   latestRevision: number;
   go: (p: PhaseId) => void;
   /** Opens a phase engine over the project, with a file loaded; saves are filed under phase. */
-  openEngine: (engine: EngineId, phase: string, file?: EngineFile) => void;
+  openEngine: (
+    engine: EngineId,
+    phase: string,
+    file?: EngineFile,
+    conceptId?: string,
+  ) => void;
   /** Bumped whenever an engine keeps a save, so file lists refresh. */
   filesVersion: number;
 };
-export type EngineFile = { name: string; url: string; briefField?: string };
+export type EngineFile = {
+  name: string;
+  url: string;
+  briefField?: string;
+};
 
 function fromHash(): PhaseId | null {
   const h = location.hash.slice(1);
@@ -77,10 +87,16 @@ export function ProjectShell(props: WorkspaceProps) {
     engine: EngineId;
     phase: string;
     file?: EngineFile;
+    /** The concept MantelMesh saves belong to. */
+    conceptId?: string;
   } | null>(null);
   const [filesVersion, setFilesVersion] = useState(0);
-  const openEngine = (e: EngineId, p: string, file?: EngineFile) =>
-    setEngine({ engine: e, phase: p, file });
+  const openEngine = (
+    e: EngineId,
+    p: string,
+    file?: EngineFile,
+    conceptId?: string,
+  ) => setEngine({ engine: e, phase: p, file, conceptId });
   const back = () => {
     history.replaceState(null, "", location.pathname);
     props.onBack();
@@ -97,6 +113,10 @@ export function ProjectShell(props: WorkspaceProps) {
   /** A save from an engine: a new phase file, and for a brief attachment, a new attachment. */
   const kept = (file: PhaseFile) => {
     setFilesVersion((v) => v + 1);
+    if (engine?.phase === "concepts") {
+      update((s) => withConceptSave(s, file, engine.conceptId));
+      return;
+    }
     const field = engine?.file?.briefField;
     if (engine?.phase === "brief" && field)
       update((s) => ({

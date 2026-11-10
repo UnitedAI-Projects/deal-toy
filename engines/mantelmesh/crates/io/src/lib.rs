@@ -351,6 +351,20 @@ mod tests {
 
     #[test]
     fn native_round_trips_and_refuses_bad_files() {
+        // Every coordinate comes back bit for bit, not just close.
+        let mut odd = Document::default();
+        odd.add(
+            "Odd",
+            Mesh {
+                positions: vec![
+                    [1.9134171618254496, 0.1 + 0.2, 1e-300],
+                    [std::f64::consts::PI, -0.0, 7.0],
+                    [1.0, 2.0, 3.0],
+                ],
+                faces: vec![vec![0, 1, 2]],
+            },
+        );
+        assert_eq!(load_native(&save_native(&odd)).unwrap(), odd);
         let d = scene();
         assert!(d.objects[0].mesh.check().is_closed_solid());
         let bytes = save_native(&d);

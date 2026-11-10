@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        engine: [manteldocs, mantelpdf, mantelart, mantelcad]
+        engine: [manteldocs, mantelpdf, mantelart, mantelcad, mantelmesh]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -111,7 +111,8 @@ jobs:
             manteldocs="$(git rev-parse HEAD:engines/manteldocs)" \
             mantelpdf="$(git rev-parse HEAD:engines/mantelpdf)" \
             mantelart="$(git rev-parse HEAD:engines/mantelart)" \
-            mantelcad="$(git rev-parse HEAD:engines/mantelcad)"
+            mantelcad="$(git rev-parse HEAD:engines/mantelcad)" \
+            mantelmesh="$(git rev-parse HEAD:engines/mantelmesh)"
       - name: Verify deployed source
         env:
           APP_URL: ${{ vars.APP_URL }}
