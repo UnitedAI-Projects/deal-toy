@@ -77,6 +77,12 @@ output, and unchanged source topology/vertex tolerances/volume.
 
 These first green runs used the goldens profile with a command-line
 `profile.goldens.opt-level=0` override for diagnosis; no repository profile
-was changed. Optimized goldens, wasm, the rebuilt historical CLI/action
-matrix, and full integration CI are separate acceptance gates. This record
-does not claim their completion.
+was changed. The normal ci-profile CLI also passes the exact historical
+selection with validation at every step: one closed shell, 110 faces, and
+3810.779465666421 mm³. Its reduced replay measures 642.7500000000005 mm³.
+[Editable inputs, matching before/after pictures, and concise measurements](assets/notched-rib-shell/README.md)
+are retained with this finding. Before means the solid input; the old shell
+operation refused it.
+
+Optimized goldens, wasm, the action matrix and full integration CI remain
+separate acceptance gates; this record does not yet claim their completion.
