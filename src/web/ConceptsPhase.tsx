@@ -1,6 +1,7 @@
 /* Phase 2: a board of rough, disposable concepts. Choosing one records the approved visual
    qualities, targets (not dimensions) and the questions still open. */
 import { useEffect, useRef, useState } from "react";
+import { uploadPhaseFile } from "./api";
 import { Banner, OutputBar } from "./PhaseFrame";
 import type { PhaseProps } from "./ProjectShell";
 import {
@@ -12,7 +13,7 @@ import {
   type Question,
 } from "./phases";
 
-const MAX_IMAGE = 1.5 * 1024 * 1024;
+const MAX_IMAGE = 10 * 1024 * 1024;
 const newId = () =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -58,17 +59,24 @@ export function ConceptsPhase(props: PhaseProps) {
     setSelected(c.id);
     setEditing(c.id);
   };
-  function reference(files: FileList | null) {
+  /** Stores an image in the project's concepts and returns its URL. */
+  async function store(name: string, image: Blob) {
+    return (
+      await uploadPhaseFile(props.data.project.id, "concepts", name, image)
+    ).url;
+  }
+  async function reference(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
     if (file.size > MAX_IMAGE) {
-      setError(`${file.name} is over 1.5 MB. Use a smaller image.`);
+      setError(`${file.name} is over 10 MB. Use a smaller image.`);
       return;
     }
-    const r = new FileReader();
-    r.onload = () =>
-      add(blank(file.name.replace(/\.\w+$/, ""), String(r.result)));
-    r.readAsDataURL(file);
+    try {
+      add(blank(file.name.replace(/\.\w+$/, ""), await store(file.name, file)));
+    } catch (e) {
+      setError(`Couldn't add ${file.name}: ${(e as Error).message}`);
+    }
   }
   const shown = compare ? live.filter((c) => c.starred) : live;
 
@@ -116,7 +124,7 @@ export function ConceptsPhase(props: PhaseProps) {
               hidden
               disabled={readOnly}
               onChange={(e) => {
-                reference(e.target.files);
+                void reference(e.target.files);
                 e.target.value = "";
               }}
             />
@@ -298,9 +306,17 @@ export function ConceptsPhase(props: PhaseProps) {
         <SketchPad
           onCancel={() => setSketch(null)}
           onSave={(png) => {
-            if (sketch.conceptId) patch(sketch.conceptId, { image: png });
-            else add(blank(`Sketch ${letter(state.concepts.length)}`, png));
+            const target = sketch.conceptId;
             setSketch(null);
+            void (async () => {
+              try {
+                const url = await store("sketch.png", png);
+                if (target) patch(target, { image: url });
+                else add(blank(`Sketch ${letter(state.concepts.length)}`, url));
+              } catch (e) {
+                setError(`Couldn't save the sketch: ${(e as Error).message}`);
+              }
+            })();
           }}
         />
       )}
@@ -402,7 +418,7 @@ function ConceptEditor(props: {
 }
 
 function SketchPad(props: {
-  onSave: (png: string) => void;
+  onSave: (png: Blob) => void;
   onCancel: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -457,7 +473,9 @@ function SketchPad(props: {
         <div className="row">
           <button
             disabled={empty}
-            onClick={() => props.onSave(canvas.current!.toDataURL("image/png"))}
+            onClick={() =>
+              canvas.current!.toBlob((b) => b && props.onSave(b), "image/png")
+            }
           >
             Save sketch
           </button>

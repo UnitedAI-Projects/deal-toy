@@ -17,8 +17,8 @@ import { SignIn } from "./SignIn";
 import { useTheme, type ThemeChoice } from "./theme";
 import { TrashList } from "./Trash";
 import { PhaseMark } from "./PhaseFrame";
-import { loadPhases } from "./phase-store";
-import { PHASES, phaseStatus } from "./phases";
+import { normalize } from "./phase-store";
+import { PHASES, phaseStatus, type PhaseState } from "./phases";
 import { ProjectShell } from "./ProjectShell";
 import "./style.css";
 type Page = "projects" | "workspace" | "extensions" | "settings";
@@ -227,9 +227,19 @@ function ProjectCard(props: {
   );
 }
 
-/** The project's phases as saved in this browser. */
+/** The project's phases, as saved on the server. */
 function PhaseStrip({ projectId }: { projectId: string }) {
-  const s = loadPhases(projectId);
+  const [s, setS] = useState<PhaseState | null>(null);
+  useEffect(() => {
+    let live = true;
+    call<{ state: PhaseState | null }>("phases_get", { projectId })
+      .then((r) => live && setS(normalize(r.state)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [projectId]);
+  if (!s) return null;
   const rev = s.modelReady?.revision ?? 0;
   const marks = PHASES.map((ph) => ({ ...ph, st: phaseStatus(s, ph.id, rev) }));
   const current = marks.find((m) => m.st !== "approved") ?? marks[4];

@@ -3567,3 +3567,16 @@ label.cadbar-button.disabled {
 .phase-strip .muted {
   margin-left: 4px;
 }
+
+.save-chip {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 30;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+}

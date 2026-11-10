@@ -38,6 +38,7 @@ import { inspectTools } from "./inspect-tools";
 import { checkTools } from "./check-tools";
 import { DESIGN_WRITES, designTools } from "./design-tools";
 import { trashTools } from "./trash";
+import { phaseTools } from "./phase-tools";
 import { stopSessionPlans } from "./design/plans";
 import { catalogIndex } from "./actions/catalog";
 import {
@@ -592,6 +593,7 @@ export const tools: Tool[] = [
   ...checkTools,
   ...designTools,
   ...trashTools,
+  ...phaseTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -622,6 +624,8 @@ const SELF_RECORDING = new Set([
   // A viewer's selection changes with every click; it is state, not activity.
   "selection_set",
 ]);
+/** Writes the interface makes continuously (autosave); only agents' calls to them are logged. */
+const QUIET_FROM_INTERFACE = new Set(["phases_save"]);
 const MODEL_CHANGES = new Set([
   "checks_save",
   "models_create",
@@ -691,6 +695,12 @@ function summarize(name: string, input: unknown, value: unknown) {
       return `Viewed the model as of "${i.step}"`;
     case "documents_add":
       return `Saved ${i.kind} draft`;
+    case "phases_get":
+      return "Read the phases";
+    case "phases_save":
+      return `Saved the phases (v${v.version})`;
+    case "phase_files_list":
+      return "Listed the phase files";
     default:
       return name;
   }
@@ -724,7 +734,10 @@ export async function dispatch(
     typeof fields.sessionId === "string" ? fields.sessionId : undefined;
   const record =
     !SELF_RECORDING.has(name) &&
-    (channel === "mcp" || (channel === "http" && !tool.readOnly));
+    (channel === "mcp" ||
+      (channel === "http" &&
+        !tool.readOnly &&
+        !QUIET_FROM_INTERFACE.has(name)));
   let projectId =
     channel !== "internal" ? await resolveProject(c, input) : undefined;
   // Every tool, including those that write their own events, may only use the caller's own
@@ -752,7 +765,7 @@ export async function dispatch(
                 // Source never enters the log: it is broadcast to every live viewer, and
                 // the revision itself holds it for those allowed to read it.
                 Object.entries(fields).filter(
-                  ([k]) => k !== "sessionId" && k !== "source",
+                  ([k]) => k !== "sessionId" && k !== "source" && k !== "state",
                 ),
               ),
             ),
