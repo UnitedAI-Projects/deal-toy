@@ -1,0 +1,41 @@
+{
+  "id": "mantelart",
+  "name": "MantelArt",
+  "upgradeCode": "601C6437-08AE-4645-ADCC-27F036C2EA2F",
+  "sources": [
+    "mantelart.wxs"
+  ],
+  "icon": "assets/app-icon/mantelart.ico",
+  "localization": [
+    "mantelart.en-us.wxl"
+  ],
+  "extensions": [
+    "UI",
+    "Util"
+  ],
+  "payloads": [
+    "mantelart-cli.exe",
+    "mantelart.exe"
+  ],
+  "registry": [
+    [
+      "-1",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\mantelart.exe",
+      "",
+      "[#VectorcraftExe]"
+    ],
+    [
+      "-1",
+      "Software\\MantelArt",
+      "InstallDir",
+      "[INSTALLFOLDER]"
+    ],
+    [
+      "-1",
+      "Software\\MantelArt",
+      "DesktopShortcut",
+      "#1"
+    ]
+  ],
+  "mode": "dualScope"
+}
