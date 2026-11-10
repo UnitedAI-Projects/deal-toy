@@ -28,7 +28,13 @@ import {
 } from "./actions/saved";
 import { validateInputs } from "./actions/validate";
 import { AppError, id, modelAccess, projectAccess, type Context } from "./core";
-import { define, queueBuild, saveRevision, type Tool } from "./tool-kit";
+import {
+  define,
+  PLAN_NOTE,
+  queueBuild,
+  saveRevision,
+  type Tool,
+} from "./tool-kit";
 
 /** The modeling-action tools: the self-describing catalog, and edits to a model's steps section. */
 const stepName = z.string().min(1).max(80);
@@ -87,7 +93,10 @@ async function change(
     revision.source,
     applyStepChange(steps, edit, labels),
   );
-  const saved = await saveRevision(c, i.modelId, i.expectedRevision, source);
+  const saved = await saveRevision(c, i.modelId, i.expectedRevision, source, {
+    sessionId: i.sessionId,
+    request: describeChange(edit),
+  });
   const job = await queueBuild(c, saved.id);
   const name = edit.op === "add" ? edit.step.name : edit.name;
   await recordEvent(c, {
@@ -155,7 +164,7 @@ function existing(steps: ReturnType<typeof readSteps>["steps"], name: string) {
   return step;
 }
 
-export const stepTools: Tool[] = [
+const stepToolList: Tool[] = [
   define(
     "actions_list",
     "List the modeling actions you can add as steps, each with a one-line summary, plus the states a step can be in. Built-in actions come first; with projectId, the saved custom actions (id@version) and presets that project may use follow. Filter by category (Create, Modify, Construct, Combine, Arrange, Custom) or search text. Call actions_describe for an action's inputs before using it.",
@@ -329,6 +338,10 @@ export const stepTools: Tool[] = [
     [...WRITE],
   ),
 ];
+
+export const stepTools: Tool[] = stepToolList.map((t) =>
+  t.readOnly ? t : { ...t, description: t.description + PLAN_NOTE },
+);
 
 export const STEP_WRITES = stepTools
   .filter((t) => !t.readOnly)

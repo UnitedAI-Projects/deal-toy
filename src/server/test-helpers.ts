@@ -194,3 +194,49 @@ export async function mcpToken(email: string) {
   return (await exchange(await approve(await cookieFor(email), email), email))
     .access_token;
 }
+
+/**
+ * Gives a model a built design sheet and an open agent change plan for `c`, so tests of other
+ * features can make agent (MCP) writes without walking through design_start.
+ */
+export async function agentPlan(
+  c: Context,
+  modelId: string,
+  layers: {
+    add?: { name: string; kind: string; region: null }[];
+    edit?: string[];
+    remove?: string[];
+    shared?: boolean;
+  },
+) {
+  const at = new Date().toISOString();
+  const model = await env.DB.prepare("SELECT project_id FROM models WHERE id=?")
+    .bind(modelId)
+    .first<{ project_id: string }>();
+  const planId = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO design_sheets (model_id,request,sections,framework,built,session_id,created_by,created_at,updated_at) VALUES (?,'test','[]','[]',1,NULL,?,?,?)",
+    ).bind(modelId, c.identity.email, at, at),
+    env.DB.prepare(
+      "INSERT INTO change_plans (id,model_id,project_id,session_id,member,by_kind,framework,request,layers,status,started_at,updated_at) VALUES (?,?,?,NULL,?,'agent',0,'test',?,'open',?,?)",
+    ).bind(
+      planId,
+      modelId,
+      model!.project_id,
+      c.identity.email,
+      JSON.stringify({
+        add: [],
+        edit: [],
+        remove: [],
+        rename: [],
+        follow: [],
+        shared: false,
+        ...layers,
+      }),
+      at,
+      at,
+    ),
+  ]);
+  return planId;
+}

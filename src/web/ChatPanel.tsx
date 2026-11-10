@@ -1,3 +1,4 @@
+import { eventLine } from "./design-sheet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Activity, Job, ProjectEvent, Revision, Session } from "./api";
 type Props = {
@@ -151,6 +152,15 @@ export function ChatPanel(props: Props) {
                   {String(p.message)}
                 </div>
               );
+            case "design":
+            case "change": {
+              const line = eventLine(event);
+              return line ? (
+                <div className="msg-system" key={event.id}>
+                  ◆ {line}
+                </div>
+              ) : null;
+            }
             case "ended":
               return (
                 <div className="msg-end" key={event.id}>

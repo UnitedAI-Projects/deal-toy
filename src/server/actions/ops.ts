@@ -42,7 +42,12 @@ function checkName(
     throw new AppError(409, `A step or part is already named "${name}"`);
 }
 
-function renameIn(value: StepValue, from: string, to: string): StepValue {
+/** A step value with references to step or part `from` renamed to `to`. */
+export function renameIn(
+  value: StepValue,
+  from: string,
+  to: string,
+): StepValue {
   if (Array.isArray(value)) return value.map((v) => renameIn(v, from, to));
   if (!value || typeof value !== "object") return value;
   const out: Record<string, StepValue> = {};

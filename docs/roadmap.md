@@ -11,10 +11,20 @@
 - Live agent sessions: verbatim prompts, progress notes, recorded tool calls, team notes delivered on the next tool call, WebSocket updates, click-to-edit part parameters and light/dark themes.
 - Accounts: Google sign-in and signup, owner-edited access levels with per-person adjustments, a read-only demo project, OAuth sign-in for MCP clients, and the Mantel sign-in screen.
 
+## Next: agent presence and change history
+
+Design sheets, change plans and the guard are in place (Part 1 of the [sequential editing design](superpowers/specs/2026-11-09-sequential-editing-and-agent-presence-design.md)). Next, each as its own plan:
+
+1. **Agent presence on the canvas:** a selector on the layer an agent is working on, a shape-shifting placeholder in its region, and a summary that updates from `change_progress`, including on an empty project.
+2. **Layers panel and change timeline:** the framework's layers on the right, edited in place, and a line on the bottom with one point per request, built from `change_id`.
+3. **Faster builds:** shorter feedback while an agent works through a plan.
+
+Known limit: `appearance` colours whole parts. Colouring one area of a part, such as a gold rim on a white cup, needs that area modelled as its own part until face-level colour exists.
+
 ## Next: manufacturer-ready package
 
 1. Add a structured part/BOM model and native assemblies, preserving material and placement metadata.
-2. Add drawing specifications to the geometry-derived blueprint adapter: feature and hole-position dimensions, tolerances, material and revision invalidation.
+2. Add drawing specifications to the geometry-derived blueprint adapter: feature and hole-position dimensions on the views, tolerances and revision invalidation.
 3. Add supplier/process profiles and measured DFM checks with cited limits and explicit unknowns.
 4. Add human reviews, revision invalidation, immutable release manifests and ZIP export of source, geometry, drawings, BOM and brief.
 

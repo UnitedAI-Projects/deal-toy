@@ -77,6 +77,8 @@ class Model:
         global _LAST
         self.parts: dict[str, bd.Shape] = {}
         self.datums: dict[str, bd.Plane] = {}
+        # Part label -> ((r, g, b), finish), set by appearance steps and applied in result().
+        self.looks: dict[str, tuple[tuple[float, float, float], str]] = {}
         self.params = params or {}
         self.log: list[dict] = []
         self._created: dict[str, dict[str, tuple[str, list[g.Signature]]]] = {}
@@ -133,6 +135,8 @@ class Model:
         children = []
         for label, shape in self.parts.items():
             shape.label = label
+            if label in self.looks:
+                shape.color = bd.Color(*self.looks[label][0])
             children.append(shape)
         return bd.Compound(children=children)
 
@@ -229,7 +233,7 @@ class Model:
                  "state": "ok", "created": [], "ms": 0}
         self.log.append(entry)
         started = time.monotonic()
-        saved = (dict(self.parts), dict(self.datums))
+        saved = (dict(self.parts), dict(self.datums), dict(self.looks))
         self._warning = None
         owns_name = False  # a step with an invalid or duplicate name must not shadow another step's
         try:
@@ -261,13 +265,13 @@ class Model:
             if self._warning:
                 entry["state"], entry["message"] = "warning", self._warning[:300]
         except Blocked as error:
-            self.parts, self.datums = saved
+            self.parts, self.datums, self.looks = saved
             entry["state"], entry["message"] = "blocked", str(error)[:300]
         except StepError as error:
-            self.parts, self.datums = saved
+            self.parts, self.datums, self.looks = saved
             entry["state"], entry["code"], entry["message"] = "failed", error.code, str(error)[:300]
         except Exception as error:  # noqa: BLE001 - any failure inside a step is that step's failure
-            self.parts, self.datums = saved
+            self.parts, self.datums, self.looks = saved
             entry["state"], entry["code"] = "failed", "internal_error"
             entry["message"] = (str(error) or type(error).__name__)[:300]
         finally:

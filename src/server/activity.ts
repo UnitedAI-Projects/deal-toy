@@ -6,7 +6,14 @@ import {
   type Context,
 } from "./core";
 export type EventKind =
-  "prompt" | "agent_update" | "tool_call" | "team_note" | "team_edit" | "ended";
+  | "prompt"
+  | "agent_update"
+  | "tool_call"
+  | "team_note"
+  | "team_edit"
+  | "ended"
+  | "design"
+  | "change";
 export type ProjectEvent = {
   id: string;
   project_id: string;
@@ -172,6 +179,16 @@ export async function resolveProject(
         .bind(jobId)
         .first<{ revision_id: string }>();
       if (job) return (await revisionAccess(c, job.revision_id)).project_id;
+    }
+    const planId = text("planId");
+    if (planId) {
+      const plan = await c.env.DB.prepare(
+        "SELECT project_id FROM change_plans WHERE id=? AND member=?",
+      )
+        .bind(planId, c.identity.email)
+        .first<{ project_id: string }>();
+      if (plan)
+        return ((await projectAccess(c, plan.project_id)) as { id: string }).id;
     }
     const sessionId = text("sessionId");
     if (sessionId) return (await sessionFor(c, sessionId)).project_id;

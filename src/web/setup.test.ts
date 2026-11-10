@@ -24,4 +24,13 @@ describe("mcpSetupPrompt", () => {
     expect(prompt).toContain("projects_list");
     expect(prompt).toContain("skills_list");
   });
+
+  it("requires the start information before any geometry", () => {
+    const order = ["session_start", "design_start", "change_begin"].map((t) =>
+      prompt.indexOf(t),
+    );
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(prompt).toContain("Mantel refuses");
+  });
 });

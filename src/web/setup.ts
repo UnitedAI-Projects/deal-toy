@@ -18,6 +18,11 @@ Sign-in: OAuth. Mantel has no API keys, so don't ask me for a key or token.
    - Claude on the web or desktop app: you can't add it yourself. Tell me to open Settings → Connectors → Add custom connector, paste the URL and select Connect.
 2. A browser page opens. I sign in to Mantel and select Allow. Sign-in finishes by sending the browser back to the computer you run on, so if my browser is on a different computer (for example, you run over SSH), tell me before I sign in.
 3. Once connected, call projects_list and tell me how many projects you can see. Before building anything, call skills_list and read the modeling skill.
+4. Whenever I ask for a model or a change, send Mantel the start information first:
+   - call session_start with my request word for word;
+   - for a new model, question me about every section (size, each part's shape, colours, finish, designs), then record my answers and the layers you will build with design_start;
+   - for a change, call change_begin with the layers you will add, edit or remove.
+   Mantel refuses geometry saves that skip these steps and says what to call next.
 
 You act as me, with my Mantel access level. I can disconnect you at any time in Mantel under Settings → Connected apps.`;
 }

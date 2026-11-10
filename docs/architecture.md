@@ -44,6 +44,15 @@ See [the design](superpowers/specs/2026-10-28-agent-live-workspace-design.md) fo
 - **Parameters.** Model scripts declare editable dimensions in `PARAMS` with a part label, unit and optional range. The runner reads them inside the sandbox after `build()` and adds them, with the labelled parts and their volumes, to the geometry facts. `models_set_parameter` replaces exactly one numeric `value` literal in the latest revision's source, refusing ambiguous, computed or out-of-range edits, then saves a new revision through the normal conflict check and queues its build. `volume_mm3` sums part volumes, so overlapping parts count twice.
 - **Viewers.** Only the owner's own calls are recorded and only the owner's sessions receive notes. Someone reading a demo sees "team" in place of member emails, in reads and in the copy of each live event sent to viewer sockets (tickets record whether the socket belongs to the owner).
 
+## Design sheets and change plans
+
+See [the design](superpowers/specs/2026-11-09-sequential-editing-and-agent-presence-design.md), Part 1, for intent and decisions.
+
+- **Design sheet** (`design_sheets`, one per model). `design_start` stores the request, the questioned sections (each `answered` or `assumed`) and the framework: the layers in build order, each with a kind, the `PARAMS` it reads and its region in mm. The layer name `Framework` is reserved for `PARAMS`. `design_get` reads it with read access, so demo viewers see it too.
+- **Change plans** (`change_plans`). `change_begin` declares what one request will add, edit, remove or rename, the layers that only follow, and whether shared code changes. `change_progress` names the layer being worked on; `change_finish` closes the plan with a summary. A partial unique index allows one open plan per model. A plan stops when its session ends or after 30 minutes without activity. Until the framework is built, every plan is a framework plan, and finishing one requires every framework layer to exist.
+- **The guard** (`design/guard.ts`) runs inside `saveRevision`, the single write path for model source, so every tool that saves is covered. For an MCP write it requires a sheet and an open plan of the same member (and session, when one is named). While the framework is unbuilt it requires the steps layout, `base()` returning `None` and layers from the framework in order. Afterwards it compares the previous and new source in the Worker (`design/ownership.ts`, no Python), attributing each top-level chunk to a layer, `PARAMS` or shared code, and refuses anything the plan does not declare. People's (HTTP) and internal writes are never refused; each is recorded as a finished person change. Every revision stores `change_id`, so the timeline can show one point per request.
+- **Events.** `design` and `change` events (begin, progress, finish, stopped) go through the activity log and the live relay like other events; the activity panel shows them as one line each.
+
 ## Identity and isolation
 
 See [the accounts design](superpowers/specs/2026-10-28-accounts-and-access-design.md).

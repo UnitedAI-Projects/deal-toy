@@ -16,6 +16,7 @@ from OCP.TCollection import TCollection_AsciiString
 sys.path.insert(0, str(Path(__file__).with_name("lib")))
 import mantel
 from mantel.inspect import inspect_record
+from mantel.model import last_model
 
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
 MESH_TOLERANCE = 0.05
@@ -97,11 +98,20 @@ def declared_params(module) -> dict | None:
     return result
 
 
-def labelled_parts(shape) -> list:
-    """Top-level parts and their labels; GLB node names carry the same labels."""
+def labelled_parts(shape, appearance=None) -> list:
+    """Top-level parts and their labels; GLB node names carry the same labels.
+
+    appearance maps a part label to the ((r, g, b), finish) an appearance step gave it.
+    """
     children = list(getattr(shape, "children", None) or []) or [shape]
-    return [{"label": (child.label or "")[:120], "volume_mm3": float(child.volume)}
-            for child in children[:500]]
+    parts = []
+    for child in children[:500]:
+        entry = {"label": (child.label or "")[:120], "volume_mm3": float(child.volume)}
+        if appearance and child.label in appearance:
+            color, finish = appearance[child.label]
+            entry["color"], entry["finish"] = [round(c, 4) for c in color], finish
+        parts.append(entry)
+    return parts
 
 
 def build(source: Path, destination: Path, stop_after: int | None = None, preview: bool = False,
@@ -144,7 +154,7 @@ def build(source: Path, destination: Path, stop_after: int | None = None, previe
     facts = {"units": "mm", "bounds": list(bounds), "volume_mm3": shape.volume,
              "solids": len(shape.solids()), "valid": True,
              "manufacturing_approval": "not_reviewed",
-             "parts": labelled_parts(shape)}
+             "parts": labelled_parts(shape, getattr(last_model(), "looks", None))}
     params = declared_params(module)
     if params is not None:
         facts["params"] = params

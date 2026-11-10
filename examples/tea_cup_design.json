@@ -1,0 +1,78 @@
+{
+  "request": "A white tea cup, about 95 mm tall, with a comfortable handle",
+  "sections": [
+    {
+      "name": "Overall size",
+      "value": "95 mm tall, 84 mm across the rim, 62 mm across the base",
+      "source": "answered"
+    },
+    {
+      "name": "Body shape",
+      "value": "Round, flaring evenly from the base to the rim, with a 3 mm wall",
+      "source": "answered"
+    },
+    {
+      "name": "Rim",
+      "value": "Round, with a softened 1.2 mm edge",
+      "source": "answered"
+    },
+    {
+      "name": "Handle",
+      "value": "A C-shaped loop of 8 mm round section, from 80 mm down to 25 mm on one side",
+      "source": "answered"
+    },
+    {
+      "name": "Foot",
+      "value": "A 6 mm wide ring under the base, 4 mm high",
+      "source": "answered"
+    },
+    {
+      "name": "Colours and finish",
+      "value": "Warm white glaze, glossy, the whole cup",
+      "source": "answered"
+    },
+    {
+      "name": "Designs",
+      "value": "None: no pattern, lettering or logo",
+      "source": "assumed"
+    }
+  ],
+  "framework": [
+    {
+      "name": "Cup wall",
+      "kind": "shape",
+      "params": ["CUP_HEIGHT", "RIM_DIAMETER", "BASE_DIAMETER"],
+      "region": { "min": [-42, -42, 4], "max": [42, 42, 95] }
+    },
+    {
+      "name": "Hollow",
+      "kind": "modify",
+      "params": ["WALL"],
+      "region": { "min": [-40, -40, 7], "max": [40, 40, 95] }
+    },
+    {
+      "name": "Foot ring",
+      "kind": "shape",
+      "params": [],
+      "region": { "min": [-30, -30, 0], "max": [30, 30, 4.5] }
+    },
+    {
+      "name": "Rim",
+      "kind": "modify",
+      "params": [],
+      "region": { "min": [-42, -42, 92], "max": [42, 42, 95] }
+    },
+    {
+      "name": "Handle",
+      "kind": "shape",
+      "params": [],
+      "region": { "min": [32, -4, 21], "max": [64, 4, 84] }
+    },
+    {
+      "name": "Glaze",
+      "kind": "appearance",
+      "params": [],
+      "region": { "min": [-42, -42, 0], "max": [64, 42, 95] }
+    }
+  ]
+}

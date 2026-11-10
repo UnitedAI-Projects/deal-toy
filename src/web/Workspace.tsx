@@ -15,6 +15,8 @@ import {
   type Workspace as WorkspaceData,
 } from "./api";
 import { ChatPanel } from "./ChatPanel";
+import { DesignSheetView } from "./DesignSheet";
+import { menuLabel, type DesignSheet } from "./design-sheet";
 import { Timeline } from "./Timeline";
 import { InspectPanel, type Picked } from "./InspectPanel";
 import { ChecksPanel } from "./ChecksPanel";
@@ -90,7 +92,7 @@ function Materials({ record }: { record: InspectRecord }) {
   );
 }
 const briefTemplate = `# Manufacturing brief — DRAFT\n\nQuantity: TBD\nMaterial and grade: TBD\nProcess: TBD with manufacturer\nFinish and colour: TBD\nCritical dimensions and tolerances: TBD\nArtwork and engraving: TBD\nAssembly and adhesives: TBD\nInspection and sample approval: Required\nPackaging and shipping: TBD\n\nOpen questions:\n- Confirm process and supplier capabilities.\n- Review dimensioned engineering drawings.\n- Approve a physical sample before batch production.\n`;
-type Drawer = "code" | "downloads" | "documents" | "connect" | null;
+type Drawer = "code" | "downloads" | "documents" | "design" | "connect" | null;
 type Props = {
   data: WorkspaceData;
   reload: () => Promise<WorkspaceData>;
@@ -309,6 +311,26 @@ export function Workspace(props: Props) {
     });
     setDemo(!demo);
   }
+  // The model's design sheet, reread whenever the workspace reloads (an agent may have changed it).
+  const [sheet, setSheet] = useState<DesignSheet | null>(null);
+  useEffect(() => {
+    if (!model) {
+      setSheet(null);
+      return;
+    }
+    let cancelled = false;
+    call<{ sheet: DesignSheet | null }>("design_get", { modelId: model.id })
+      .then((r) => {
+        if (!cancelled) setSheet(r.sheet ?? null);
+      })
+      // Without the sheet the menu entry reads "No design sheet yet", which is still safe.
+      .catch(() => {
+        if (!cancelled) setSheet(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [model?.id, data]);
   // An empty project the member owns invites them to connect an agent, unless one already is.
   const empty = !data.models.length && owns;
   useEffect(() => {
@@ -940,6 +962,8 @@ export function Workspace(props: Props) {
             onSettings={props.onSettings}
             onSignOut={props.onSignOut}
             hasSource={hasSource}
+            sheetLabel={menuLabel(sheet)}
+            hasSheet={!!sheet}
             demo={
               owns && can(me, "settings.manage")
                 ? {
@@ -1281,6 +1305,7 @@ export function Workspace(props: Props) {
                   code: "Source code",
                   downloads: "Downloads and facts",
                   documents: "Manufacturing documents",
+                  design: "Design sheet",
                   connect: "Connect an agent",
                 }[drawer]
               }
@@ -1399,6 +1424,12 @@ export function Workspace(props: Props) {
                 readOnly={!owns || !can(me, "models.edit")}
               />
             )}
+            {drawer === "design" &&
+              (sheet ? (
+                <DesignSheetView sheet={sheet} />
+              ) : (
+                <p className="muted">This model has no design sheet yet.</p>
+              ))}
             {drawer === "connect" && (
               <Connect
                 onSettings={() => {
@@ -1439,6 +1470,8 @@ function Menu(props: {
   onSettings: () => void;
   onSignOut: () => void;
   hasSource: boolean;
+  sheetLabel: string;
+  hasSheet: boolean;
   demo?: { on: boolean; toggle: () => void };
 }) {
   const first = useRef<HTMLButtonElement>(null);
@@ -1459,6 +1492,13 @@ function Menu(props: {
       </button>
       <button role="menuitem" onClick={() => props.open("documents")}>
         Manufacturing documents
+      </button>
+      <button
+        role="menuitem"
+        disabled={!props.hasSheet}
+        onClick={() => props.open("design")}
+      >
+        {props.sheetLabel}
       </button>
       <button role="menuitem" onClick={() => props.open("connect")}>
         Connect an agent

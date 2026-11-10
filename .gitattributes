@@ -1,2 +1,3 @@
 worker-configuration.d.ts linguist-generated=true -whitespace
 examples/exports/*.step -whitespace
+examples/exports/**/*.step -whitespace

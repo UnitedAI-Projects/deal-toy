@@ -102,11 +102,14 @@ describe("Agent sessions", () => {
     })) as {
       id: string;
     };
-    await mcp("models_save", {
-      modelId: m.id,
-      expectedRevision: 0,
-      source: "#".repeat(5000),
-    });
+    // The guard refuses this agent save (no design sheet); refused calls are recorded too.
+    await expect(
+      mcp("models_save", {
+        modelId: m.id,
+        expectedRevision: 0,
+        source: "#".repeat(5000),
+      }),
+    ).rejects.toThrow("no design sheet");
     const { events } = await activity(p.id);
     const args = events.at(-1)!.payload.args as Record<string, unknown>;
     expect(args).toEqual({ modelId: m.id, expectedRevision: 0 });
