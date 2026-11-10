@@ -87,8 +87,10 @@ jobs:
           if [ "${{ matrix.engine }}" = mantelcad ]; then
             # Desktop tests include cold graphics-driver initialization and real socket deadlines.
             # Run that package serially so hardware probes cannot stall the daemon's reader tests.
-            cargo test --package mantelcad --locked --profile ci -- --test-threads=1
-            cargo test --workspace --exclude mantelcad --locked --profile ci --no-fail-fast
+            engine_status=0
+            cargo test --package mantelcad --locked --profile ci -- --test-threads=1 || engine_status=1
+            cargo test --workspace --exclude mantelcad --locked --profile ci --no-fail-fast || engine_status=1
+            exit "$engine_status"
           elif grep -q '^\[profile.ci\]' Cargo.toml; then
             cargo test --workspace --locked --profile ci --no-fail-fast
           else
