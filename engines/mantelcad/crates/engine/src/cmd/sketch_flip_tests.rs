@@ -126,7 +126,7 @@ fn flip_is_refused_on_a_face() {
 fn older_designs_open_rebuild_and_save_unchanged() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/mantelcad-cli/tests/corpus");
     let mut files: Vec<_> =
-        std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "mantelcad")).collect();
+        std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "solidcraft")).collect();
     files.sort();
     assert!(files.len() >= 7, "corpus designs in {}", dir.display());
     for old in files {

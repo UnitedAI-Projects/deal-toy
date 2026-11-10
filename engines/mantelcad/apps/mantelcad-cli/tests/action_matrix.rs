@@ -87,13 +87,14 @@ fn designs() -> Vec<(String, PathBuf)> {
             out.push((format!("{prefix}/{stem}"), p));
         }
     };
-    add("corpus", root.join("apps/mantelcad-cli/tests/corpus"), "mantelcad");
+    add("corpus", root.join("apps/mantelcad-cli/tests/corpus"), "solidcraft");
     add("examples", root.join("examples"), "json");
     add("examples", root.join("examples/acceptance"), "json");
     add("regressions", root.join("examples/regressions"), "json");
     add("demo", root.join("examples/demo"), "json");
     add("typical", root.join("tests/action_matrix/designs"), "json");
     add("demo", root.join("tests/action_matrix/designs"), mantelcad_engine::io::DESIGN_EXT);
+    assert!(out.iter().filter(|(name, _)| name.starts_with("corpus/")).count() >= 7, "historical design corpus is missing");
     let mut cases: Vec<PathBuf> =
         std::fs::read_dir(root.join("tests/oracle")).unwrap().flatten().map(|e| e.path()).filter(|p| p.join("recipe.json").is_file()).collect();
     cases.sort();

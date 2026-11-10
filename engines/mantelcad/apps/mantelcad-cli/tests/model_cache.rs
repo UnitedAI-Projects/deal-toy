@@ -12,8 +12,9 @@ use serde_json::{Value, json};
 fn corpus() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus");
     let mut v: Vec<PathBuf> =
-        std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "mantelcad")).collect();
+        std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "solidcraft")).collect();
     v.sort();
+    assert!(v.len() >= 7, "corpus files in {}", dir.display());
     v
 }
 
