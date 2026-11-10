@@ -1920,7 +1920,7 @@ impl<O: LoopObject> FaceProps<O> {
     ) -> Result<()> {
         self.set_props_stage2_with(
             k,
-            &mut &mut *b,
+            b,
             face,
             face_index,
             exe_heal_op,
