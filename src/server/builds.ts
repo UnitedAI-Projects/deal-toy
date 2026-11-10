@@ -91,6 +91,17 @@ const measureResult = z.object({
     .max(50),
 });
 
+/**
+ * Decodes a base64 artifact into bytes. Uint8Array.from(string, fn) first collects one entry per
+ * byte, about 25 bytes of heap each: a 12 MB blueprint took over 300 MB, past a Worker's 128 MB,
+ * and the Worker died without marking the job failed.
+ */
+export function fromBase64(text: string) {
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 /** Base64 for binaries too large for one String.fromCharCode spread. */
 function toBase64(bytes: Uint8Array) {
   let text = "";
@@ -314,9 +325,7 @@ export async function consume(message: Message<unknown>, env: Env) {
     let inspected: unknown = null;
     const statements: D1PreparedStatement[] = [];
     for (const artifact of result.artifacts) {
-      const binary = Uint8Array.from(atob(artifact.base64), (c) =>
-        c.charCodeAt(0),
-      );
+      const binary = fromBase64(artifact.base64);
       total += binary.length;
       if (total > 15 * 1024 * 1024) throw new Error("Artifact limit exceeded");
       const objectKey = `builds/${jobId}/${artifact.name}`;
@@ -481,9 +490,7 @@ async function draw(
     throw new Error("Duplicate drawing files");
   const statements: D1PreparedStatement[] = [];
   for (const artifact of artifacts) {
-    const binary = Uint8Array.from(atob(artifact.base64), (c) =>
-      c.charCodeAt(0),
-    );
+    const binary = fromBase64(artifact.base64);
     const objectKey = `builds/${options.build}/${artifact.name}`;
     keys.push(objectKey);
     await env.ARTIFACTS.put(objectKey, binary, {
