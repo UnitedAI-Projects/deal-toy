@@ -1,4 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   call,
   can,
@@ -107,6 +115,7 @@ function Materials({ record }: { record: InspectRecord }) {
 }
 const briefTemplate = `# Manufacturing brief — DRAFT\n\nQuantity: TBD\nMaterial and grade: TBD\nProcess: TBD with manufacturer\nFinish and colour: TBD\nCritical dimensions and tolerances: TBD\nArtwork and engraving: TBD\nAssembly and adhesives: TBD\nInspection and sample approval: Required\nPackaging and shipping: TBD\n\nOpen questions:\n- Confirm process and supplier capabilities.\n- Review dimensioned engineering drawings.\n- Approve a physical sample before batch production.\n`;
 type Drawer = "code" | "downloads" | "documents" | "design" | "connect" | null;
+export type WorkspaceProps = Props;
 type Props = {
   data: WorkspaceData;
   reload: () => Promise<WorkspaceData>;
@@ -118,6 +127,9 @@ type Props = {
   onExtensions: () => void;
   onSettings: () => void;
   onSignOut: () => void;
+  /** Set by the project shell: the phase bar in the top bar and the phase's output bar. */
+  phaseBar?: ReactNode;
+  outputBar?: ReactNode;
 };
 export function Workspace(props: Props) {
   const { data } = props;
@@ -923,7 +935,7 @@ export function Workspace(props: Props) {
         ? "Agent idle"
         : "No agent yet";
   return (
-    <div className="workspace">
+    <div className={`workspace ${props.phaseBar ? "with-phases" : ""}`}>
       <Suspense fallback={<div className="viewer" />}>
         <Viewer
           artifactId={asOf?.glb ?? glb?.id}
@@ -1001,6 +1013,9 @@ export function Workspace(props: Props) {
             </select>
           )}
         </div>
+        {props.phaseBar && (
+          <div className="topbar-center">{props.phaseBar}</div>
+        )}
         <div className="topbar-right">
           {model && (
             <button
@@ -1394,6 +1409,8 @@ export function Workspace(props: Props) {
           )}
         </div>
       )}
+
+      {props.outputBar}
 
       {!!revisions.length && (
         <nav className="revisions" aria-label="Revisions">

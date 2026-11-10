@@ -16,7 +16,10 @@ import { Settings } from "./Settings";
 import { SignIn } from "./SignIn";
 import { useTheme, type ThemeChoice } from "./theme";
 import { TrashList } from "./Trash";
-import { Workspace } from "./Workspace";
+import { PhaseMark } from "./PhaseFrame";
+import { loadPhases } from "./phase-store";
+import { PHASES, phaseStatus } from "./phases";
+import { ProjectShell } from "./ProjectShell";
 import "./style.css";
 type Page = "projects" | "workspace" | "extensions" | "settings";
 function App() {
@@ -68,7 +71,7 @@ function App() {
   if (!identity) return <SignIn theme={theme} onSignedIn={signIn} />;
   if (page === "workspace" && workspace)
     return (
-      <Workspace
+      <ProjectShell
         key={workspace.project.id}
         data={workspace}
         reload={async () => {
@@ -215,11 +218,31 @@ function ProjectCard(props: {
       <span className="muted clamp">
         {p.brief || "Ready for its first model."}
       </span>
+      <PhaseStrip projectId={p.id} />
       <span className="muted small">
         {p.demo ? "Demo · " : ""}
         {new Date(p.created_at).toLocaleDateString()}
       </span>
     </button>
+  );
+}
+
+/** The project's phases as saved in this browser. */
+function PhaseStrip({ projectId }: { projectId: string }) {
+  const s = loadPhases(projectId);
+  const rev = s.modelReady?.revision ?? 0;
+  const marks = PHASES.map((ph) => ({ ...ph, st: phaseStatus(s, ph.id, rev) }));
+  const current = marks.find((m) => m.st !== "approved") ?? marks[4];
+  return (
+    <span
+      className="phase-strip"
+      title={marks.map((m) => `${m.label}: ${m.st}`).join(" · ")}
+    >
+      {marks.map((m) => (
+        <PhaseMark key={m.id} status={m.st} />
+      ))}
+      <span className="muted small">{current.label}</span>
+    </span>
   );
 }
 

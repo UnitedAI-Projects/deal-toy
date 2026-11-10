@@ -2358,3 +2358,1212 @@ tr.selected {
     width: auto;
   }
 }
+
+/* Phased workspace: the phase bar, the shared frame and the Brief, Concepts, Documents and
+   Manufacture screens. Model is the workspace above with .with-phases. */
+.topbar-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+.phasebar {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+.phasebar button {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.phasebar button:hover:not(.on) {
+  background: var(--surface-2);
+  filter: none;
+}
+.phasebar button.on {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.phase-n {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.6;
+}
+.phase-ok {
+  color: var(--ok);
+  font-size: 12px;
+}
+.phasebar button.on .phase-ok {
+  color: inherit;
+}
+.phase-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  background: var(--line-strong);
+}
+.phase-dot.active {
+  background: var(--agent);
+}
+.phase-dot.stale {
+  background: var(--warn);
+}
+.phase-dot.bad {
+  background: var(--bad);
+}
+.phase-dot.approved {
+  background: var(--ok);
+}
+.phasebar-compact {
+  display: none;
+  position: relative;
+}
+.phasebar-compact .menu {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: 220px;
+}
+.phasebar-compact .menu button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.workspace.with-phases .cadbar {
+  top: 60px;
+}
+.workspace.with-phases .chat-shell {
+  top: 108px;
+}
+.workspace.with-phases .revisions {
+  bottom: 74px;
+}
+.workspace.with-phases .timeline {
+  bottom: 112px;
+}
+.workspace.with-phases .inspect-tools {
+  bottom: 74px;
+}
+
+/* The output bar: what the phase produces and the button that finishes it. */
+.output-shell {
+  position: fixed;
+  left: 368px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 16;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.workspace .output-shell {
+  left: 14px;
+}
+.output-bar {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 7px 7px 16px;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  max-width: 100%;
+}
+.output-what {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.output-facts {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.output-facts > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.output-bar > button {
+  white-space: nowrap;
+}
+.output-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 340px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tick-row {
+  display: flex;
+  flex-direction: row;
+  color: var(--ink);
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+.tick-row input {
+  margin-top: 3px;
+  accent-color: var(--ok);
+  width: auto;
+}
+.tick-row .done {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+.phase-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.phase-banner button {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* The page for every phase but Model. */
+.phase-page {
+  position: fixed;
+  inset: 0;
+  background-color: var(--canvas);
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--ink) 4%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ink) 4%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 32px 32px;
+}
+.phase-work {
+  position: fixed;
+  left: 368px;
+  right: 14px;
+  top: 62px;
+  bottom: 76px;
+  overflow: auto;
+  padding: 2px;
+}
+.phase-page .topbar .menu {
+  right: 0;
+  width: 220px;
+}
+
+/* The agent panel. */
+.phase-agent {
+  position: fixed;
+  left: 14px;
+  top: 62px;
+  bottom: 14px;
+  width: 340px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+.agent-chip {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 15;
+}
+.spark {
+  color: var(--agent);
+}
+.phase-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.phase-agent-head strong {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
+}
+.phase-agent-log {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.agent-msg {
+  align-self: flex-start;
+  max-width: 94%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--agent-soft);
+}
+.agent-who {
+  font-size: 11.5px;
+  color: var(--agent);
+  font-weight: 600;
+}
+.my-msg {
+  align-self: flex-end;
+  max-width: 90%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: pre-wrap;
+}
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick button {
+  font-size: 12.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 400;
+}
+.phase-agent-input {
+  border-top: 1px solid var(--line);
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.phase-agent-input textarea {
+  flex: 1;
+  resize: none;
+  height: 56px;
+}
+.phase-agent-input .send {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9px;
+  background: var(--agent);
+  color: #fff;
+}
+.phase-agent-foot {
+  padding: 0 12px 10px;
+  margin: 0;
+}
+
+/* Brief */
+.brief-wrap {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: flex-start;
+  padding-bottom: 24px;
+}
+.brief-sheet {
+  width: min(760px, 100%);
+  padding: 24px 28px;
+}
+.brief-sheet.dragging {
+  outline: 2px dashed var(--agent);
+  outline-offset: 4px;
+}
+.brief-sub {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--muted);
+  margin: 4px 0 14px;
+}
+.brief-sec {
+  margin-top: 18px;
+  scroll-margin-top: 8px;
+}
+.brief-sec h2 {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  margin-bottom: 4px;
+}
+.brief-field {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.brief-k {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+  padding-top: 6px;
+}
+.brief-acts .hover-only {
+  visibility: hidden;
+}
+.brief-field:hover .hover-only,
+.brief-field:focus-within .hover-only {
+  visibility: visible;
+}
+.req {
+  color: var(--bad);
+  margin-left: 2px;
+}
+.brief-v {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.brief-input {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 7px;
+  padding: 5px 7px;
+  margin-left: -7px;
+  resize: vertical;
+}
+.brief-input:hover:not(:disabled),
+.brief-input:focus {
+  border-color: var(--line);
+  background: var(--surface);
+}
+.brief-field.proposal .brief-input {
+  background: var(--agent-soft);
+}
+.brief-src {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.brief-src.agent {
+  color: var(--agent);
+}
+.brief-acts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-top: 4px;
+}
+.brief-acts button.secondary {
+  padding: 3px 9px;
+  font-size: 12.5px;
+}
+.tag.answered,
+.tag.ok,
+.tag.approved {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+.tag.assumed,
+.tag.stale {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.tag.stale {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.tag.open,
+.tag.bad {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 50%, transparent);
+}
+.file-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+}
+.file img,
+.file-sw {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: contain;
+  background: var(--surface);
+}
+.file-sw {
+  display: grid;
+  place-items: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.file.add {
+  cursor: pointer;
+  border-style: dashed;
+  color: var(--muted);
+  background: transparent;
+}
+.warnline {
+  color: var(--warn);
+  font-size: 12px;
+}
+.drop-hint {
+  margin-top: 16px;
+}
+.brief-index {
+  width: 190px;
+  padding: 12px;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+}
+.brief-index a {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 5px 6px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+.brief-index a:hover {
+  background: var(--surface-2);
+}
+.cnt {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+}
+.cnt.bad {
+  color: var(--bad);
+}
+.cnt.warn {
+  color: var(--warn);
+}
+
+/* Concepts */
+.board-tools {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.cadbar.static {
+  position: static;
+  transform: none;
+}
+label.cadbar-button {
+  cursor: pointer;
+}
+label.cadbar-button.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.cadbar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 4px 3px;
+}
+.cadbar-button.active {
+  background: var(--agent-soft);
+  color: var(--agent);
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+.board.compare {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.concept {
+  position: relative;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--float);
+  backdrop-filter: blur(8px);
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.concept:hover {
+  border-color: var(--muted);
+}
+.concept.sel {
+  border-style: solid;
+  border-color: var(--agent);
+  box-shadow: 0 0 0 3px var(--agent-soft);
+}
+.concept.chosen .concept-tag {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.concept-tag {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.concept-star {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 1;
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  color: var(--faint);
+  font-size: 16px;
+}
+.concept-star.on {
+  color: var(--warn);
+}
+.concept-pv {
+  height: 160px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.board.compare .concept-pv {
+  height: 260px;
+}
+.concept-pv.large {
+  height: 220px;
+}
+.concept-pv img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.concept-blank {
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--line-strong);
+}
+.concept-nm {
+  font-weight: 600;
+}
+.concept-meta {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.concept-acts {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+.concepts-empty {
+  max-width: 520px;
+  margin: 60px auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tray {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.tray .row {
+  margin-top: 8px;
+}
+.side-sheet {
+  padding: 0;
+  gap: 0;
+  position: fixed;
+  right: 14px;
+  top: 62px;
+  bottom: 76px;
+  width: 400px;
+  max-width: calc(100vw - 28px);
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.side-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.side-sheet-head strong {
+  margin-right: auto;
+}
+.side-sheet-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.side-sheet-body h3 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  font-weight: 600;
+  margin: 6px 0 0;
+}
+.side-sheet-body .field,
+.quote-row label {
+  color: var(--muted);
+}
+.side-sheet-body .field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.side-sheet-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.question {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.question span:first-child {
+  flex: 1;
+}
+.question-add {
+  display: flex;
+  gap: 6px;
+}
+.question-add input {
+  flex: 1;
+  min-width: 0;
+}
+.question-add select {
+  width: auto;
+}
+.callout {
+  border-left: 3px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sketch-pad {
+  width: min(680px, 100%);
+  padding: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sketch-pad canvas {
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  aspect-ratio: 640 / 420;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sketch-pad .row {
+  padding: 0 16px;
+}
+
+/* Documents and Manufacture */
+.docs,
+.mfg-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+.mfg {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.mfg-grid {
+  flex: 1;
+}
+.thread,
+.doc-list,
+.doc-preview {
+  padding: 0;
+  gap: 0;
+}
+.doc-list {
+  padding: 8px;
+  gap: 2px;
+}
+.doc-preview {
+  padding: 20px;
+  gap: 18px;
+}
+.doc-list {
+  padding: 8px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.doc-list > .muted {
+  padding: 4px 10px 8px;
+}
+.doc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+  text-align: left;
+  font-weight: 400;
+}
+.doc-row:hover {
+  background: var(--surface-2);
+  filter: none;
+}
+.doc-row.sel {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+.doc-t {
+  display: block;
+  font-weight: 500;
+}
+.doc-s {
+  display: block;
+  font-size: 12px;
+  color: var(--faint);
+}
+.doc-preview {
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+}
+.doc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.doc-side {
+  width: 220px;
+  flex: none;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.doc-side h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.doc-src {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.doc-src.missing {
+  color: var(--warn);
+}
+.doc-side .stack {
+  margin-top: 12px;
+  gap: 6px;
+}
+.paper {
+  background: #fff;
+  color: #1b1c20;
+  border: 1px solid #e3e3df;
+  border-radius: 6px;
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.paper-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+  color: #676b74;
+}
+.paper-head h2 {
+  font-size: 18px;
+  color: #1b1c20;
+}
+.paper-sub {
+  font-size: 13px;
+  color: #4a4d55;
+  margin: 0;
+}
+.paper-art {
+  height: 260px;
+  border-radius: 6px;
+  background: #f4f4f1;
+  display: grid;
+  place-items: center;
+  color: #9a9ea6;
+  overflow: hidden;
+}
+.paper-art img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.title-block {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid #1b1c20;
+  font-size: 11.5px;
+}
+.title-block div {
+  padding: 5px 7px;
+  border-right: 1px solid #1b1c20;
+}
+.title-block div:last-child {
+  border-right: 0;
+}
+.title-block b {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #676b74;
+  letter-spacing: 0.05em;
+}
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.file-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.file-list li span:first-child {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.rev-list {
+  margin: 0;
+  padding-left: 20px;
+}
+.doc-text {
+  min-height: 320px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.supplier-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+}
+.thread {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.thread-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.thread-head select {
+  width: auto;
+}
+.stages {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 4px;
+}
+.stages span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.stages .on {
+  color: var(--ink);
+}
+.quote-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.quote-row label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.thread-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.thread .bubble {
+  max-width: 72%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  white-space: pre-wrap;
+}
+.thread .bubble.them {
+  background: var(--surface-2);
+  align-self: flex-start;
+}
+.thread .bubble.us {
+  background: var(--primary);
+  color: var(--on-primary);
+  align-self: flex-end;
+}
+.bubble-by {
+  font-size: 11px;
+  opacity: 0.65;
+  margin-bottom: 2px;
+}
+.thread-input {
+  border-top: 1px solid var(--line);
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.thread-input select {
+  width: auto;
+}
+.thread-input textarea {
+  flex: 1;
+  height: 56px;
+  resize: none;
+}
+.thread-foot {
+  padding: 0 12px 10px;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .phasebar button {
+    padding: 4px 8px;
+  }
+  .phasebar .phase-n {
+    display: none;
+  }
+  .brief-index {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  .phasebar {
+    display: none;
+  }
+  .phasebar-compact {
+    display: block;
+  }
+  .phase-agent {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    height: 196px;
+    border-radius: 16px 16px 0 0;
+  }
+  .phase-agent-log > :not(.peek) {
+    display: none;
+  }
+  .phase-agent-log {
+    padding: 8px 12px;
+    overflow: hidden;
+  }
+  .phase-agent-log .peek {
+    max-width: 100%;
+    max-height: 5.4em;
+    overflow: hidden;
+    padding: 6px 10px;
+  }
+  .phase-agent-foot {
+    display: none;
+  }
+  .phase-work {
+    left: 10px;
+    right: 10px;
+    top: 56px;
+    bottom: 262px;
+  }
+  .phase-page .output-shell {
+    left: 10px;
+    right: 10px;
+    bottom: 206px;
+  }
+  .output-facts {
+    display: none;
+  }
+  .brief-sheet {
+    padding: 18px;
+  }
+  .brief-field {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .docs,
+  .mfg-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .mfg {
+    height: auto;
+  }
+  .doc-list {
+    max-height: 220px;
+  }
+  .doc-preview {
+    flex-direction: column;
+  }
+  .doc-side {
+    width: auto;
+  }
+  .board {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .concept-pv {
+    height: 110px;
+  }
+  .board-tools .cadbar {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .side-sheet {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: 10px;
+    top: 56px;
+  }
+  .title-block {
+    grid-template-columns: 1fr 1fr;
+  }
+  .workspace.with-phases .chat-shell {
+    top: auto;
+  }
+  .workspace.with-phases .revisions {
+    top: 100px;
+    bottom: auto;
+  }
+  .workspace.with-phases .output-shell {
+    left: 10px;
+    right: 10px;
+    bottom: 64px;
+  }
+}
+
+.phase-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.phase-strip .phase-ok {
+  font-size: 11px;
+}
+.phase-strip .muted {
+  margin-left: 4px;
+}
