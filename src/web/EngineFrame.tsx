@@ -190,6 +190,9 @@ export function EngineFrame(props: {
   }
   const [status, setStatus] = useState("Starting…");
   const [dirty, setDirty] = useState(false);
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const [failedSaves, setFailedSaves] = useState<string[]>([]);
+  const hasUnsavedWork = dirty || pendingSaves > 0 || failedSaves.length > 0;
   const [saved, setSaved] = useState<Saved[]>([]);
   const [error, setError] = useState("");
   const name = ENGINE_NAMES[props.engine];
@@ -216,15 +219,26 @@ export function EngineFrame(props: {
     const body = new Blob([bytes as BlobPart], {
       type: mediaTypeFor(fileName),
     });
-    const file = await uploadPhaseFile(
-      props.projectId,
-      props.phase,
-      fileName,
-      body,
-    );
-    setSaved((s) => [{ file, at: new Date().toLocaleTimeString() }, ...s]);
-    props.onSaved(file);
-    return file;
+    setPendingSaves((n) => n + 1);
+    try {
+      const file = await uploadPhaseFile(
+        props.projectId,
+        props.phase,
+        fileName,
+        body,
+      );
+      setFailedSaves((names) => names.filter((n) => n !== fileName));
+      setSaved((s) => [{ file, at: new Date().toLocaleTimeString() }, ...s]);
+      props.onSaved(file);
+      return file;
+    } catch (err) {
+      setFailedSaves((names) =>
+        names.includes(fileName) ? names : [...names, fileName],
+      );
+      throw err;
+    } finally {
+      setPendingSaves((n) => n - 1);
+    }
   }
   async function bytesOf(url: string) {
     return await (await request(url)).arrayBuffer();
@@ -338,13 +352,20 @@ export function EngineFrame(props: {
       } else setStatus("Ready");
       while (!stopped) {
         await new Promise((r) => setTimeout(r, 1500));
+        if (stopped) break;
+        try {
+          const info = await api.execute("document.inspect", {});
+          if (!stopped) setDirty(info.dirty === true);
+        } catch {
+          // A busy editor must not clear the last known unsaved state.
+        }
         for (const f of api.files()) {
           try {
             const bytes = api.readFile(f.path);
             const d = await digest(bytes);
             if (seen.get(f.path) === d) continue;
-            seen.set(f.path, d);
             await keep(f.path.split("/").pop() || "artwork", bytes);
+            seen.set(f.path, d);
             setStatus(`Saved ${f.path}`);
           } catch (err) {
             setError(`Couldn't keep ${f.path}: ${(err as Error).message}`);
@@ -359,11 +380,11 @@ export function EngineFrame(props: {
 
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => {
-      if (dirty) e.preventDefault();
+      if (hasUnsavedWork) e.preventDefault();
     };
     addEventListener("beforeunload", guard);
     return () => removeEventListener("beforeunload", guard);
-  }, [dirty]);
+  }, [hasUnsavedWork]);
 
   return (
     <div className="engine-frame" role="dialog" aria-label={name}>
@@ -372,7 +393,7 @@ export function EngineFrame(props: {
           className="chip"
           onClick={() => {
             if (
-              dirty &&
+              hasUnsavedWork &&
               !confirm(`${name} has unsaved changes. Close it anyway?`)
             )
               return;
@@ -383,7 +404,7 @@ export function EngineFrame(props: {
         </button>
         <strong>{name}</strong>
         <span className="muted small">{status}</span>
-        {dirty && <span className="tag assumed">unsaved</span>}
+        {hasUnsavedWork && <span className="tag assumed">unsaved</span>}
         {saved.length > 0 && (
           <span className="muted small">
             {saved.length} {saved.length === 1 ? "save" : "saves"} kept in the

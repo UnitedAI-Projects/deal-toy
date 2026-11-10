@@ -20,13 +20,13 @@ mod web {
     use wasm_bindgen::JsCast;
 
     type Inbox = Rc<RefCell<Vec<(String, Vec<u8>)>>>;
+    type Saved = Rc<RefCell<Vec<String>>>;
 
     struct Hosted(Rc<Bridge>);
     impl Host for Hosted {
-        fn save(&self, name: &str, bytes: &[u8]) {
-            if let Err(e) = self.0.post_save(name, bytes, None, false) {
-                web_sys::console::error_1(&format!("MantelMesh: save failed: {e}").into());
-            }
+        fn save(&self, name: &str, bytes: &[u8], id: Option<&str>) -> Result<bool, String> {
+            self.0.post_save(name, bytes, id, false)?;
+            Ok(false)
         }
         fn dirty(&self, dirty: bool) {
             self.0.post_dirty(dirty);
@@ -36,8 +36,9 @@ mod web {
     /// Standalone: saves become downloads.
     struct Download;
     impl Host for Download {
-        fn save(&self, name: &str, bytes: &[u8]) {
-            let _ = download(name, bytes);
+        fn save(&self, name: &str, bytes: &[u8], _: Option<&str>) -> Result<bool, String> {
+            download(name, bytes).ok_or_else(|| "Could not start the download".to_string())?;
+            Ok(true)
         }
         fn dirty(&self, _: bool) {}
     }
@@ -60,12 +61,16 @@ mod web {
     struct App {
         inner: MeshApp,
         inbox: Inbox,
+        saved: Saved,
     }
     impl eframe::App for App {
         fn ui(&mut self, ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
             let files: Vec<_> = self.inbox.borrow_mut().drain(..).collect();
             for (name, bytes) in files {
                 self.inner.open_file(&name, &bytes);
+            }
+            for id in self.saved.borrow_mut().drain(..) {
+                self.inner.saved(&id);
             }
             self.inner.ui(ui);
         }
@@ -80,12 +85,16 @@ mod web {
                 return;
             };
             let inbox: Inbox = Rc::default();
+            let saved: Saved = Rc::default();
             let bridge = Bridge::connect("mantelmesh", &canvas).map(Rc::new);
             let host: Box<dyn Host> = match &bridge {
                 Some(b) => {
                     let (b2, inbox2) = (b.clone(), inbox.clone());
+                    let saved2 = saved.clone();
                     b.listen(move |m| {
-                        if let Message::Open { name, data } = m {
+                        if let Message::Saved { id } = m {
+                            saved2.borrow_mut().push(id);
+                        } else if let Message::Open { name, data } = m {
                             let (inbox, b) = (inbox2.clone(), b2.clone());
                             wasm_bindgen_futures::spawn_local(async move {
                                 match read(data).await {
@@ -118,6 +127,7 @@ mod web {
                         Ok(Box::new(App {
                             inner: MeshApp::new(Some(host)),
                             inbox: app_inbox,
+                            saved,
                         }))
                     }),
                 )

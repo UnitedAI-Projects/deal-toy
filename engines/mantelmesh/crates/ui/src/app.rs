@@ -14,7 +14,8 @@ use std::sync::{Arc, Mutex};
 
 /// Where saves go: the page hosting MantelMesh (Mantel), or a download.
 pub trait Host {
-    fn save(&self, name: &str, bytes: &[u8]);
+    /// Returns true for a completed save, false when waiting for a host acknowledgement.
+    fn save(&self, name: &str, bytes: &[u8], id: Option<&str>) -> Result<bool, String>;
     fn dirty(&self, dirty: bool);
 }
 
@@ -27,7 +28,9 @@ pub struct MeshApp {
     pub status: String,
     pub error: String,
     host: Option<Box<dyn Host>>,
-    saved_history: usize,
+    saved_state: u64,
+    save_sequence: u64,
+    pending_save: Option<(String, u64)>,
     dirty_reported: bool,
     extrude: f64,
     inset: f64,
@@ -66,7 +69,9 @@ impl MeshApp {
             status: "Add a shape to start".into(),
             error: String::new(),
             host,
-            saved_history: 0,
+            saved_state: 0,
+            save_sequence: 0,
+            pending_save: None,
             dirty_reported: false,
             extrude: 10.0,
             inset: 0.2,
@@ -97,11 +102,8 @@ impl MeshApp {
         }
     }
 
-    fn history(&self) -> usize {
-        self.session.journal.labels().len()
-    }
     pub fn is_dirty(&self) -> bool {
-        self.history() != self.saved_history
+        self.session.journal.state_id() != self.saved_state || self.pending_save.is_some()
     }
 
     /// Opens a file the host or the person handed in: .mmesh replaces the scene, .obj adds to it.
@@ -124,7 +126,8 @@ impl MeshApp {
             self.object = None;
             self.faces.clear();
             self.session.journal = Default::default();
-            self.saved_history = 0;
+            self.saved_state = 0;
+            self.pending_save = None;
             self.frame_all();
             self.status = format!("Opened {name}");
         }
@@ -146,12 +149,40 @@ impl MeshApp {
             self.error = "Saving needs Mantel (or Export to download)".into();
             return;
         };
-        host.save(&format!("{}.mmesh", self.name), &decode(&doc));
-        if let Some(png) = png {
-            host.save(&format!("{}.png", self.name), &decode(&png));
+        self.save_sequence += 1;
+        let id = format!("mesh-save-{}", self.save_sequence);
+        let state = self.session.journal.state_id();
+        match host.save(&format!("{}.mmesh", self.name), &decode(&doc), Some(&id)) {
+            Ok(true) => {
+                self.saved_state = state;
+                self.pending_save = None;
+                self.status = format!("Saved {}.mmesh", self.name);
+            }
+            Ok(false) => {
+                self.pending_save = Some((id, state));
+                self.status = format!("Saving {}.mmesh…", self.name);
+            }
+            Err(e) => {
+                self.error = e;
+                return;
+            }
         }
-        self.saved_history = self.history();
-        self.status = format!("Saved {}.mmesh", self.name);
+        if let Some(png) = png
+            && let Err(e) = host.save(&format!("{}.png", self.name), &decode(&png), None)
+        {
+            self.error = e;
+        }
+    }
+
+    /// Only the acknowledgement for the latest requested save can mark its state saved.
+    pub fn saved(&mut self, id: &str) {
+        if let Some((pending, state)) = &self.pending_save
+            && pending == id
+        {
+            self.saved_state = *state;
+            self.pending_save = None;
+            self.status = format!("Saved {}.mmesh", self.name);
+        }
     }
 
     fn export(&mut self, format: &str) {
@@ -161,8 +192,10 @@ impl MeshApp {
             self.run("document.export", json!({ "format": format }))
         };
         if let (Some(r), Some(host)) = (r, &self.host) {
-            host.save(&format!("{}.{format}", self.name), &decode(&r));
-            self.status = format!("Exported {}.{format}", self.name);
+            match host.save(&format!("{}.{format}", self.name), &decode(&r), None) {
+                Ok(_) => self.status = format!("Exported {}.{format}", self.name),
+                Err(e) => self.error = e,
+            }
         }
     }
 
@@ -220,7 +253,8 @@ impl MeshApp {
                 self.session = Session::new();
                 self.object = None;
                 self.faces.clear();
-                self.saved_history = 0;
+                self.saved_state = 0;
+                self.pending_save = None;
             }
             if ui.add_enabled(self.host.is_some(), egui::Button::new("Save")).clicked() {
                 self.save();
@@ -566,8 +600,9 @@ mod tests {
 
     struct Saves(Rc<RefCell<Vec<String>>>);
     impl Host for Saves {
-        fn save(&self, name: &str, bytes: &[u8]) {
+        fn save(&self, name: &str, bytes: &[u8], _: Option<&str>) -> Result<bool, String> {
             self.0.borrow_mut().push(format!("{name}:{}", bytes.len()));
+            Ok(true)
         }
         fn dirty(&self, _: bool) {}
     }
@@ -585,6 +620,62 @@ mod tests {
             saved[0].starts_with("Concept.mmesh:") && saved[1].starts_with("Concept.png:"),
             "{saved:?}"
         );
+    }
+
+    #[test]
+    fn a_replacement_edit_at_the_saved_history_depth_is_still_dirty() {
+        let mut app = MeshApp::new(Some(Box::new(Saves(Rc::default()))));
+        app.run("object.add", json!({ "shape": "box" }));
+        app.save();
+        app.run("edit.undo", json!({}));
+        app.run("object.add", json!({ "shape": "sphere" }));
+        assert!(app.is_dirty(), "the sphere is not the saved box");
+    }
+
+    struct Pending;
+    impl Host for Pending {
+        fn save(&self, _: &str, _: &[u8], _: Option<&str>) -> Result<bool, String> {
+            Ok(false)
+        }
+        fn dirty(&self, _: bool) {}
+    }
+
+    #[test]
+    fn hosted_saves_wait_for_ack_and_preserve_later_edits() {
+        let mut app = MeshApp::new(Some(Box::new(Pending)));
+        app.run("object.add", json!({ "shape": "box" }));
+        app.save();
+        assert!(app.is_dirty(), "posting bytes is not persistence");
+        app.saved("unknown");
+        assert!(app.is_dirty());
+        app.run("object.add", json!({ "shape": "sphere" }));
+        app.saved("mesh-save-1");
+        assert!(app.is_dirty(), "an earlier save does not include the sphere");
+        app.run("edit.undo", json!({}));
+        assert!(!app.is_dirty(), "undo restores the acknowledged box");
+        app.run("edit.redo", json!({}));
+        assert!(app.is_dirty());
+        app.save();
+        app.save();
+        app.saved("mesh-save-2");
+        assert!(app.is_dirty(), "an older acknowledgement cannot finish a newer save");
+        app.saved("mesh-save-3");
+        assert!(!app.is_dirty());
+    }
+
+    #[test]
+    fn edits_after_history_eviction_are_dirty() {
+        let mut app = MeshApp::new(Some(Box::new(Saves(Rc::default()))));
+        app.run("object.add", json!({ "shape": "box" }));
+        for i in 0..mantelmesh_doc::HISTORY {
+            app.session
+                .journal
+                .record(&format!("edit {i}"), app.session.doc.clone());
+        }
+        app.save();
+        assert!(!app.is_dirty());
+        app.session.journal.record("another edit", app.session.doc.clone());
+        assert!(app.is_dirty(), "a full undo buffer is not a save marker");
     }
 
     #[test]

@@ -204,8 +204,10 @@ impl Document {
 /// Undo and redo by snapshot, with a bounded history.
 #[derive(Debug, Clone, Default)]
 pub struct Journal {
-    undo: Vec<(String, Document)>,
-    redo: Vec<(String, Document)>,
+    undo: Vec<(String, Document, u64)>,
+    redo: Vec<(String, Document, u64)>,
+    state: u64,
+    next_state: u64,
 }
 
 pub const HISTORY: usize = 200;
@@ -213,7 +215,9 @@ pub const HISTORY: usize = 200;
 impl Journal {
     /// Records `before` as the state an edit named `label` replaced.
     pub fn record(&mut self, label: &str, before: Document) {
-        self.undo.push((label.to_string(), before));
+        self.undo.push((label.to_string(), before, self.state));
+        self.next_state += 1;
+        self.state = self.next_state;
         if self.undo.len() > HISTORY {
             self.undo.remove(0);
         }
@@ -221,17 +225,25 @@ impl Journal {
     }
     /// Swaps `doc` for the state before the last edit; returns that edit's label.
     pub fn undo(&mut self, doc: &mut Document) -> Option<String> {
-        let (label, before) = self.undo.pop()?;
-        self.redo.push((label.clone(), std::mem::replace(doc, before)));
+        let (label, before, state) = self.undo.pop()?;
+        self.redo
+            .push((label.clone(), std::mem::replace(doc, before), self.state));
+        self.state = state;
         Some(label)
     }
     pub fn redo(&mut self, doc: &mut Document) -> Option<String> {
-        let (label, after) = self.redo.pop()?;
-        self.undo.push((label.clone(), std::mem::replace(doc, after)));
+        let (label, after, state) = self.redo.pop()?;
+        self.undo
+            .push((label.clone(), std::mem::replace(doc, after), self.state));
+        self.state = state;
         Some(label)
     }
+    /// Identity of the current edit state, independent of history depth or eviction.
+    pub fn state_id(&self) -> u64 {
+        self.state
+    }
     pub fn labels(&self) -> Vec<String> {
-        self.undo.iter().map(|(l, _)| l.clone()).collect()
+        self.undo.iter().map(|(l, _, _)| l.clone()).collect()
     }
 }
 
