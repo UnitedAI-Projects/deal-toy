@@ -21,12 +21,15 @@ fn the_thai_filter_lists_fonts_with_thai() {
 /// stay clear of it.
 #[test]
 fn the_scroll_bar_leaves_the_stars_clear() {
-    // Every family starred, so each row draws its star.
+    // Star a snapshot of the families; only list those favorites so every row draws a star.
     let all = vectorcraft_text::FontDb::global().families();
     let families = all.len();
+    // Fonts can appear after the favorites snapshot, including composite families at the front.
+    let newcomers: Vec<_> = (0..10).map(|i| vectorcraft_doc::CompositeFont::new(format!("Scrollbar newcomer {i}"), "Inter", "Regular")).collect();
+    let _loan = vectorcraft_text::FontDb::global().lend_composite_fonts(&newcomers);
     let ctx = egui::Context::default();
     let area = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(300.0, 160.0));
-    let mut st = super::MenuState::default();
+    let mut st = super::MenuState { favorites_only: true, ..Default::default() };
     let look = super::MenuLook { samples: false, favorites: &all, ..Default::default() };
     let mut stars = vec![];
     for _ in 0..3 {
