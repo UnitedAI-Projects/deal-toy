@@ -20,6 +20,13 @@ Each directory is its own Cargo workspace and keeps its own README, AGENTS.md, l
 
 ## Build a browser app
 
+Some engines read pinned public inputs at build time. MantelPDF reads its translations from `storytold/craft-i18n` at the commit in `craft-i18n.rev`; without them it builds English-only and its language tests fail. Fetch them and export the variables first:
+
+```bash
+eval "$(bash engines/fetch-inputs.sh mantelpdf /tmp/engine-inputs | sed 's/^/export /')"
+```
+
+
 Needs Rust 1.99.1 with the `wasm32-unknown-unknown` target and Trunk 0.22.1.
 
 ```bash

@@ -55,7 +55,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential pkg-config
           libudev-dev libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev libxrandr-dev libxi-dev
           libfontconfig1-dev libfreetype-dev libglib2.0-dev libgtk-3-dev libssl-dev libheif-dev
-          mesa-vulkan-drivers libgl1-mesa-dev
+          mesa-vulkan-drivers libgl1-mesa-dev qpdf poppler-utils
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: "1.99.1"
@@ -69,6 +69,9 @@ jobs:
           echo "2ab8d548fd5ed9cda50906f61fd8654204e7893bd52ebbfd90533862b7d71ee1  trunk.tgz" | sha256sum -c -
           mkdir -p "$HOME/.local/bin" && tar -xzf trunk.tgz -C "$HOME/.local/bin" && rm trunk.tgz
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # Translations and other pinned public inputs the engine's own CI provides (craft-i18n).
+      - name: Fetch the engine's pinned inputs
+        run: bash engines/fetch-inputs.sh ${{ matrix.engine }} "$RUNNER_TEMP/inputs" >> "$GITHUB_ENV"
       - name: Test
         working-directory: engines/${{ matrix.engine }}
         run: cargo test --workspace --locked
