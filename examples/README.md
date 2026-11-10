@@ -26,6 +26,24 @@ The STEP round-trip test reopens the export and checks its validity, bounds and 
 uv run --project engine python engine/runner.py examples/deal_toy_steps.py work/deal-toy
 ```
 
+## Tea cup: design sheet and layers
+
+[tea_cup_steps.py](tea_cup_steps.py) is the reference for the enforced structure: every part of the cup is a layer in the steps section and `base()` returns `None`. Its layers are, in order, the framework of [tea_cup_design.json](tea_cup_design.json), a valid `design_start` input with the questioned sections (one of them `assumed`). It uses the `loft`, `shell`, `revolve`, `fillet`, `sweep` and `appearance` actions, and `CUP_HEIGHT`, `RIM_DIAMETER`, `BASE_DIAMETER` and `WALL` in `PARAMS` drive its size. It is synthetic demonstration geometry, about 106 × 84 × 95 mm, not a manufacturing design.
+
+| File                                         | Purpose                                        | Open with                    |
+| -------------------------------------------- | ---------------------------------------------- | ---------------------------- |
+| [tea_cup_steps.py](tea_cup_steps.py)         | Editable source in the steps layout            | Python editor / CAD runtime  |
+| [tea_cup_design.json](tea_cup_design.json)   | Design sheet: request, sections and framework  | JSON reader / `design_start` |
+| [model.step](exports/tea_cup/model.step)     | Exact solid exchange geometry                  | STEP-capable CAD application |
+| [model.stl](exports/tea_cup/model.stl)       | Triangulated mesh                              | Slicer or mesh viewer        |
+| [model.glb](exports/tea_cup/model.glb)       | Browser preview with the glaze colour          | glTF viewer / app workspace  |
+| [facts.json](exports/tea_cup/facts.json)     | Bounds, step states, parts with colour, PARAMS | JSON reader                  |
+| [inspect.json](exports/tea_cup/inspect.json) | Inspection record                              | JSON reader                  |
+
+```sh
+uv run --project engine python engine/runner.py examples/tea_cup_steps.py examples/exports/tea_cup
+```
+
 ## Inspection fixture
 
 [deal_toy_inspect.py](deal_toy_inspect.py) is a synthetic deal toy with deliberate faults for the inspection tests. A brass coin sits off-centre in an acrylic block only 1.5 mm behind its front face, the block is tall for its base, and the engraving is 0.3 mm deep against a declared 0.5 mm. It declares `MATERIALS`, `EMBEDS` and a `dimensions()` function, so its build reports stability, the embed wall and the engraving depth.

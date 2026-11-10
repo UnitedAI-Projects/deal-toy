@@ -1,0 +1,916 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Edits to an existing model</title>
+    <style>
+      :root {
+        --bg: #f4f4f2;
+        --panel: #fff;
+        --ink: #1d1d1f;
+        --mute: #6e6e73;
+        --line: #e3e3e0;
+        --accent: #5b5bd6;
+        --accent-soft: rgba(91, 91, 214, 0.14);
+        --ok: #1f9d6a;
+        --add: #1f9d6a;
+        --edit: #5b5bd6;
+        --ripple: #c27c0e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.45 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        padding: 16px 20px 6px;
+      }
+      h2 {
+        margin: 0 0 4px;
+        font-size: 18px;
+      }
+      .sub {
+        color: var(--mute);
+        margin: 0;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        padding: 10px 20px;
+        flex-wrap: wrap;
+      }
+      .tabs button {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 999px;
+        padding: 6px 14px;
+        font: inherit;
+        cursor: pointer;
+      }
+      .tabs button.on {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .app {
+        display: flex;
+        gap: 14px;
+        padding: 0 20px 20px;
+        min-height: 600px;
+      }
+      .side {
+        width: 280px;
+        flex: none;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .ev {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      .ev .k {
+        color: var(--mute);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .ev.user {
+        background: #ecebff;
+        border-color: #dcdafc;
+        align-self: flex-end;
+        max-width: 90%;
+      }
+      .ev.live {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .ev.done {
+        border-color: #bfe5d3;
+        background: #f1faf5;
+      }
+      .canvas {
+        flex: 1;
+        position: relative;
+        border-radius: 14px;
+        overflow: hidden;
+        background: linear-gradient(#fafaf8, #efefec);
+        border: 1px solid var(--line);
+        min-width: 0;
+      }
+      .canvas svg.scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .card {
+        position: absolute;
+        right: 18px;
+        top: 18px;
+        width: 310px;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+        padding: 12px 14px;
+      }
+      .card .who {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--mute);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 1.2s infinite;
+      }
+      .dot.still {
+        animation: none;
+        background: var(--ok);
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.3;
+        }
+      }
+      .card .now {
+        font-weight: 600;
+        margin: 6px 0 2px;
+        min-height: 40px;
+        transition: opacity 0.25s;
+      }
+      .bar {
+        height: 3px;
+        background: var(--line);
+        border-radius: 2px;
+        overflow: hidden;
+        margin: 8px 0;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+      }
+      .steps {
+        list-style: none;
+        margin: 6px 0 0;
+        padding: 0;
+        font-size: 12.5px;
+      }
+      .steps li {
+        display: flex;
+        gap: 8px;
+        padding: 3px 0;
+        color: var(--mute);
+        align-items: baseline;
+      }
+      .steps li .s {
+        width: 16px;
+        text-align: center;
+        flex: none;
+      }
+      .steps li.cur {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .badge {
+        font-size: 10.5px;
+        border-radius: 999px;
+        padding: 0 7px;
+        margin-left: auto;
+        flex: none;
+        border: 1px solid;
+      }
+      .b-new {
+        color: var(--add);
+        border-color: #9bd7bb;
+        background: #eefaf4;
+      }
+      .b-edit {
+        color: var(--edit);
+        border-color: #c9c8f5;
+        background: #f1f1fe;
+      }
+      .b-follow {
+        color: var(--ripple);
+        border-color: #f0d39f;
+        background: #fff7e8;
+      }
+      .legend {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: var(--mute);
+        margin-top: 10px;
+        border-top: 1px solid var(--line);
+        padding-top: 8px;
+      }
+      .legend span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .sw {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        border: 2px solid;
+      }
+      .tag {
+        position: absolute;
+        font-size: 11px;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      .notes {
+        padding: 0 20px 24px;
+        color: var(--mute);
+        font-size: 13px;
+        max-width: 1000px;
+      }
+      .notes b {
+        color: var(--ink);
+      }
+      .timeline {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 14px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 95%;
+      }
+      .timeline span {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 12px;
+      }
+      .timeline span.new {
+        border-color: var(--add);
+        color: var(--add);
+      }
+      .timeline span.edit {
+        border-color: var(--edit);
+        color: var(--edit);
+      }
+      .timeline span.follow {
+        border-color: var(--ripple);
+        color: var(--ripple);
+      }
+      @media (max-width: 760px) {
+        .app {
+          flex-direction: column;
+        }
+        .side {
+          width: auto;
+        }
+        .card {
+          position: relative;
+          right: auto;
+          top: auto;
+          width: auto;
+          margin: 12px;
+        }
+        .canvas {
+          min-height: 560px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h2>Changing a model that already exists</h2>
+      <p class="sub">
+        Same cup, revision 3. Each tab is a different kind of request. Colours:
+        <b style="color: var(--add)">green = new part</b>,
+        <b style="color: var(--edit)">purple = part being edited</b>,
+        <b style="color: var(--ripple)">amber = parts that follow along</b>.
+      </p>
+    </header>
+    <div class="tabs">
+      <button data-s="add" class="on">
+        A · Add something new: "add a saucer"
+      </button>
+      <button data-s="edit">B · Revise one part: "ear-shaped handle"</button>
+      <button data-s="ripple">
+        C · A change that ripples: "make it 15 mm taller"
+      </button>
+      <button data-s="done">D · Finished: what changed in revision 4</button>
+    </div>
+    <div class="app">
+      <aside class="side" id="side"></aside>
+      <main class="canvas">
+        <svg
+          class="scene"
+          id="scene"
+          viewBox="0 0 800 600"
+          preserveAspectRatio="xMidYMid meet"
+        ></svg>
+        <div id="tags"></div>
+        <div class="card">
+          <div class="who">
+            <span class="dot" id="dot"></span><span id="who"></span>
+          </div>
+          <div class="now" id="now"></div>
+          <div class="bar"><i id="bar"></i></div>
+          <ul class="steps" id="steps"></ul>
+          <div class="legend">
+            <span><i class="sw" style="border-color: var(--add)"></i>new</span
+            ><span
+              ><i class="sw" style="border-color: var(--edit)"></i>editing</span
+            ><span
+              ><i class="sw" style="border-color: var(--ripple)"></i>follows
+              along</span
+            >
+          </div>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </main>
+    </div>
+    <div class="notes">
+      <p>
+        <b>The rule in every tab:</b> the agent's plan names each step it will
+        add or change, and the existing steps it expects to move as a result.
+        Untouched steps stay grey and are not rebuilt in the summary. When it
+        finishes, revision 4 is the same script with those lines added or
+        changed, and the timeline under the model shows which.
+      </p>
+    </div>
+    <script>
+      const NS = "http://www.w3.org/2000/svg";
+      const STEPS = [
+        "Framework",
+        "Cup wall",
+        "Rim",
+        "Foot ring",
+        "Handle",
+        "Glaze bands",
+      ];
+      const S = {
+        add: {
+          who: "Claude Code · live",
+          side: [
+            ["ev", "Revision 3", "Tea cup · 6 steps, all ok"],
+            ["user", "You", "add a saucer"],
+            [
+              "ev",
+              "Agent plan",
+              "Add 2 steps after Foot ring: Saucer plate, Saucer well. No existing steps change.",
+            ],
+            ["ev live", "Working", "Step 1 of 2 · Saucer plate"],
+          ],
+          list: [
+            ...STEPS.slice(0, 4).map((s) => [s, ""]),
+            ["Saucer plate: Ø150, 6 mm, raised lip", "new", "cur"],
+            ["Saucer well: Ø66 recess for the foot", "new"],
+            ...STEPS.slice(4).map((s) => [s, ""]),
+          ],
+          phrases: [
+            ["Adding the saucer plate", "a Ø150 disc under the cup"],
+            ["Adding the saucer plate", "lifting the outer 12 mm into a lip"],
+            ["Adding the saucer plate", "centring it on the foot ring"],
+          ],
+          zones: [
+            {
+              k: "add",
+              x: 250,
+              y: 420,
+              w: 320,
+              h: 80,
+              label: "Agent · adding saucer",
+              blob: true,
+            },
+          ],
+          cup: { tall: 0, handle: "c", saucer: false },
+          timeline: [
+            ...STEPS.slice(0, 4).map((s) => [s, ""]),
+            ["+ Saucer plate", "new"],
+            ["+ Saucer well", "new"],
+            ...STEPS.slice(4).map((s) => [s, ""]),
+          ],
+        },
+        edit: {
+          who: "Claude Code · live",
+          side: [
+            ["ev", "Revision 3", "Tea cup · 6 steps, all ok"],
+            ["user", "You", "make the handle an ear shape"],
+            [
+              "ev",
+              "Agent plan",
+              "Edit 1 step: Handle. Glaze bands may need to move.",
+            ],
+            ["ev live", "Working", "Editing Handle"],
+          ],
+          list: [
+            ...STEPS.slice(0, 4).map((s) => [s, ""]),
+            ["Handle: C-loop → ear shape", "edit", "cur"],
+            ["Glaze bands: re-check gap at handle", "follow"],
+          ],
+          phrases: [
+            ["Reshaping the handle", "old C-loop shown faded behind"],
+            [
+              "Reshaping the handle",
+              "sweeping an ear profile from the upper wall",
+            ],
+            ["Reshaping the handle", "blending the joints into the wall"],
+          ],
+          zones: [
+            {
+              k: "edit",
+              x: 478,
+              y: 200,
+              w: 110,
+              h: 170,
+              label: "Agent · editing handle",
+              blob: true,
+            },
+            {
+              k: "follow",
+              x: 330,
+              y: 288,
+              w: 150,
+              h: 26,
+              label: "follows",
+              blob: false,
+            },
+          ],
+          cup: { tall: 0, handle: "ghost", saucer: false },
+          timeline: [
+            ...STEPS.slice(0, 4).map((s) => [s, ""]),
+            ["Handle", "edit"],
+            ["Glaze bands", "follow"],
+          ],
+        },
+        ripple: {
+          who: "Claude Code · live",
+          side: [
+            ["ev", "Revision 3", "Tea cup · 6 steps, all ok"],
+            ["user", "You", "make it 15 mm taller"],
+            [
+              "ev",
+              "Agent plan",
+              "Change CUP_HEIGHT 95 → 110 mm. Rim, Handle and Glaze bands follow from it; nothing else is rewritten.",
+            ],
+            ["ev live", "Working", "Changing a size"],
+          ],
+          list: [
+            ["Framework: CUP_HEIGHT 95 → 110", "edit", "cur"],
+            ["Cup wall", "follow"],
+            ["Rim", "follow"],
+            ["Foot ring", ""],
+            ["Handle: stays at 60% of height", "follow"],
+            ["Glaze bands", "follow"],
+          ],
+          phrases: [
+            ["Raising the cup height", "95 → 110 mm in the framework"],
+            ["Checking what follows", "rim, handle and bands move with it"],
+            ["Checking what follows", "foot ring stays put"],
+          ],
+          zones: [
+            {
+              k: "edit",
+              x: 300,
+              y: 150,
+              w: 220,
+              h: 300,
+              label: "Agent · cup height",
+              blob: false,
+              stretch: true,
+            },
+            {
+              k: "follow",
+              x: 478,
+              y: 215,
+              w: 100,
+              h: 150,
+              label: "follows",
+              blob: false,
+            },
+            {
+              k: "follow",
+              x: 318,
+              y: 166,
+              w: 184,
+              h: 48,
+              label: "follows",
+              blob: false,
+            },
+          ],
+          cup: { tall: 1, handle: "c", saucer: false },
+          timeline: [
+            ["Framework", "edit"],
+            ["Cup wall", "follow"],
+            ["Rim", "follow"],
+            ["Foot ring", ""],
+            ["Handle", "follow"],
+            ["Glaze bands", "follow"],
+          ],
+        },
+        done: {
+          who: "Claude Code · finished",
+          still: true,
+          side: [
+            ["user", "You", "add a saucer"],
+            [
+              "ev done",
+              "Revision 4 · built",
+              "2 steps added (Saucer plate, Saucer well). 6 existing steps unchanged. Build ok in 6 s.",
+            ],
+            [
+              "ev",
+              "Summary",
+              "Saucer Ø150 × 6 mm with a Ø66 well. The cup sits 2 mm into the well; check this fit with the maker.",
+            ],
+          ],
+          list: [
+            ...STEPS.slice(0, 4).map((s) => [s, "", "ok"]),
+            ["Saucer plate", "new", "ok"],
+            ["Saucer well", "new", "ok"],
+            ...STEPS.slice(4).map((s) => [s, "", "ok"]),
+          ],
+          phrases: [
+            ["Revision 4 is ready", "2 steps added, nothing else changed"],
+          ],
+          zones: [
+            {
+              k: "add",
+              x: 250,
+              y: 420,
+              w: 320,
+              h: 80,
+              label: "new in r4",
+              blob: false,
+              fade: true,
+            },
+          ],
+          cup: { tall: 0, handle: "c", saucer: true },
+          timeline: [
+            ...STEPS.slice(0, 4).map((s) => [s, ""]),
+            ["+ Saucer plate", "new"],
+            ["+ Saucer well", "new"],
+            ...STEPS.slice(4).map((s) => [s, ""]),
+          ],
+        },
+      };
+      const COL = { add: "#1f9d6a", edit: "#5b5bd6", follow: "#c27c0e" };
+      let cur = "add",
+        t0 = performance.now(),
+        pi = -1,
+        zoneEls = [];
+      const el = (n, a = {}, p) => {
+        const e = document.createElementNS(NS, n);
+        for (const k in a) e.setAttribute(k, a[k]);
+        p && p.appendChild(e);
+        return e;
+      };
+      function grid(svg) {
+        const g = el("g", { stroke: "#dcdcd8", "stroke-width": 1 }, svg);
+        for (let i = -10; i <= 10; i++)
+          el(
+            "line",
+            { x1: 400 + i * 60, y1: 500, x2: 400 + i * 140, y2: 660 },
+            g,
+          );
+        for (let j = 0; j < 3; j++) {
+          const y = 500 + j * 45;
+          el("line", { x1: -200, y1: y, x2: 1000, y2: y }, g);
+        }
+      }
+      let tallG;
+      function cup(svg, c) {
+        const g = el("g", {}, svg);
+        if (c.saucer) {
+          el(
+            "ellipse",
+            {
+              cx: 410,
+              cy: 470,
+              rx: 160,
+              ry: 30,
+              fill: "#d4ecdf",
+              stroke: "#1f9d6a",
+              "stroke-width": 1.5,
+            },
+            g,
+          );
+          el(
+            "ellipse",
+            { cx: 410, cy: 462, rx: 140, ry: 22, fill: "#e6f5ec" },
+            g,
+          );
+          el(
+            "ellipse",
+            { cx: 410, cy: 452, rx: 66, ry: 10, fill: "#c8e6d5" },
+            g,
+          );
+        }
+        tallG = el("g", {}, g);
+        el(
+          "path",
+          {
+            d: "M318 190 L340 425 Q410 440 480 425 L502 190 Z",
+            fill: "#d9dadf",
+            stroke: "#a9abb3",
+            "stroke-width": 1.5,
+          },
+          tallG,
+        );
+        el(
+          "ellipse",
+          {
+            cx: 410,
+            cy: 190,
+            rx: 92,
+            ry: 18,
+            fill: "#eef0f3",
+            stroke: "#a9abb3",
+            "stroke-width": 1.5,
+          },
+          tallG,
+        );
+        el(
+          "ellipse",
+          { cx: 410, cy: 192, rx: 84, ry: 14, fill: "#c7c9cf" },
+          tallG,
+        );
+        el(
+          "ellipse",
+          {
+            cx: 410,
+            cy: 428,
+            rx: 62,
+            ry: 10,
+            fill: "#c4c6cc",
+            stroke: "#a9abb3",
+          },
+          tallG,
+        );
+        el(
+          "path",
+          {
+            d: "M335 300 Q410 315 485 300",
+            stroke: "#5b5bd6",
+            "stroke-width": 6,
+            fill: "none",
+            opacity: 0.55,
+          },
+          tallG,
+        );
+        el(
+          "path",
+          {
+            d: "M498 235 C560 225 575 330 488 350",
+            stroke: "#b9bbc2",
+            "stroke-width": 16,
+            fill: "none",
+            "stroke-linecap": "round",
+            opacity: c.handle === "ghost" ? 0.3 : 1,
+            "stroke-dasharray": c.handle === "ghost" ? "4 6" : "none",
+          },
+          tallG,
+        );
+        return g;
+      }
+      function render() {
+        const s = S[cur],
+          svg = document.getElementById("scene");
+        svg.innerHTML = "";
+        grid(svg);
+        cup(svg, s.cup);
+        zoneEls = s.zones.map((z) => {
+          const c = COL[z.k];
+          const g = el("g", {}, svg);
+          const rect = el(
+            "rect",
+            {
+              x: z.x,
+              y: z.y,
+              width: z.w,
+              height: z.h,
+              fill:
+                z.k === "follow"
+                  ? "rgba(194,124,14,.06)"
+                  : z.k === "add"
+                    ? "rgba(31,157,106,.06)"
+                    : "rgba(91,91,214,.05)",
+              stroke: c,
+              "stroke-dasharray": "6 6",
+              "stroke-width": 1.2,
+              rx: 6,
+            },
+            g,
+          );
+          const blob = z.blob
+            ? el(
+                "path",
+                {
+                  fill:
+                    z.k === "add"
+                      ? "rgba(31,157,106,.28)"
+                      : "rgba(91,91,214,.28)",
+                  stroke: c,
+                  "stroke-width": 1.5,
+                },
+                g,
+              )
+            : null;
+          const br =
+            z.k === "follow" || z.fade
+              ? null
+              : el(
+                  "g",
+                  {
+                    stroke: c,
+                    "stroke-width": 3,
+                    fill: "none",
+                    "stroke-linecap": "round",
+                  },
+                  g,
+                );
+          return { z, rect, blob, br, g };
+        });
+        const tags = document.getElementById("tags");
+        tags.innerHTML = "";
+        zoneEls.forEach((o) => {
+          const d = document.createElement("div");
+          d.className = "tag";
+          d.style.background = COL[o.z.k];
+          d.textContent = o.z.label;
+          tags.appendChild(d);
+          o.tag = d;
+        });
+        const side = document.getElementById("side");
+        side.innerHTML = "";
+        s.side.forEach(([c, k, v]) => {
+          const d = document.createElement("div");
+          d.className = "ev " + c;
+          d.innerHTML = `<div class="k">${k}</div>${v}`;
+          side.appendChild(d);
+        });
+        const ul = document.getElementById("steps");
+        ul.innerHTML = "";
+        s.list.forEach(([x, b, st]) => {
+          const li = document.createElement("li");
+          li.className = st === "cur" ? "cur" : "";
+          const sym = st === "cur" ? "●" : st === "ok" || !b ? "✓" : "○";
+          const bl =
+            {
+              new: '<span class="badge b-new">new</span>',
+              edit: '<span class="badge b-edit">edit</span>',
+              follow: '<span class="badge b-follow">follows</span>',
+            }[b] || "";
+          li.innerHTML = `<span class="s" style="color:${st === "cur" ? COL[b === "new" ? "add" : "edit"] : !b || st === "ok" ? "var(--ok)" : "var(--mute)"}">${sym}</span><span>${x}</span>${bl}`;
+          ul.appendChild(li);
+        });
+        document.getElementById("timeline").innerHTML = s.timeline
+          .map(([x, b]) => `<span class="${b}">${x}</span>`)
+          .join("");
+        document.getElementById("who").textContent = s.who;
+        document.getElementById("dot").className =
+          "dot" + (s.still ? " still" : "");
+        pi = -1;
+        t0 = performance.now();
+      }
+      function setPhrase(i) {
+        const p = S[cur].phrases[i % S[cur].phrases.length];
+        const n = document.getElementById("now");
+        n.style.opacity = 0;
+        setTimeout(() => {
+          n.innerHTML = `${p[0]}<div style="font-weight:400;color:var(--mute);font-size:13px">${p[1]}</div>`;
+          n.style.opacity = 1;
+        }, 200);
+      }
+      function blobPath(z, t) {
+        const cx = z.x + z.w / 2,
+          cy = z.y + z.h / 2,
+          rx = z.w * 0.36,
+          ry = z.h * 0.34,
+          N = 10,
+          P = [];
+        for (let i = 0; i < N; i++) {
+          const a = (i / N) * Math.PI * 2,
+            r =
+              1 +
+              0.15 * Math.sin(t * 1.7 + i * 1.9) +
+              0.09 * Math.sin(t * 2.9 + i * 0.7);
+          P.push([
+            cx + Math.cos(a) * rx * r * (1 + 0.12 * Math.sin(t * 0.8)),
+            cy + Math.sin(a) * ry * r * (1 - 0.12 * Math.sin(t * 0.8)),
+          ]);
+        }
+        let d = "";
+        for (let i = 0; i < N; i++) {
+          const p0 = P[(i - 1 + N) % N],
+            p1 = P[i],
+            p2 = P[(i + 1) % N],
+            p3 = P[(i + 2) % N];
+          if (!i) d += `M${p1[0]},${p1[1]}`;
+          d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+        }
+        return d;
+      }
+      function frame(now) {
+        const s = S[cur],
+          t = (now - t0) / 1000,
+          svg = document.getElementById("scene"),
+          r = svg.getBoundingClientRect(),
+          sc = Math.min(r.width / 800, r.height / 600),
+          ox0 = (r.width - 800 * sc) / 2,
+          oy0 = (r.height - 600 * sc) / 2;
+        if (cur === "ripple" && tallG) {
+          const k = 1 + 0.07 * (0.5 + 0.5 * Math.sin(t * 1.4));
+          tallG.setAttribute(
+            "transform",
+            `translate(0 ${430 * (1 - k)}) scale(1 ${k})`,
+          );
+        } else if (tallG) tallG.removeAttribute("transform");
+        zoneEls.forEach((o, i) => {
+          const z = o.z;
+          if (o.blob) o.blob.setAttribute("d", blobPath(z, t + i));
+          const live = !s.still && z.k !== "follow",
+            j = live ? 6 : 0,
+            ox = Math.sin(t * 0.9 + i) * j,
+            oy = Math.cos(t * 1.3 + i) * j,
+            pad = 10 + (live ? Math.sin(t * 1.1) * 4 : 0);
+          const x0 = z.x - pad + ox,
+            y0 = z.y - pad + oy,
+            x1 = z.x + z.w + pad + ox,
+            y1 = z.y + z.h + pad + oy,
+            L = 18;
+          if (o.br) {
+            o.br.innerHTML = "";
+            [
+              [x0, y0, 1, 1],
+              [x1, y0, -1, 1],
+              [x0, y1, 1, -1],
+              [x1, y1, -1, -1],
+            ].forEach(([x, y, sx, sy]) =>
+              el(
+                "path",
+                { d: `M${x} ${y + sy * L} L${x} ${y} L${x + sx * L} ${y}` },
+                o.br,
+              ),
+            );
+          }
+          if (z.k === "follow")
+            o.rect.setAttribute("opacity", 0.45 + 0.35 * Math.sin(t * 2 + i));
+          if (z.fade) o.g.setAttribute("opacity", Math.max(0.15, 1 - t / 6));
+          o.tag.style.left = ox0 + x0 * sc + "px";
+          o.tag.style.top = oy0 + (y0 - 24) * sc + "px";
+          if (z.fade) o.tag.style.opacity = Math.max(0, 1 - t / 6);
+        });
+        const period = 3.2;
+        document.getElementById("bar").style.width =
+          (s.still ? 100 : ((t % period) / period) * 100) + "%";
+        const np = s.still ? 0 : Math.floor(t / period);
+        if (np !== pi) {
+          pi = np;
+          setPhrase(np);
+        }
+        requestAnimationFrame(frame);
+      }
+      document.querySelectorAll(".tabs button").forEach(
+        (b) =>
+          (b.onclick = () => {
+            document
+              .querySelectorAll(".tabs button")
+              .forEach((x) => x.classList.remove("on"));
+            b.classList.add("on");
+            cur = b.dataset.s;
+            render();
+          }),
+      );
+      render();
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>

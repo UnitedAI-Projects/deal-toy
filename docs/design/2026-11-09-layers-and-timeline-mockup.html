@@ -1,0 +1,706 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Layers and timeline</title>
+    <style>
+      :root {
+        --bg: #f4f4f2;
+        --panel: #fff;
+        --ink: #1d1d1f;
+        --mute: #6e6e73;
+        --line: #e3e3e0;
+        --accent: #5b5bd6;
+        --add: #1f9d6a;
+        --edit: #5b5bd6;
+        --follow: #c27c0e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.45 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        padding: 14px 20px 6px;
+      }
+      h2 {
+        margin: 0 0 4px;
+        font-size: 18px;
+      }
+      .sub {
+        color: var(--mute);
+        margin: 0;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 220px 1fr 250px;
+        grid-template-rows: 1fr auto;
+        gap: 12px;
+        padding: 8px 20px 20px;
+        height: 690px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        overflow: auto;
+      }
+      .panel h3 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--mute);
+      }
+      .ev {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 7px 9px;
+        font-size: 12.5px;
+        margin-bottom: 7px;
+      }
+      .ev.user {
+        background: #ecebff;
+        border-color: #dcdafc;
+      }
+      .ev .k {
+        font-size: 10.5px;
+        color: var(--mute);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .canvas {
+        position: relative;
+        background: linear-gradient(#fafaf8, #efefec);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .canvas svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .asof {
+        position: absolute;
+        left: 14px;
+        top: 12px;
+        font-size: 12.5px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+      .asof b {
+        color: var(--accent);
+      }
+      .agentcard {
+        position: absolute;
+        width: 230px;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        padding: 9px 11px;
+        font-size: 12.5px;
+        display: none;
+      }
+      .agentcard .t {
+        font-weight: 600;
+      }
+      .agentcard .m {
+        color: var(--mute);
+      }
+      .dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        margin-right: 6px;
+        animation: p 1.2s infinite;
+      }
+      @keyframes p {
+        50% {
+          opacity: 0.25;
+        }
+      }
+      .layer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 6px;
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: default;
+      }
+      .layer:hover {
+        background: #f6f6f4;
+      }
+      .layer .ic {
+        width: 22px;
+        height: 22px;
+        border: 2px solid var(--ink);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        flex: none;
+        background: #fff;
+      }
+      .layer .nm {
+        flex: 1;
+        min-width: 0;
+      }
+      .layer .nm small {
+        display: block;
+        color: var(--mute);
+        font-size: 11.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .layer .eye {
+        color: var(--mute);
+        font-size: 13px;
+        cursor: pointer;
+        flex: none;
+      }
+      .layer.off {
+        opacity: 0.4;
+      }
+      .layer.chg .ic {
+        border-color: var(--edit);
+        background: #efeffd;
+      }
+      .layer.new .ic {
+        border-color: var(--add);
+        background: #eaf7f0;
+      }
+      .layer.fol .ic {
+        border-color: var(--follow);
+        background: #fff6e6;
+      }
+      .layer .bd {
+        font-size: 10px;
+        border-radius: 999px;
+        padding: 0 6px;
+        border: 1px solid;
+        flex: none;
+      }
+      .bd.e {
+        color: var(--edit);
+        border-color: #c9c8f5;
+      }
+      .bd.n {
+        color: var(--add);
+        border-color: #9bd7bb;
+      }
+      .bd.f {
+        color: var(--follow);
+        border-color: #f0d39f;
+      }
+      .tl {
+        grid-column: 1/4;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px 18px 10px;
+      }
+      .tl h3 {
+        margin: 0 0 4px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--mute);
+      }
+      .track {
+        position: relative;
+        height: 64px;
+        margin: 0 10px;
+      }
+      .rail {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 20px;
+        height: 2px;
+        background: #cfcfca;
+      }
+      .rail i {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 2px;
+        background: var(--ink);
+      }
+      .n {
+        position: absolute;
+        top: 9px;
+        width: 24px;
+        height: 24px;
+        margin-left: -12px;
+        border-radius: 50%;
+        border: 2px solid var(--ink);
+        background: #fff;
+        cursor: pointer;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .n.you {
+        border-style: dashed;
+      }
+      .n.sel {
+        box-shadow: 0 0 0 4px rgba(91, 91, 214, 0.25);
+        border-color: var(--accent);
+      }
+      .n.after {
+        opacity: 0.35;
+      }
+      .n.live {
+        border-color: var(--accent);
+        animation: p 1.2s infinite;
+      }
+      .n .lb {
+        position: absolute;
+        top: 27px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 11.5px;
+        color: var(--mute);
+        text-align: center;
+        line-height: 1.2;
+      }
+      .n .lb b {
+        display: block;
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .detail {
+        font-size: 12.5px;
+        color: var(--mute);
+        margin-top: 6px;
+        min-height: 20px;
+      }
+      .detail b {
+        color: var(--ink);
+      }
+      .chip {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0 8px;
+        margin: 0 4px 0 0;
+        font-size: 11.5px;
+        color: var(--ink);
+        background: #fafaf8;
+      }
+      @media (max-width: 900px) {
+        .app {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto 420px auto auto;
+          height: auto;
+        }
+        .tl {
+          grid-column: 1;
+        }
+        .track {
+          min-width: 620px;
+        }
+        .tl {
+          overflow-x: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h2>
+        Layers (what the model is made of) and Timeline (what happened, in
+        order)
+      </h2>
+      <p class="sub">
+        Click any dot on the timeline. The model, the "viewing" badge and the
+        layers panel all jump to that moment. The last dot is the agent still
+        working.
+      </p>
+    </header>
+    <div class="app">
+      <aside class="panel">
+        <h3>Activity</h3>
+        <div id="act"></div>
+      </aside>
+      <main class="canvas">
+        <svg
+          id="sv"
+          viewBox="0 0 700 520"
+          preserveAspectRatio="xMidYMid meet"
+        ></svg>
+        <div class="asof" id="asof"></div>
+        <div class="agentcard" id="ac">
+          <div class="t"><span class="dot"></span>Changing the rim colour</div>
+          <div class="m">gold band, 3 mm, on the oval lip</div>
+        </div>
+      </main>
+      <aside class="panel">
+        <h3>Layers</h3>
+        <div id="layers"></div>
+        <p style="font-size: 11.5px; color: var(--mute); margin: 10px 4px 0">
+          Edited in place. 👁 hides a layer without deleting it. Badges show what
+          the selected timeline moment changed.
+        </p>
+      </aside>
+      <section class="tl">
+        <h3>Timeline</h3>
+        <div class="track" id="track"></div>
+        <div class="detail" id="detail"></div>
+      </section>
+    </div>
+    <script>
+      const NS = "http://www.w3.org/2000/svg";
+      // revisions: who, prompt, label, changes {layer:'e'|'n'|'f'}, state
+      const R = [
+        {
+          r: 1,
+          who: "agent",
+          lb: "Tea cup",
+          p: "make me a tea cup",
+          ch: {
+            Framework: "n",
+            "Cup wall": "n",
+            Rim: "n",
+            "Foot ring": "n",
+            Handle: "n",
+            Colours: "n",
+          },
+          st: {},
+        },
+        {
+          r: 2,
+          who: "agent",
+          lb: "Ear handle",
+          p: "make the handle an ear shape",
+          ch: { Handle: "e", Colours: "f" },
+          st: { ear: 1 },
+        },
+        {
+          r: 3,
+          who: "you",
+          lb: "Height 110",
+          p: "You changed CUP_HEIGHT 95 → 110 mm in the panel",
+          ch: {
+            Framework: "e",
+            "Cup wall": "f",
+            Rim: "f",
+            Handle: "f",
+            Colours: "f",
+          },
+          st: { ear: 1, tall: 1 },
+        },
+        {
+          r: 4,
+          who: "agent",
+          lb: "Saucer",
+          p: "add a saucer",
+          ch: { "Saucer plate": "n", "Saucer well": "n" },
+          st: { ear: 1, tall: 1, saucer: 1 },
+        },
+        {
+          r: 5,
+          who: "agent",
+          lb: "Oval rim",
+          p: "make the rim an oval shape",
+          ch: { Rim: "e", "Cup wall": "f" },
+          st: { ear: 1, tall: 1, saucer: 1, oval: 1 },
+        },
+        {
+          r: 6,
+          who: "agent",
+          lb: "Gold rim",
+          p: "make the rim gold",
+          ch: { Colours: "e" },
+          st: { ear: 1, tall: 1, saucer: 1, oval: 1, gold: 1 },
+          live: 1,
+        },
+      ];
+      const LAY = [
+        [
+          "Framework",
+          "⟷",
+          (s) => (s.tall ? "height 110, Ø84" : "height 95, Ø84"),
+        ],
+        [
+          "Cup wall",
+          "▢",
+          (s) => (s.oval ? "tapers oval → round" : "tapers to Ø62"),
+        ],
+        [
+          "Rim",
+          "✎",
+          (s) => (s.oval ? "oval 86 × 72, rolled" : "round, rolled 2.5"),
+        ],
+        ["Foot ring", "▢", () => "Ø58 × 4"],
+        ["Handle", "▢", (s) => (s.ear ? "ear shape, 9 mm grip" : "C-loop")],
+        ["Saucer plate", "▢", () => "Ø150 × 6, lip"],
+        ["Saucer well", "✎", () => "Ø66 recess"],
+        [
+          "Colours",
+          "◐",
+          (s) => (s.gold ? "white glaze, gold rim" : "white glaze, blue band"),
+        ],
+      ];
+      let sel = R.length - 1,
+        hidden = {};
+      const el = (n, a = {}, p) => {
+        const e = document.createElementNS(NS, n);
+        for (const k in a) e.setAttribute(k, a[k]);
+        p && p.appendChild(e);
+        return e;
+      };
+      function exists(name, i) {
+        for (let j = 0; j <= i; j++) if (R[j].ch[name] === "n") return true;
+        return false;
+      }
+      function drawCup(s, i) {
+        const sv = document.getElementById("sv");
+        sv.innerHTML = "";
+        const g0 = el("g", { stroke: "#dcdcd8" }, sv);
+        for (let k = -8; k <= 8; k++)
+          el(
+            "line",
+            { x1: 350 + k * 55, y1: 440, x2: 350 + k * 130, y2: 600 },
+            g0,
+          );
+        [440, 480].forEach((y) =>
+          el("line", { x1: -100, y1: y, x2: 800, y2: y }, g0),
+        );
+        const top = s.tall ? 130 : 170,
+          rx = s.oval ? 100 : 84,
+          ry = s.oval ? 24 : 16;
+        if (s.saucer && !hidden["Saucer plate"]) {
+          el(
+            "ellipse",
+            {
+              cx: 350,
+              cy: 420,
+              rx: 160,
+              ry: 30,
+              fill: "#e3e4e8",
+              stroke: "#a9abb3",
+            },
+            sv,
+          );
+          el(
+            "ellipse",
+            { cx: 350, cy: 412, rx: 140, ry: 22, fill: "#eef0f3" },
+            sv,
+          );
+        }
+        if (!hidden["Cup wall"]) {
+          el(
+            "path",
+            {
+              d: `M${350 - rx} ${top} L282 395 Q350 410 418 395 L${350 + rx} ${top} Z`,
+              fill: "#e6e7eb",
+              stroke: "#a9abb3",
+              "stroke-width": 1.5,
+            },
+            sv,
+          );
+          if (!hidden.Colours && !s.gold)
+            el(
+              "path",
+              {
+                d: `M${292 - (s.oval ? 6 : 0)} ${top + 110} Q350 ${top + 124} ${408 + (s.oval ? 6 : 0)} ${top + 110}`,
+                stroke: "#5b7bd6",
+                "stroke-width": 6,
+                fill: "none",
+                opacity: 0.6,
+              },
+              sv,
+            );
+        }
+        if (!hidden.Rim) {
+          el(
+            "ellipse",
+            {
+              cx: 350,
+              cy: top,
+              rx,
+              ry,
+              fill: "#f4f5f7",
+              stroke: s.gold && !hidden.Colours ? "#c9a227" : "#a9abb3",
+              "stroke-width": s.gold && !hidden.Colours ? 6 : 1.5,
+            },
+            sv,
+          );
+          el(
+            "ellipse",
+            { cx: 350, cy: top + 2, rx: rx - 8, ry: ry - 4, fill: "#cfd1d6" },
+            sv,
+          );
+        }
+        if (!hidden["Foot ring"])
+          el(
+            "ellipse",
+            {
+              cx: 350,
+              cy: 398,
+              rx: 58,
+              ry: 9,
+              fill: "#c9cbd1",
+              stroke: "#a9abb3",
+            },
+            sv,
+          );
+        if (!hidden.Handle) {
+          const hx = 350 + rx - 6;
+          el(
+            "path",
+            {
+              d: s.ear
+                ? `M${hx} ${top + 40} C${hx + 80} ${top + 20} ${hx + 60} ${top + 170} ${hx - 14} ${top + 165}`
+                : `M${hx} ${top + 45} C${hx + 60} ${top + 35} ${hx + 75} ${top + 140} ${hx - 12} ${top + 160}`,
+              stroke: "#cdd0d5",
+              "stroke-width": s.ear ? 20 : 15,
+              fill: "none",
+              "stroke-linecap": "round",
+            },
+            sv,
+          );
+        }
+        // highlight changed layers in this moment
+        const ch = R[i].ch;
+        const hl = el(
+          "g",
+          { fill: "none", "stroke-dasharray": "6 5", "stroke-width": 1.5 },
+          sv,
+        );
+        const box = (k, x, y, w, h) => {
+          if (!ch[k] || (ch[k] === "n" && i === 0)) return;
+          el(
+            "rect",
+            {
+              x,
+              y,
+              width: w,
+              height: h,
+              rx: 6,
+              stroke:
+                ch[k] === "e"
+                  ? "#5b5bd6"
+                  : ch[k] === "n"
+                    ? "#1f9d6a"
+                    : "#c27c0e",
+            },
+            hl,
+          );
+        };
+        box("Rim", 350 - rx - 10, top - ry - 10, 2 * rx + 20, 2 * ry + 20);
+        box("Handle", 350 + rx - 20, top + 20, 110, 170);
+        box("Saucer plate", 180, 380, 340, 75);
+        box(
+          "Framework",
+          350 - rx - 18,
+          top - ry - 18,
+          2 * rx + 36,
+          410 - top + ry + 28,
+        );
+        box("Colours", 350 - rx - 4, top - ry - 4, 2 * rx + 8, 2 * ry + 8);
+        const ac = document.getElementById("ac");
+        if (R[i].live) {
+          ac.style.display = "block";
+          const r = sv.getBoundingClientRect(),
+            sc = Math.min(r.width / 700, r.height / 520),
+            ox = (r.width - 700 * sc) / 2,
+            oy = (r.height - 520 * sc) / 2;
+          ac.style.left = Math.max(8, ox + (350 - rx - 230) * sc) + "px";
+          ac.style.top = oy + (top - ry - 70) * sc + "px";
+        } else ac.style.display = "none";
+      }
+      function render() {
+        const s = R[sel].st;
+        drawCup(s, sel);
+        document.getElementById("asof").innerHTML =
+          sel === R.length - 1
+            ? "Viewing <b>latest</b> · r6 in progress"
+            : `Viewing <b>r${R[sel].r}</b> · ${R.length - 1 - sel} later change${R.length - 1 - sel > 1 ? "s" : ""} not shown`;
+        const L = document.getElementById("layers");
+        L.innerHTML = "";
+        LAY.forEach(([nm, ic, sub]) => {
+          if (!exists(nm, sel)) return;
+          const c = R[sel].ch[nm];
+          const d = document.createElement("div");
+          d.className =
+            "layer" +
+            (hidden[nm] ? " off" : "") +
+            (c === "e"
+              ? " chg"
+              : c === "n" && sel > 0
+                ? " new"
+                : c === "f"
+                  ? " fol"
+                  : "");
+          d.innerHTML = `<span class="ic">${ic}</span><span class="nm">${nm}<small>${sub(R[sel].st)}</small></span>${c === "e" ? '<span class="bd e">edited</span>' : c === "n" && sel > 0 ? '<span class="bd n">new</span>' : c === "f" ? '<span class="bd f">follows</span>' : ""}<span class="eye" title="hide">${hidden[nm] ? "◌" : "👁"}</span>`;
+          d.querySelector(".eye").onclick = () => {
+            hidden[nm] = !hidden[nm];
+            render();
+          };
+          L.appendChild(d);
+        });
+        const T = document.getElementById("track");
+        T.innerHTML = '<div class="rail"><i></i></div>';
+        const n = R.length,
+          pos = (i) => i * (100 / (n - 1));
+        T.querySelector(".rail i").style.width = pos(sel) + "%";
+        R.forEach((x, i) => {
+          const d = document.createElement("div");
+          d.className =
+            "n" +
+            (x.who === "you" ? " you" : "") +
+            (i === sel ? " sel" : "") +
+            (i > sel ? " after" : "") +
+            (x.live ? " live" : "");
+          d.style.left = pos(i) + "%";
+          d.textContent = x.who === "you" ? "✋" : "✦";
+          d.innerHTML += `<span class="lb"><b>r${x.r} · ${x.lb}</b>${x.live ? "in progress" : x.who === "you" ? "you" : "agent"}</span>`;
+          d.onclick = () => {
+            sel = i;
+            render();
+          };
+          T.appendChild(d);
+        });
+        const names = { e: "edited", n: "new", f: "follows" };
+        document.getElementById("detail").innerHTML =
+          `<b>r${R[sel].r}</b> · “${R[sel].p}” → ` +
+          Object.entries(R[sel].ch)
+            .map(([k, v]) => `<span class="chip">${k} · ${names[v]}</span>`)
+            .join("");
+        const A = document.getElementById("act");
+        A.innerHTML = "";
+        R.slice(0, sel + 1)
+          .slice(-3)
+          .forEach((x) => {
+            A.innerHTML += `<div class="ev user"><div class="k">${x.who === "you" ? "You · panel" : "You"}</div>${x.p}</div><div class="ev"><div class="k">r${x.r} · ${x.live ? "working" : "done"}</div>${Object.keys(x.ch).length} layer${Object.keys(x.ch).length > 1 ? "s" : ""} touched</div>`;
+          });
+      }
+      render();
+      window.addEventListener("resize", render);
+    </script>
+  </body>
+</html>

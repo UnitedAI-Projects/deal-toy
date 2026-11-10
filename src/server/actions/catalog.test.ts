@@ -17,7 +17,7 @@ function walk(
 }
 
 describe("action catalog", () => {
-  it("has the ten batch-1 actions", () => {
+  it("has the built-in actions, custom last", () => {
     expect(actions.map((a) => a.id)).toEqual([
       "body",
       "plane",
@@ -28,6 +28,11 @@ describe("action catalog", () => {
       "text",
       "combine",
       "move",
+      "revolve",
+      "loft",
+      "sweep",
+      "shell",
+      "appearance",
       "custom",
     ]);
   });
@@ -73,7 +78,7 @@ describe("action catalog", () => {
   });
   it("indexes the catalog", () => {
     const lines = catalogIndex().split("\n");
-    expect(lines).toHaveLength(10);
+    expect(lines).toHaveLength(15);
     expect(lines[3]).toBe(`hole@1: ${getAction("hole").summary}`);
   });
   it("refuses unknown actions", () => {

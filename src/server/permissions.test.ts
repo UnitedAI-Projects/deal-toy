@@ -198,12 +198,15 @@ describe("Demo projects", () => {
     expect(delivered?.n).toBe(0);
   });
   it("never record source in tool-call arguments", async () => {
-    await dispatch(
-      owner,
-      "models_save",
-      { modelId: demo.model, expectedRevision: 1, source: `${source}# v2\n` },
-      "mcp",
-    );
+    // The guard refuses this agent save (no design sheet); refused calls are recorded too.
+    await expect(
+      dispatch(
+        owner,
+        "models_save",
+        { modelId: demo.model, expectedRevision: 1, source: `${source}# v2\n` },
+        "mcp",
+      ),
+    ).rejects.toThrow("no design sheet");
     const saved = await env.DB.prepare(
       "SELECT payload FROM project_events WHERE project_id=? AND kind='tool_call' AND payload LIKE '%models_save%' ORDER BY rowid DESC",
     )

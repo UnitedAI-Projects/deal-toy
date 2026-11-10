@@ -185,7 +185,9 @@ export type ProjectEvent = {
     | "tool_call"
     | "team_note"
     | "team_edit"
-    | "ended";
+    | "ended"
+    | "design"
+    | "change";
   actor: string;
   payload: Record<string, unknown>;
   created_at: string;

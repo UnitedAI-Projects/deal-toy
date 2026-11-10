@@ -7,6 +7,7 @@ import {
   revisionAccess,
   type Context,
 } from "./core";
+import { guardWrite } from "./design/guard";
 /** Building blocks shared by every tool module: definitions, revisions and build queueing. */
 export type Tool = {
   name: string;
@@ -49,23 +50,50 @@ export function define<S extends z.ZodRawShape>(
   };
 }
 export const now = () => new Date().toISOString();
+/** Appended to every tool that saves model source. */
+export const PLAN_NOTE =
+  " Agents: the model needs a design sheet (design_start) and an open change plan (change_begin) declaring the layers this write changes; other writes are refused with what to call next.";
+/**
+ * Saves a new revision, the single write path for model source. The design guard runs first: an
+ * agent write outside the design sheet or the open change plan is refused, and every revision
+ * records the change that produced it. `request` names a person's change in the timeline.
+ */
 export async function saveRevision(
   c: Context,
   modelId: string,
   expectedRevision: number,
   source: string,
+  options: { sessionId?: string; request?: string } = {},
 ) {
-  await modelAccess(c, modelId);
+  const model = await modelAccess(c, modelId);
+  if (model.revision !== expectedRevision)
+    throw new AppError(409, "Model changed. Reload before saving.");
+  const guard = await guardWrite(
+    c,
+    modelId,
+    expectedRevision,
+    source,
+    options.sessionId,
+    options.request,
+  );
   const revisionId = crypto.randomUUID();
   const rows = await c.env.DB.batch([
+    ...guard.statements,
     c.env.DB.prepare(
-      "INSERT INTO revisions SELECT ?,id,revision+1,?,? FROM models WHERE id=? AND revision=?",
-    ).bind(revisionId, source, now(), modelId, expectedRevision),
+      "INSERT INTO revisions (id,model_id,number,source,created_at,change_id) SELECT ?,id,revision+1,?,?,? FROM models WHERE id=? AND revision=?",
+    ).bind(
+      revisionId,
+      source,
+      now(),
+      guard.changeId,
+      modelId,
+      expectedRevision,
+    ),
     c.env.DB.prepare(
       "UPDATE models SET revision=revision+1 WHERE id=? AND revision=? AND EXISTS(SELECT 1 FROM revisions WHERE id=?)",
     ).bind(modelId, expectedRevision, revisionId),
   ]);
-  if (rows[0].meta.changes !== 1)
+  if (rows[guard.statements.length].meta.changes !== 1)
     throw new AppError(409, "Model changed. Reload before saving.");
   return { id: revisionId, number: expectedRevision + 1 };
 }

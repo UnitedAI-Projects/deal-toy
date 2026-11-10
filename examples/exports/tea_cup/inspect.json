@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "units": "mm",
+  "warnings": [],
+  "parts": [
+    {
+      "index": 0,
+      "label": "Cup wall",
+      "volume": 76093.047342,
+      "area": 49192.47415,
+      "bbox": {
+        "min": [-41.84621, -41.84621, 0.0],
+        "max": [64.519453, 41.84621, 95.0]
+      },
+      "center_of_mass": [2.953243, -0.0, 44.603841]
+    }
+  ],
+  "faces": [
+    {
+      "index": 0,
+      "part": 0,
+      "type": "cone",
+      "area": 20561.857383,
+      "center": [-36.418769, 0.0, 48.827997],
+      "bbox": {
+        "min": [-41.837538, -41.837538, 4.0],
+        "max": [41.837538, 41.837538, 93.655993]
+      },
+      "cone": {
+        "origin": [0.0, 0.0, 4.0],
+        "axis": [0.0, 0.0, 1.0],
+        "half_angle_deg": 6.892423
+      },
+      "names": [{ "of": "Cup wall", "name": "surface" }]
+    },
+    {
+      "index": 1,
+      "part": 0,
+      "type": "torus",
+      "area": 528.394362,
+      "center": [-41.54421, 0.0, 94.595987],
+      "bbox": {
+        "min": [-41.84621, -41.84621, 93.655993],
+        "max": [41.84621, 41.84621, 95.0]
+      },
+      "torus": { "major": 40.64621, "minor": 1.2 },
+      "names": [{ "of": "Rim", "name": "rounds" }]
+    },
+    {
+      "index": 2,
+      "part": 0,
+      "type": "plane",
+      "area": 153.200541,
+      "center": [0.0, 0.0, 95.0],
+      "bbox": {
+        "min": [-40.64621, -40.64621, 95.0],
+        "max": [40.64621, 40.64621, 95.0]
+      },
+      "plane": { "origin": [0.0, 0.0, 95.0], "normal": [0.0, 0.0, 1.0] },
+      "names": [{ "of": "Cup wall", "name": "surface" }],
+      "sides": ["top"],
+      "thickness": 88.0
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "type": "torus",
+      "area": 429.956356,
+      "center": [-39.245855, 0.0, 94.698],
+      "bbox": {
+        "min": [-40.041842, -40.041842, 93.944007],
+        "max": [40.041842, 40.041842, 95.0]
+      },
+      "torus": { "major": 40.041842, "minor": 1.2 },
+      "names": [{ "of": "Rim", "name": "rounds" }]
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "type": "cone",
+      "area": 18479.109732,
+      "center": [-33.595657, 0.0, 50.472003],
+      "bbox": {
+        "min": [-38.850514, -38.850514, 7.0],
+        "max": [38.850514, 38.850514, 93.944007]
+      },
+      "cone": {
+        "origin": [0.0, 0.0, 4.360017],
+        "axis": [0.0, 0.0, 1.0],
+        "half_angle_deg": 6.892423
+      },
+      "names": [{ "of": "Cup wall", "name": "surface" }]
+    },
+    {
+      "index": 5,
+      "part": 0,
+      "type": "plane",
+      "area": 2523.330045,
+      "center": [0.0, 0.0, 7.0],
+      "bbox": {
+        "min": [-28.340799, -28.340799, 7.0],
+        "max": [28.340799, 28.340799, 7.0]
+      },
+      "plane": { "origin": [0.0, 0.0, 7.0], "normal": [0.0, 0.0, 1.0] },
+      "names": [{ "of": "Hollow", "name": "inside" }],
+      "thickness": 3.0
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "type": "plane",
+      "area": 6.836774,
+      "center": [37.259694, 0.0, 82.986694],
+      "bbox": {
+        "min": [37.037649, -2.982759, 82.264491],
+        "max": [37.438705, 2.982759, 83.88251]
+      },
+      "plane": {
+        "origin": [37.259694, 0.0, 82.986694],
+        "normal": [-0.970627, -0.0, -0.240588]
+      },
+      "names": [{ "of": "Handle", "name": "surface" }],
+      "thickness": 7.910201
+    },
+    {
+      "index": 7,
+      "part": 0,
+      "type": "other",
+      "area": 2.781146,
+      "center": [37.345627, 0.0, 83.957575],
+      "bbox": {
+        "min": [37.037649, -2.982759, 82.58689],
+        "max": [37.652084, 2.982759, 84.029719]
+      },
+      "names": [{ "of": "Handle", "name": "surface" }]
+    },
+    {
+      "index": 8,
+      "part": 0,
+      "type": "plane",
+      "area": 191.637152,
+      "center": [0.0, 0.0, 4.0],
+      "bbox": { "min": [-31.0, -31.0, 4.0], "max": [31.0, 31.0, 4.0] },
+      "plane": { "origin": [0.0, 0.0, 4.0], "normal": [-0.0, -0.0, -1.0] },
+      "names": [{ "of": "Cup wall", "name": "surface" }],
+      "thickness": 3.0
+    },
+    {
+      "index": 9,
+      "part": 0,
+      "type": "cylinder",
+      "area": 753.982237,
+      "center": [-30.0, 0.0, 2.0],
+      "bbox": { "min": [-30.0, -30.0, 0.0], "max": [30.0, 30.0, 4.0] },
+      "cylinder": {
+        "origin": [0.0, 0.0, 0.0],
+        "axis": [0.0, 0.0, 1.0],
+        "radius": 30.0
+      },
+      "names": [{ "of": "Foot ring", "name": "surface" }]
+    },
+    {
+      "index": 10,
+      "part": 0,
+      "type": "plane",
+      "area": 1017.87602,
+      "center": [0.0, -0.0, 0.0],
+      "bbox": { "min": [-30.0, -30.0, 0.0], "max": [30.0, 30.0, 0.0] },
+      "plane": { "origin": [0.0, -0.0, 0.0], "normal": [-0.0, 0.0, -1.0] },
+      "names": [{ "of": "Foot ring", "name": "surface" }],
+      "sides": ["bottom"],
+      "thickness": 4.0
+    },
+    {
+      "index": 11,
+      "part": 0,
+      "type": "cylinder",
+      "area": 603.185789,
+      "center": [-24.0, 0.0, 2.0],
+      "bbox": { "min": [-24.0, -24.0, 0.0], "max": [24.0, 24.0, 4.0] },
+      "cylinder": {
+        "origin": [0.0, 0.0, 4.5],
+        "axis": [-0.0, -0.0, -1.0],
+        "radius": 24.0
+      },
+      "names": [{ "of": "Foot ring", "name": "surface" }]
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "type": "plane",
+      "area": 1809.557368,
+      "center": [0.0, 0.0, 4.0],
+      "bbox": { "min": [-24.0, -24.0, 4.0], "max": [24.0, 24.0, 4.0] },
+      "plane": { "origin": [0.0, 0.0, 4.0], "normal": [-0.0, -0.0, -1.0] },
+      "names": [{ "of": "Cup wall", "name": "surface" }],
+      "thickness": 3.0
+    },
+    {
+      "index": 13,
+      "part": 0,
+      "type": "other",
+      "area": 2130.769246,
+      "center": [56.066869, -0.0, 52.773664],
+      "bbox": {
+        "min": [33.047919, -4.0, 20.863449],
+        "max": [64.519453, 4.0, 84.891169]
+      },
+      "names": [{ "of": "Handle", "name": "surface" }]
+    }
+  ],
+  "holes": [
+    {
+      "part": 0,
+      "faces": [11],
+      "diameter": 48.0,
+      "axis": { "origin": [0.0, 0.0, 4.0], "direction": [-0.0, -0.0, -1.0] },
+      "depth": 4.0,
+      "through": false
+    }
+  ],
+  "faces_truncated": false,
+  "pairs": [],
+  "materials": {},
+  "embeds": [],
+  "dimensions": [],
+  "stability": {
+    "center_of_mass": [2.953243, -0.0, 44.603841],
+    "uniform_density": true,
+    "footprint": [
+      [24.0, 0.0],
+      [30.0, 0.0]
+    ],
+    "tip_angle_deg": 0.0,
+    "tip_direction": [0.0, 0.0]
+  },
+  "draft": []
+}
