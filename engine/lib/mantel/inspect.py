@@ -7,6 +7,9 @@ import math
 
 import build123d as bd
 from OCP.BRepAdaptor import BRepAdaptor_Surface
+from OCP.BRepIntCurveSurface import BRepIntCurveSurface_Inter
+from OCP.gce import gce_MakeLin
+from OCP.Standard import Standard_ConstructionError
 
 MAX_FACES = 20000
 MAX_THICKNESS_FACES = 4000
@@ -58,12 +61,35 @@ def _face_entry(face, index, part_index, part):
     return entry
 
 
+def _ray_hits(part, start, direction):
+    """Points where a line through start crosses the part's faces.
+
+    build123d's find_intersection_points also evaluates the surface normal at every hit, which
+    raises where a surface has none (the tip of a spline revolved to a point on its axis).
+    Thickness needs only the points.
+    """
+    intersector = BRepIntCurveSurface_Inter()
+    intersector.Init(part.wrapped, gce_MakeLin(bd.Axis(start, direction).wrapped).Value(), bd.TOLERANCE)
+    hits = []
+    while intersector.More():
+        hits.append(bd.Vector(intersector.Pnt()))
+        intersector.Next()
+    return hits
+
+
+def _normal_or_none(face, point):
+    """The face's normal at point, or None where it has none (such as a revolved profile's tip)."""
+    try:
+        return face.normal_at(point)
+    except Standard_ConstructionError:
+        return None
+
+
 def _thickness(part, entry):
     """Distance through the part from a planar face's centre, along the inward normal."""
     normal = bd.Vector(*entry["plane"]["normal"])
     start = bd.Vector(*entry["center"]) - normal * 1e-4
-    hits = part.find_intersection_points(bd.Axis(start, -normal))
-    ahead = [(p - start).dot(-normal) for p, _ in hits]
+    ahead = [(p - start).dot(-normal) for p in _ray_hits(part, start, -normal)]
     ahead = [t for t in ahead if t > 1e-6]
     return _r(min(ahead) + 1e-4) if ahead else None
 
@@ -417,7 +443,8 @@ def _draft(parts, module, record):
                 angle = 0.0 if kind == bd.GeomType.CYLINDER else abs(math.degrees(surface.Cone().SemiAngle()))
             else:
                 sampled = True
-                samples = [face.normal_at(face.position_at(u / 4, v / 4)) for u in range(5) for v in range(5)]
+                samples = [n for u in range(5) for v in range(5)
+                           if (n := _normal_or_none(face, face.position_at(u / 4, v / 4))) is not None]
                 angles = [_draft_angle(n, d) for n in samples if abs(n.dot(d)) <= SQUARE_TO_PULL]
                 if not angles:
                     continue

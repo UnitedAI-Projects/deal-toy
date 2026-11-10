@@ -306,3 +306,12 @@ How the catalog covers the features of the two saved deal-toy models, which the 
 | Logo inlays from SVG (both)    | Still needs a custom step: there is no SVG or outline import action                                |
 | Lettering (both)               | `text` (engrave or emboss)                                                                         |
 | Material colours per part      | `appearance` (whole parts)                                                                         |
+
+## Inspection through a pointed tip — 2026-11-10
+
+The SpaceX deal toy's revision 3 build (production, release `6002ef0`) succeeded but its inspection record held only `Inspection failed: Standard_ConstructionError: gp_Vec::Normalized() - vector has zero norm`, so the workspace showed no section, explode or face tools for it. The Starship nose is a spline revolved to a point on its axis. The thickness ray from the nose's flat base runs up that axis and hits the tip, and build123d's `find_intersection_points` evaluates the surface normal at every hit, which OCCT cannot do at a pole. Thickness now collects the hit points directly from `BRepIntCurveSurface_Inter` without normals. Draft sampling of curved faces had the same failure at the tip once a `PULL` is declared; it now skips sample points with no normal.
+
+- A regression test revolves the same profile: the base reads its 16.5 mm thickness with no warnings, and draft reports the curved face from the remaining samples. It failed with the production error before the fix.
+- The revision 3 source, inspected locally: before the fix it raised the production error; after it, 18 parts, 1,708 faces and 5 holes with no warnings in 9.3 s on the development host, and the Starship's base thickness reads 56.49 mm (40 mm barrel plus the 16.5 mm nose, less the 0.01 mm overlap).
+- Full `bash ci/run.sh` passed: 412 Worker tests and 145 Python tests with 11 skipped, plus format, types, build, audit and the Wrangler dry run. The native container build and smoke test run in the PR's hosted checks.
+- Known limit: a build's record is written once. Existing builds keep their failed record until the revision is built again.

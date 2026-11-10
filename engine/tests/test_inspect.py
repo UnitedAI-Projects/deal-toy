@@ -42,6 +42,25 @@ def test_block_faces_are_exact():
     assert record["warnings"] == [] and record["faces_truncated"] is False
 
 
+def test_thickness_ray_through_a_pole():
+    # A spline revolved to a point on its axis has no surface normal at the tip. The base face's
+    # thickness ray runs up the axis and hits that tip; it must measure, not fail the record.
+    r, h = 7.5, 16.5
+    profile = bd.Plane.XZ * bd.Face(bd.Wire([
+        bd.Line((0, 0), (r, 0)),
+        bd.Spline((r, 0), (0, h), tangents=((0, 1), (-1, 0))),
+        bd.Line((0, h), (0, 0)),
+    ]))
+    record = inspect_record(compound(labelled(bd.revolve(profile, bd.Axis.Z), "Nose")), None)
+    assert record["warnings"] == []
+    base = next(f for f in faces_of(record, "plane") if f["plane"]["normal"] == pytest.approx([0, 0, -1]))
+    assert base["thickness"] == pytest.approx(h, abs=1e-4)
+    # Draft samples the curved face on a grid that includes the tip; that sample has no normal.
+    (draft,) = pulled(bd.revolve(profile, bd.Axis.Z), "Nose")["draft"]
+    (curved,) = [f for f in draft["faces"] if f["sampled"]]
+    assert curved["angle_deg"] >= 0
+
+
 def test_holes_and_bosses():
     plate = bd.Box(60, 30, 10, align=BOTTOM)
     plate = plate - bd.Pos(-15, 0, -1) * bd.Cylinder(2.5, 12, align=BOTTOM)
