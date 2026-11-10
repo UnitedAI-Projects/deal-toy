@@ -177,3 +177,95 @@ fn rib_past_the_moved_wall_is_unchanged() {
     assert!(manifold);
     assert!((v - 587.5).abs() <= 1e-9 * 587.5, "{v}");
 }
+
+/// A rib on a notched ring: the notch joins the two top loops into one. The
+/// rib is 0.15 in from the outer wall; a 0.5 offset crosses that same loop.
+fn ring_with_rib(k: &mut Kernel, notch: bool) -> Brep {
+    use solidcore::boolean::api_brep::boolean_difference;
+    let plate = create_box(k, Point3::new(0.0, 0.0, 0.0), 20.0, 20.0, 2.0).unwrap();
+    let skirt = create_box(k, Point3::new(1.0, 1.0, 2.0), 18.0, 18.0, 3.0).unwrap();
+    let mut body = boolean_union(k, plate, skirt).unwrap();
+    let hollow = create_box(k, Point3::new(2.5, 2.5, 2.0), 15.0, 15.0, 4.0).unwrap();
+    body = boolean_difference(k, body, hollow).unwrap();
+    if notch {
+        let cut = create_box(k, Point3::new(8.0, 16.0, 2.0), 4.0, 5.0, 4.0).unwrap();
+        body = boolean_difference(k, body, cut).unwrap();
+    }
+    let rib = create_box(k, Point3::new(1.15, 4.0, 2.0), 1.6, 4.0, 8.0).unwrap();
+    boolean_union(k, body, rib).unwrap()
+}
+
+fn check_ring_floor(notch: bool, expected: f64) {
+    let mut k = Kernel {
+        fixes: UpstreamFixes::all(),
+        ..Kernel::default()
+    };
+    let mut body = ring_with_rib(&mut k, notch);
+    body.refresh_cached_topology();
+    let top = planar_faces_at(&k, &body, 2, 5.0);
+    assert_eq!(top.len(), 1);
+    assert_eq!(
+        body.face(top[0]).unwrap().loops.len(),
+        if notch { 1 } else { 2 }
+    );
+    let open = planar_faces_at(&k, &body, 0, 1.15);
+    assert_eq!(open.len(), 1);
+    let points: Vec<_> = body
+        .vertices()
+        .iter()
+        .map(|(id, v)| (id, v.point, v.tolerance))
+        .collect();
+    let topology = (
+        body.face_list().to_vec(),
+        body.edge_list().to_vec(),
+        body.vertex_list().to_vec(),
+    );
+    let original_volume = volume(&k, &mut body).unwrap();
+    assert!((original_volume - if notch { 1114.0 } else { 1132.0 }).abs() < 1e-7);
+    let mut result = offset_fixture::api_shell(&mut k, &mut body, shell_options(), &open).unwrap();
+    assert_eq!(
+        points,
+        body.vertices()
+            .iter()
+            .map(|(id, v)| (id, v.point, v.tolerance))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        topology,
+        (
+            body.face_list().to_vec(),
+            body.edge_list().to_vec(),
+            body.vertex_list().to_vec()
+        )
+    );
+    assert!(solidcore::topology::integrity::check(&body).is_ok());
+    assert!((volume(&k, &mut body).unwrap() - original_volume).abs() < 1e-7);
+    result.refresh_cached_topology();
+    assert!(solidcore::topology::integrity::check(&result).is_ok());
+    assert!(brep_is_manifold_solid(&result).unwrap());
+    for level in [CheckLevel::Level0, CheckLevel::Level1, CheckLevel::Level2] {
+        let checked = check_brep(&mut k, &mut result, level).unwrap();
+        assert!(checked.is_valid(), "{level:?}: {:?}", checked.lines());
+    }
+    let actual = volume(&k, &mut result).unwrap();
+    assert!((actual - expected).abs() < 1e-7, "{actual} != {expected}");
+    for (_, vertex) in result.vertices().iter() {
+        let p = vertex.point;
+        assert!(p.x >= -1e-8 && p.x <= 20.0 + 1e-8);
+        assert!(p.y >= -1e-8 && p.y <= 20.0 + 1e-8);
+        assert!(p.z >= -1e-8 && p.z <= 10.0 + 1e-8);
+    }
+}
+
+/// Original 1132; cavity 361 + 99 + 16.5 + 2.25 = 478.75.
+#[test]
+fn ring_floor_with_two_loops_is_kept() {
+    check_ring_floor(false, 653.25);
+}
+
+/// The notch removes 18 from the body and 7.5 from the cavity, including its
+/// two end walls: 1114 - (478.75 - 7.5) = 642.75. Every wall is >= 1.5.
+#[test]
+fn notched_ring_floor_with_one_loop_is_kept() {
+    check_ring_floor(true, 642.75);
+}

@@ -34,6 +34,12 @@
 //! The fork's 1b016ca (regions the loops wind round the other way under an opening are
 //! kept, reversed, where they are the cavity's floor) is part of the same opt-in (WR-345
 //! addendum): it adds the original body to the routine's inputs for its point tests.
+//! Single planar loops with exact straight trims also resolve their own transverse
+//! crossings. The additional arrangement is bounded to `MAX_SINGLE_LOOP_EDGES` source edges and
+//! `MAX_SINGLE_LOOP_STRETCHES` split stretches,
+//! decomposes directed cycles, proves their interiors disjoint, and retains negative
+//! cycles only where they bound cavity. Nested, overlapping, or ambiguous cycles are
+//! refused. Curved single loops retain the existing path. No tolerance is increased.
 
 use super::p1::OffsetExecutive;
 use super::p2::OffsetNotifications;
@@ -68,6 +74,13 @@ use crate::topology::face::p2 as face;
 use crate::topology::topology;
 use crate::topology::topology_traverser::face_edges;
 use crate::topology::{loopuse, vertexuse, Brep, EdgeId, EdgeuseId, FaceId, LoopId, LoopuseStart};
+
+/// Bound the quadratic intersection arrangement added for single-loop planes.
+const MAX_SINGLE_LOOP_EDGES: usize = 256;
+
+/// Bound the complete post-split pair certificate to at most 130816 pairs.
+/// Larger arrangements are refused rather than starting unbounded solve work.
+const MAX_SINGLE_LOOP_STRETCHES: usize = 512;
 
 const OP: &str = "offset::offset_executive::crossing_loops::resolve_crossing_loops";
 
@@ -247,8 +260,16 @@ fn cut_at_crossings_refusing_touch(
     // Where edge uses of different loops meet, in UV space.
     let mut contacts: Vec<LoopContact> = Vec::new();
     for aa in 0..edgeuses.len() {
-        let first_b = *at(inp.first_of_loop, *at(loop_of, aa)? + 1)?;
+        let single_loop = inp.loop_edgeuses.len() == 1;
+        let first_b = if single_loop {
+            aa + 1
+        } else {
+            *at(inp.first_of_loop, *at(loop_of, aa)? + 1)?
+        };
         for bb in first_b..edgeuses.len() {
+            if single_loop && (bb == aa + 1 || (aa == 0 && bb + 1 == edgeuses.len())) {
+                continue;
+            }
             let (uv_a, uv_b) = (at(uvs, aa)?, at(uvs, bb)?);
             let solutions = uv_a.global_curve_intersect(
                 kernel,
@@ -395,6 +416,351 @@ fn edge_closest_distance(k: &Kernel, b: &Brep, e: EdgeId, point: Point3) -> Resu
         .map(|solution| solution.start.solution_value))
 }
 
+/// A straight UV curve is exact here only when it is a line or one degree-one
+/// B-spline span. This excludes sampled linearity tests and curved self-crossings.
+fn straight_uv(curve: &Curve) -> bool {
+    use crate::curve::curve::CurveKind;
+    match curve.kind() {
+        CurveKind::Line(_) => true,
+        CurveKind::BSpline(s) => s
+            .gw_nurb()
+            .is_some_and(|n| n.degree() == 1 && n.cpts().len() == 2),
+        _ => false,
+    }
+}
+
+/// Resolve a straight single loop into simple, interior-disjoint cycles. Their
+/// signed areas give winding +1 (the offset face) or -1 (a possible cavity floor).
+/// Chen and `McMains`, DETC2005-85513, use the same arrangement/winding principle;
+/// the negative regions here are retained only by `floor_is_cavity` below.
+///
+/// All nonadjacent intersections have already split the stretches. A cycle has
+/// no repeated node; checking every open segment against every other cycle
+/// excludes nested and overlapping interiors. A segment's classification cannot
+/// change between its nodes without another intersection. Unknown classifications
+/// are refused, never replaced by epsilon probes. Higher winding arrangements and
+/// curved single-loop boundaries are outside this construction.
+fn classify_single_loop(
+    kernel: &Kernel,
+    b: &Brep,
+    uvs: &[Curve],
+    stretches: &mut [LoopStretch],
+    uv_tol: f64,
+) -> Result<()> {
+    use crate::eval::Frame;
+    use crate::prism::profile::{simple_loops, Loop2, Seg2};
+    use crate::prism::read::{planar_pieces, Run};
+
+    if stretches.len() > MAX_SINGLE_LOOP_STRETCHES {
+        return Err(unresolved(LoopCrossing::StretchUnclassified));
+    }
+    let frame = Frame {
+        origin: [0.0, 0.0, 0.0],
+        x_axis: [1.0, 0.0, 0.0],
+        y_axis: [0.0, 1.0, 0.0],
+    };
+    let mut work = crate::prism::profile::MAX_SEGMENTS;
+    let mut segments = Vec::new();
+    for stretch in stretches.iter() {
+        let curve = at(uvs, stretch.uv)?;
+        let forward = eu::orientation(b, stretch.edgeuse)? == OrientType::Same;
+        let (a, z) = if forward {
+            (stretch.lo, stretch.hi)
+        } else {
+            (stretch.hi, stretch.lo)
+        };
+        let run = Run {
+            curve,
+            interval: Extent1d::from_min_max(stretch.lo, stretch.hi),
+            forward,
+            ends: [
+                curve.evaluate_point(kernel, a)?,
+                curve.evaluate_point(kernel, z)?,
+            ],
+        };
+        let pieces = planar_pieces(kernel, &run, &frame, uv_tol, &mut work, false)
+            .ok_or_else(|| unresolved(LoopCrossing::StretchUnclassified))?;
+        let [segment @ Seg2::Line { .. }] = pieces.as_slice() else {
+            return Err(unresolved(LoopCrossing::StretchUnclassified));
+        };
+        segments.push((stretch.start, *segment));
+    }
+    let cycles = simple_loops(segments.clone(), |a, b| a == b);
+    // One classification point per arrangement node, shared by every cycle.
+    // The actual UV/3D curves are unchanged. Each endpoint moves by at most
+    // uv_tol; the pair certificate below preserves the arrangement's topology.
+    let mut nodes = std::collections::BTreeMap::new();
+    for (stretch, (_, segment)) in stretches.iter().zip(&segments) {
+        nodes
+            .entry(stretch.start)
+            .or_insert_with(|| segment.start());
+    }
+    let mut closed = Vec::new();
+    for cycle in &cycles {
+        let mut segs = Vec::new();
+        for segment in &cycle.segs {
+            let index = segments
+                .iter()
+                .position(|(_, s)| s == segment)
+                .ok_or_else(|| unresolved(LoopCrossing::StretchUnclassified))?;
+            let stretch = at(stretches, index)?;
+            let a = *nodes
+                .get(&stretch.start)
+                .ok_or_else(|| unresolved(LoopCrossing::StretchUnclassified))?;
+            let z = *nodes
+                .get(&stretch.end)
+                .ok_or_else(|| unresolved(LoopCrossing::StretchUnclassified))?;
+            if a.distance(segment.start()) > uv_tol || z.distance(segment.end()) > uv_tol {
+                return Err(unresolved(LoopCrossing::StretchUnclassified));
+            }
+            segs.push(Seg2::Line { a, b: z });
+        }
+        let polygon = Loop2 { segs };
+        if !polygon.is_closed(0.0) {
+            return Err(unresolved(LoopCrossing::StretchUnclassified));
+        }
+        closed.push(polygon);
+    }
+    certify_closed_arrangement(kernel, &closed, uv_tol)?;
+    for (i, cycle) in cycles.iter().enumerate() {
+        let polygon = at(&closed, i)?;
+        for (j, other) in closed.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            for segment in &polygon.segs {
+                let midpoint = (segment.start() + segment.end()) * 0.5;
+                // Both the midpoint and the other boundary can move by at most
+                // uv_tol under endpoint closure. Separation by twice that bound
+                // keeps the exact containment decision invariant.
+                for boundary in &other.segs {
+                    let a = boundary.start();
+                    let z = boundary.end();
+                    let a3 = Point3::new(a.x, a.y, 0.0);
+                    let z3 = Point3::new(z.x, z.y, 0.0);
+                    let m3 = Point3::new(midpoint.x, midpoint.y, 0.0);
+                    let (line_distance, t) =
+                        crate::geom::geom_utility::p1::line_point_distance(a3, z3 - a3, m3);
+                    let distance = if t < 0.0 {
+                        m3.distance(a3)
+                    } else if t > 1.0 {
+                        m3.distance(z3)
+                    } else {
+                        line_distance
+                    };
+                    let rounding =
+                        crate::nurbs::math::gamma(16) * (a3.length() + z3.length() + m3.length());
+                    if distance <= 2.0 * uv_tol + rounding {
+                        return Err(unresolved(LoopCrossing::StretchUnclassified));
+                    }
+                }
+                if other.holds(midpoint) != Some(false) {
+                    return Err(unresolved(LoopCrossing::StretchUnclassified));
+                }
+            }
+        }
+        // Moving a polygon's vertices by delta changes its signed area by at
+        // most delta * perimeter + n * delta^2. Include the arithmetic bound;
+        // uncertain narrow regions are refused rather than assigned a winding.
+        let perimeter: f64 = polygon
+            .segs
+            .iter()
+            .map(|s| s.start().distance(s.end()))
+            .sum();
+        let mut area = polygon.signed_area()?;
+        let uncertainty = uv_tol * perimeter + polygon.segs.len() as f64 * uv_tol * uv_tol;
+        area.bound += uncertainty * (1.0 + crate::nurbs::math::gamma(8 * polygon.segs.len() + 8));
+        let positive = area
+            .sign()
+            .ok_or_else(|| unresolved(LoopCrossing::StretchUnclassified))?;
+        for segment in &cycle.segs {
+            let mut matching = segments
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, s))| s == segment);
+            let Some((index, _)) = matching.next() else {
+                return Err(unresolved(LoopCrossing::StretchUnclassified));
+            };
+            if matching.next().is_some() {
+                return Err(unresolved(LoopCrossing::StretchUnclassified));
+            }
+            let stretch = at_mut(stretches, index)?;
+            stretch.keep = positive;
+            stretch.floor = !positive;
+        }
+    }
+    Ok(())
+}
+
+/// Certify simplicity within each cycle and the complete arrangement across
+/// cycles after endpoint closure. Nonincident segments must stay more than
+/// twice the endpoint-motion bound apart. Incident segments may meet only at
+/// their one common node; any collinear overlap or ambiguous solve is refused.
+fn certify_closed_arrangement(
+    kernel: &Kernel,
+    cycles: &[crate::prism::profile::Loop2],
+    uv_tol: f64,
+) -> Result<()> {
+    use crate::geom::geom_utility::p1::segment_point_distance;
+    use crate::nurbs::b_spline_curve::BSplineCurve;
+
+    if !uv_tol.is_finite() || uv_tol < 0.0 {
+        return Err(unresolved(LoopCrossing::StretchUnclassified));
+    }
+    let mut segments = Vec::new();
+    for cycle in cycles {
+        for segment in &cycle.segs {
+            let a = segment.start();
+            let z = segment.end();
+            let a = Point3::new(a.x, a.y, 0.0);
+            let z = Point3::new(z.x, z.y, 0.0);
+            if a == z || ![a.x, a.y, z.x, z.y].iter().all(|v| v.is_finite()) {
+                return Err(unresolved(LoopCrossing::StretchUnclassified));
+            }
+            let curve = Curve::from(BSplineCurve::create_line_segment(3, a, z)?);
+            segments.push((a, z, curve));
+        }
+    }
+    for (i, (a, z, curve)) in segments.iter().enumerate() {
+        for (c, d, other) in segments.iter().skip(i + 1) {
+            let intersections = curve.global_curve_intersect(
+                kernel,
+                &curve.natural_interval(),
+                other,
+                &other.natural_interval(),
+                uv_tol,
+                &CurveIntersectOptions::<NoObject>::default(),
+            )?;
+            let shared = [*a, *z].into_iter().find(|p| p == c || p == d);
+            if let Some(node) = shared {
+                let [hit] = intersections.as_slice() else {
+                    return Err(unresolved(LoopCrossing::RunAlong));
+                };
+                if hit.solution_type != SolutionType::SingleValue
+                    || curve
+                        .evaluate_point(kernel, hit.start.param(0)?)?
+                        .distance(node)
+                        > uv_tol
+                    || other
+                        .evaluate_point(kernel, hit.start.param(1)?)?
+                        .distance(node)
+                        > uv_tol
+                {
+                    return Err(unresolved(LoopCrossing::RunAlong));
+                }
+            } else {
+                if !intersections.as_slice().is_empty() {
+                    return Err(unresolved(LoopCrossing::StretchUnclassified));
+                }
+                // For disjoint planar straight segments, a closest pair contains
+                // an endpoint. The complete intersection solve above excludes
+                // an interior crossing; no near-parallel line solve is needed.
+                let rounding = crate::nurbs::math::gamma(32)
+                    * (a.length() + z.length() + c.length() + d.length());
+                for (start, end, point) in [(*a, *z, *c), (*a, *z, *d), (*c, *d, *a), (*c, *d, *z)]
+                {
+                    let distance = segment_point_distance(start, end, point).0;
+                    if !distance.is_finite() || distance <= 2.0 * uv_tol + rounding {
+                        return Err(unresolved(LoopCrossing::StretchUnclassified));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Exact straight segments have at most one point intersection unless they
+/// overlap. The caller rejects overlaps and extra solutions; a shared endpoint
+/// is certified by topology and the existing vertex/edge tolerance balls.
+/// Requiring the solver parameter to equal the endpoint bit-for-bit would reject
+/// rounding in an otherwise unique intersection.
+fn common_adjacent_endpoint(
+    kernel: &Kernel,
+    b: &Brep,
+    a: EdgeuseId,
+    z: EdgeuseId,
+    a_end: bool,
+    ta: f64,
+    tz: f64,
+) -> Result<bool> {
+    let endpoint = |id: EdgeuseId, end: bool| -> Result<_> {
+        let edge = edge_of(b, id)?;
+        let increasing = eu::orientation(b, id)? == OrientType::Same;
+        let at_max = increasing == end;
+        let interval = b.edge(edge)?.interval;
+        Ok(if at_max {
+            (edge::end_vertex(b, edge)?, interval.max(), edge)
+        } else {
+            (edge::start_vertex(b, edge)?, interval.min(), edge)
+        })
+    };
+    let (va, pa, ea) = endpoint(a, a_end)?;
+    let (vz, pz, ez) = endpoint(z, !a_end)?;
+    let Some(v) = va.filter(|v| Some(*v) == vz) else {
+        return Ok(false);
+    };
+    let vertex = b.vertex(v)?;
+    for (edge, end, intersection) in [(ea, pa, ta), (ez, pz, tz)] {
+        let curve = edge_curve(b, edge)?;
+        if !straight_uv(curve) {
+            return Ok(false);
+        }
+        let tolerance = vertex.tolerance + b.edge(edge)?.tolerance;
+        if curve.evaluate_point(kernel, end)?.distance(vertex.point) > tolerance
+            || curve
+                .evaluate_point(kernel, intersection)?
+                .distance(vertex.point)
+                > tolerance
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Consecutive straight segments may meet only at their common directed node.
+/// This is checked after finding a self-crossing, so ordinary single loops keep
+/// their established construction and cost.
+fn validate_single_loop_joints(
+    kernel: &Kernel,
+    b: &Brep,
+    edgeuses: &[EdgeuseId],
+    uvs: &[Curve],
+    uv_tol: f64,
+) -> Result<()> {
+    for (aa, &a) in edgeuses.iter().enumerate() {
+        let bb = if aa + 1 == edgeuses.len() { 0 } else { aa + 1 };
+        let z = *at(edgeuses, bb)?;
+        let (ca, cz) = (at(uvs, aa)?, at(uvs, bb)?);
+        let intersections = ca.global_curve_intersect(
+            kernel,
+            &ca.natural_interval(),
+            cz,
+            &cz.natural_interval(),
+            uv_tol,
+            &CurveIntersectOptions::<NoObject>::default(),
+        )?;
+        let [intersection] = intersections.as_slice() else {
+            return Err(unresolved(LoopCrossing::RunAlong));
+        };
+        if intersection.solution_type != SolutionType::SingleValue
+            || !common_adjacent_endpoint(
+                kernel,
+                b,
+                a,
+                z,
+                true,
+                intersection.start.param(0)?,
+                intersection.start.param(1)?,
+            )?
+        {
+            return Err(unresolved(LoopCrossing::MeetAtLoopVertex));
+        }
+    }
+    Ok(())
+}
+
 impl OffsetExecutive {
     /// `ResolveCrossingLoops` (fork, not upstream): rebuilds every offset face whose
     /// loops cross one another. Each loop of an offset face is made of the offsets of
@@ -496,7 +862,18 @@ impl OffsetExecutive {
             loops.push(required(b.loopuse(lu)?.loop_)?);
             loop_edgeuses.push(eu::loopuse_edgeuses(b, lu)?);
         }
-        if loops.len() < 2 {
+        if loops.is_empty() {
+            return Ok(());
+        }
+        let single_loop = loops.len() == 1;
+        // Keep the established general-surface path unchanged. The self-crossing
+        // arrangement below admits finite straight loops on exact planes.
+        if single_loop
+            && (!matches!(
+                required(b.face(f)?.surface.as_ref())?.kind(),
+                crate::surface::surface::SurfaceKind::Plane(_)
+            ) || loop_edgeuses.iter().map(Vec::len).sum::<usize>() > MAX_SINGLE_LOOP_EDGES)
+        {
             return Ok(());
         }
 
@@ -522,6 +899,9 @@ impl OffsetExecutive {
             }
         }
         first_of_loop.push(edgeuses.len());
+        if single_loop && uvs.iter().any(|uv| !straight_uv(uv)) {
+            return Ok(());
+        }
         tol_3d *= 10.0;
 
         // The crossings of edge uses of different loops, in UV space (as SmFace test
@@ -549,8 +929,15 @@ impl OffsetExecutive {
             )?;
         } else {
             for aa in 0..edgeuses.len() {
-                let first_b = *at(&first_of_loop, *at(&loop_of, aa)? + 1)?;
+                let first_b = if single_loop {
+                    aa + 1
+                } else {
+                    *at(&first_of_loop, *at(&loop_of, aa)? + 1)?
+                };
                 for bb in first_b..edgeuses.len() {
+                    if single_loop && (bb == aa + 1 || (aa == 0 && bb + 1 == edgeuses.len())) {
+                        continue;
+                    }
                     let (uv_a, uv_b) = (at(&uvs, aa)?, at(&uvs, bb)?);
                     let solutions = uv_a.global_curve_intersect(
                         kernel,
@@ -586,6 +973,9 @@ impl OffsetExecutive {
         }
         if num_crossings == 0 {
             return Ok(());
+        }
+        if single_loop {
+            validate_single_loop_joints(kernel, b, &edgeuses, &uvs, uv_tol)?;
         }
 
         // Until the merge every offset face is a sheet of its own: its edges bound it
@@ -650,51 +1040,55 @@ impl OffsetExecutive {
             }
         }
 
-        // Which stretches bound the face: of the outer loop, those outside every inner
-        // loop; of an inner loop, those inside the outer loop and outside the other
-        // inner ones.
-        for ss in 0..stretches.len() {
-            let stretch = at(&stretches, ss)?;
-            let uv3 =
-                at(&uvs, stretch.uv)?.evaluate_point(kernel, 0.5 * (stretch.lo + stretch.hi))?;
-            let uv = Point2::new(uv3.x, uv3.y);
-            let own_loop = stretch.loop_index;
-            let mut keep = true;
-            let mut in_outer = own_loop == 0;
-            let mut in_inner = 0_usize;
-            for (ll, &l) in loops.iter().enumerate() {
-                if ll == own_loop {
-                    continue;
+        if single_loop {
+            classify_single_loop(kernel, b, &uvs, &mut stretches, uv_tol)?;
+        } else {
+            // Which stretches bound the face: of the outer loop, those outside every inner
+            // loop; of an inner loop, those inside the outer loop and outside the other
+            // inner ones.
+            for ss in 0..stretches.len() {
+                let stretch = at(&stretches, ss)?;
+                let uv3 = at(&uvs, stretch.uv)?
+                    .evaluate_point(kernel, 0.5 * (stretch.lo + stretch.hi))?;
+                let uv = Point2::new(uv3.x, uv3.y);
+                let own_loop = stretch.loop_index;
+                let mut keep = true;
+                let mut in_outer = own_loop == 0;
+                let mut in_inner = 0_usize;
+                for (ll, &l) in loops.iter().enumerate() {
+                    if ll == own_loop {
+                        continue;
+                    }
+                    let found = contains_uv_point(kernel, b, l, None, uv, zone_tol)?.containment;
+                    if found != PointContainment::Inside && found != PointContainment::Outside {
+                        return Err(unresolved(LoopCrossing::StretchUnclassified));
+                    }
+                    let wanted = if ll == 0 {
+                        PointContainment::Inside
+                    } else {
+                        PointContainment::Outside
+                    };
+                    if found != wanted {
+                        keep = false;
+                    }
+                    if ll == 0 {
+                        in_outer = found == PointContainment::Inside;
+                    } else if found == PointContainment::Inside {
+                        in_inner += 1;
+                    }
                 }
-                let found = contains_uv_point(kernel, b, l, None, uv, zone_tol)?.containment;
-                if found != PointContainment::Inside && found != PointContainment::Outside {
-                    return Err(unresolved(LoopCrossing::StretchUnclassified));
-                }
-                let wanted = if ll == 0 {
-                    PointContainment::Inside
+                let stretch = at_mut(&mut stretches, ss)?;
+                stretch.keep = keep;
+                // Fork 1b016ca: the stretches round a region the loops wind round once the
+                // other way: a hole's stretch outside the outer loop and every other hole,
+                // and the outer loop's stretch inside one hole (the region of a hole that ran
+                // out past the moved outer loop).
+                stretch.floor = if own_loop != 0 {
+                    !in_outer && in_inner == 0
                 } else {
-                    PointContainment::Outside
+                    in_inner == 1
                 };
-                if found != wanted {
-                    keep = false;
-                }
-                if ll == 0 {
-                    in_outer = found == PointContainment::Inside;
-                } else if found == PointContainment::Inside {
-                    in_inner += 1;
-                }
             }
-            let stretch = at_mut(&mut stretches, ss)?;
-            stretch.keep = keep;
-            // Fork 1b016ca: the stretches round a region the loops wind round once the
-            // other way: a hole's stretch outside the outer loop and every other hole,
-            // and the outer loop's stretch inside one hole (the region of a hole that ran
-            // out past the moved outer loop).
-            stretch.floor = if own_loop != 0 {
-                !in_outer && in_inner == 0
-            } else {
-                in_inner == 1
-            };
         }
 
         // Fork 1b016ca: a region the loops wind round the other way is the offset face
@@ -714,6 +1108,9 @@ impl OffsetExecutive {
             let end = at(&stretches, ss)?.end;
             for (tt, other) in stretches.iter().enumerate() {
                 if other.floor && other.start == end {
+                    if at(&next_floor, ss)?.is_some() {
+                        return Err(unresolved(LoopCrossing::LeaveMoreThanOneWay));
+                    }
                     *at_mut(&mut next_floor, ss)? = Some(tt);
                 }
             }
@@ -792,6 +1189,9 @@ impl OffsetExecutive {
                 }
                 *at_mut(&mut done, tt)? = true;
                 chain.push(tt);
+                // A positive cycle of the single-loop arrangement is outer:
+                // classify_single_loop proved the cycles interior-disjoint and
+                // non-nested. Negative cycles go through floor_is_cavity instead.
                 if at(&stretches, tt)?.loop_index == 0 {
                     outer = true;
                 }
@@ -1296,5 +1696,191 @@ impl OffsetExecutive {
             }
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
+mod single_loop_tests {
+    use super::*;
+    use crate::nurbs::b_spline_curve::BSplineCurve;
+    use crate::primitive::api_primitives::create_box;
+
+    fn square() -> (Kernel, Brep, Vec<EdgeuseId>, Vec<Curve>) {
+        let mut k = Kernel::default();
+        let mut b = create_box(&mut k, Point3::new(0.0, 0.0, 0.0), 4.0, 4.0, 2.0).unwrap();
+        let f = b.face_list()[0];
+        let mut fu = face::upward_faceuse(&b, f).unwrap().unwrap();
+        if eu::faceuse_orientation(&b, fu).unwrap() != OrientType::Same {
+            fu = eu::faceuse_mate(&b, fu).unwrap().unwrap();
+        }
+        let lu = eu::faceuse_loopuses(&b, fu, false, None).unwrap()[0];
+        let edges = eu::loopuse_edgeuses(&b, lu).unwrap();
+        let uvs = edges
+            .iter()
+            .map(|&eu| {
+                eu3::get_or_create_uv_trim_curve(&k, &mut b, eu, false, false, true)
+                    .unwrap()
+                    .status
+                    .unwrap();
+                eu::uv_trim_curve(&b, eu).unwrap().0.unwrap().clone()
+            })
+            .collect();
+        (k, b, edges, uvs)
+    }
+
+    fn classify(points: &[(i64, [f64; 2])]) -> Result<Vec<LoopStretch>> {
+        let (k, b, edges, _) = square();
+        let edgeuse = *edges
+            .iter()
+            .find(|&&e| eu::orientation(&b, e).unwrap() == OrientType::Same)
+            .unwrap();
+        let mut uvs = Vec::new();
+        let mut stretches = Vec::new();
+        for (i, ((node, a), (next, z))) in
+            points.iter().zip(points.iter().cycle().skip(1)).enumerate()
+        {
+            let a = Point3::new(a[0], a[1], 0.0);
+            let z = Point3::new(z[0], z[1], 0.0);
+            uvs.push(Curve::from(
+                BSplineCurve::create_line_segment(3, a, z).unwrap(),
+            ));
+            stretches.push(LoopStretch {
+                loop_index: 0,
+                edgeuse,
+                uv: i,
+                lo: 0.0,
+                hi: 1.0,
+                start: *node,
+                end: *next,
+                keep: false,
+                floor: false,
+                mid: (a + z) * 0.5,
+            });
+        }
+        classify_single_loop(&k, &b, &uvs, &mut stretches, 1e-6)?;
+        Ok(stretches)
+    }
+
+    #[test]
+    fn disjoint_opposite_winding_cycles_keep_the_floor() {
+        let stretches = classify(&[
+            (0, [0.0, 0.0]),
+            (1, [2.0, 2.0]),
+            (2, [0.0, 2.0]),
+            (0, [0.0, 0.0]),
+            (3, [2.0, -2.0]),
+            (4, [0.0, -2.0]),
+        ])
+        .unwrap();
+        assert_eq!(stretches.iter().filter(|s| s.keep).count(), 3);
+        assert_eq!(stretches.iter().filter(|s| s.floor).count(), 3);
+    }
+
+    #[test]
+    fn nested_cycles_are_refused() {
+        assert!(classify(&[
+            (0, [0.0, 0.0]),
+            (1, [4.0, 0.0]),
+            (2, [0.0, 4.0]),
+            (0, [0.0, 0.0]),
+            (3, [1.0, 0.5]),
+            (4, [0.5, 1.0]),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn overlapping_cycles_are_refused() {
+        assert!(classify(&[
+            (0, [0.0, 0.0]),
+            (1, [4.0, 0.0]),
+            (5, [2.0, 2.0]),
+            (2, [0.0, 4.0]),
+            (0, [0.0, 0.0]),
+            (5, [2.0, 2.0]),
+            (3, [4.0, 4.0]),
+            (4, [5.0, 0.0]),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn zero_area_cycle_is_refused() {
+        assert!(classify(&[(0, [0.0, 0.0]), (1, [1.0, 0.0]), (2, [2.0, 0.0])]).is_err());
+    }
+
+    #[test]
+    fn adjacent_overlap_is_refused_but_shared_endpoints_pass() {
+        let (k, b, edges, mut uvs) = square();
+        validate_single_loop_joints(&k, &b, &edges, &uvs, 1e-6).unwrap();
+        uvs[1] = uvs[0].clone();
+        assert!(validate_single_loop_joints(&k, &b, &edges, &uvs, 1e-6).is_err());
+    }
+    #[test]
+    fn narrow_cycle_with_uncertain_winding_is_refused() {
+        assert!(classify(&[(0, [0.0, 0.0]), (1, [2.0, 0.0]), (2, [1.0, 1e-7])]).is_err());
+    }
+
+    #[test]
+    fn nonadjacent_edges_with_uncertain_clearance_are_refused() {
+        // Decisive positive area does not certify a narrow notch's topology.
+        assert!(classify(&[
+            (0, [0.0, 0.0]),
+            (1, [4.0, 0.0]),
+            (2, [4.0, 4.0]),
+            (3, [2.0, 4.0]),
+            (4, [2.0, 1e-7]),
+            (5, [1.0, 1e-7]),
+            (6, [1.0, 4.0]),
+            (7, [0.0, 4.0]),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn closed_polygon_with_an_internal_crossing_is_refused() {
+        // Endpoint closure may create a crossing even with a decisive area.
+        // The full pair certificate must inspect edges of the same cycle.
+        assert!(classify(&[
+            (0, [0.0, 0.0]),
+            (1, [4.0, 0.0]),
+            (2, [4.0, 4.0]),
+            (3, [1.0, -1.0]),
+            (4, [0.0, 4.0]),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn rotated_translated_cycles_keep_their_winding() {
+        let input = [
+            (0, [0.0, 0.0]),
+            (1, [2.0, 2.0]),
+            (2, [0.0, 2.0]),
+            (0, [2e-14, -1e-14]),
+            (3, [2.0, -2.0]),
+            (4, [0.0, -2.0]),
+        ];
+        let points: Vec<_> = input
+            .iter()
+            .map(|(id, [x, y])| {
+                (
+                    *id,
+                    [
+                        100.0 + 1.7 * (0.6 * x - 0.8 * y),
+                        -70.0 + 1.7 * (0.8 * x + 0.6 * y),
+                    ],
+                )
+            })
+            .collect();
+        let stretches = classify(&points).unwrap();
+        assert_eq!(stretches.iter().filter(|s| s.keep).count(), 3);
+        assert_eq!(stretches.iter().filter(|s| s.floor).count(), 3);
     }
 }
