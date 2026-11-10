@@ -46,6 +46,8 @@ VIEW_GAP = 34.0  # paper mm between views, room for one row of dimensions and a 
 VIEW_MARGIN = 30.0  # paper mm kept around the view group
 DIM_OFFSET = 12.0
 MAX_HIDDEN_EDGES = 6000
+CHAIN_DIGITS = 6  # model mm; segment ends that agree to this many decimals are joined
+COLLINEAR = 1e-6  # model mm off the line before a point is kept
 MAX_CENTER_MARKS = 60
 MAX_CIRCLE_SIZES = 6
 PANEL_WIDTH = 130.0
@@ -195,6 +197,57 @@ def project(shape, view: str, deflection: float) -> tuple[list, list]:
 
     return (lines(_edges(hlr.VCompound()) + _edges(hlr.OutLineVCompound())),
             lines(_edges(hlr.HCompound()) + _edges(hlr.OutLineHCompound())))
+
+
+def _straighten(path: list) -> list:
+    """Drops points that lie on the straight line between their neighbours."""
+    kept = [path[0]]
+    for point, after in itertools.pairwise(path[1:]):
+        (ax, ay), (bx, by), (cx, cy) = kept[-1], point, after
+        run_x, run_y = cx - ax, cy - ay
+        length = math.hypot(run_x, run_y)
+        ahead = (bx - ax) * run_x + (by - ay) * run_y
+        if length > 0 and abs((bx - ax) * run_y - (by - ay) * run_x) <= COLLINEAR * length and 0 < ahead < length * length:
+            continue
+        kept.append(point)
+    kept.append(path[-1])
+    return kept
+
+
+def chain(segments: list) -> list:
+    """Joins the two-point segments of the polygonal HLR end to end into polylines. Polygonal HLR
+    returns one segment per mesh edge; written one entity each, a lettered model's sheet set runs
+    to tens of megabytes. The geometry drawn is the same."""
+    def key(point):
+        return round(point[0], CHAIN_DIGITS), round(point[1], CHAIN_DIGITS)
+
+    ends: dict = {}
+    for index, (start, end) in enumerate(segments):
+        ends.setdefault(key(start), []).append(index)
+        ends.setdefault(key(end), []).append(index)
+    used = [False] * len(segments)
+
+    def extend(path):
+        while True:
+            here = key(path[-1])
+            following = next((j for j in ends[here] if not used[j]), None)
+            if following is None:
+                return
+            used[following] = True
+            start, end = segments[following]
+            path.append(end if key(start) == here else start)
+
+    joined = []
+    for index, (start, end) in enumerate(segments):
+        if used[index]:
+            continue
+        used[index] = True
+        path = [start, end]
+        extend(path)
+        path.reverse()
+        extend(path)
+        joined.append(_straighten(path))
+    return joined
 
 
 def holes(shape, view: str) -> list:
@@ -645,7 +698,7 @@ def part_sheet(doc, number, total, label, part, spec, context, lines):
         if len(hidden) > MAX_HIDDEN_EDGES:
             hidden = []
         for layer, drawn in (("OUTLINE", visible), ("HIDDEN", hidden)):
-            for line in drawn:
+            for line in chain(drawn):
                 sheet.add_lwpolyline([to_paper(view, u, v) for u, v in line], dxfattribs={"layer": layer, "ltscale": 0.5})
 
     fx, fy = origin["front"]
@@ -735,7 +788,7 @@ def part_sheet(doc, number, total, label, part, spec, context, lines):
         fit = min((PANEL_WIDTH - 10) / max(max(us) - min(us), 1e-6), pic_h / max(max(vs) - min(vs), 1e-6))
         cx, cy = panel_x + PANEL_WIDTH / 2, top - 6 - pic_h / 2
         mu, mv = (min(us) + max(us)) / 2, (min(vs) + max(vs)) / 2
-        for line in iso:
+        for line in chain(iso):
             sheet.add_lwpolyline([(cx + fit * (u - mu), cy + fit * (v - mv)) for u, v in line], dxfattribs={"layer": "PICTORIAL"})
         page.text("ISOMETRIC, REFERENCE ONLY, NOT TO SCALE", panel_x + PANEL_WIDTH / 2, top - pic_h - 10, 2.4,
                   align=TextEntityAlignment.MIDDLE_CENTER)
@@ -873,7 +926,7 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
         if len(hidden) > MAX_HIDDEN_EDGES:
             hidden, hidden_omitted = [], True
         for layer, lines in (("OUTLINE", visible), ("HIDDEN", hidden)):
-            for line in lines:
+            for line in chain(lines):
                 msp.add_lwpolyline([(u + ox, v + oy) for u, v in line],
                                    dxfattribs={"layer": layer, "ltscale": scale})
         drawn[view] = [(u + ox, v + oy) for line in visible for u, v in line]
@@ -944,7 +997,7 @@ def draw(step: Path, spec: dict, destination: Path) -> dict:
     if pictorial:
         cu = left + room_u / 2 - fit * (min(us) + max(us)) / 2
         cv = floor_y + room_v / 2 - fit * (min(vs) + max(vs)) / 2
-        for line in iso:
+        for line in chain(iso):
             msp.add_lwpolyline([(cu + fit * u, cv + fit * v) for u, v in line], dxfattribs={"layer": "PICTORIAL"})
         label("ISOMETRIC, REFERENCE ONLY", left + room_u / 2, floor_y - offset / 2)
 

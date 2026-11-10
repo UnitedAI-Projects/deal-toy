@@ -12,6 +12,7 @@ from drawing import (
     PANEL_WIDTH,
     PAPER,
     bands,
+    chain,
     choose_enlargement,
     clean,
     draw,
@@ -135,6 +136,36 @@ def test_scale_is_the_largest_that_fits(size, label):
 def test_oversized_model_is_refused():
     with pytest.raises(ValueError, match="too large"):
         choose_enlargement(100000, 100000, 100000)
+
+
+def test_segments_are_joined_end_to_end():
+    # A square in shuffled, partly reversed segments, split along one side, plus a separate line.
+    square = [[(0, 0), (5, 0)], [(10, 10), (10, 0)], [(5, 0), (10, 0)], [(0, 10), (0, 0)], [(10, 10), (0, 10)]]
+    loose = [[(20, 20), (30, 25)]]
+    joined = chain(square + loose)
+    assert len(joined) == 2
+    loop = next(line for line in joined if len(line) > 2)
+    # The split side is one straight run again, and the loop closes on itself.
+    assert len(loop) == 5
+    assert loop[0] == loop[-1]
+    assert sorted(set(loop)) == [(0, 0), (0, 10), (10, 0), (10, 10)]
+    assert sorted(next(line for line in joined if len(line) == 2)) == [(20, 20), (30, 25)]
+
+
+def test_joining_keeps_every_corner():
+    zigzag = [[(0, 0), (1, 1)], [(1, 1), (2, 0)], [(2, 0), (3, 1)]]
+    assert chain(zigzag) in ([[(0, 0), (1, 1), (2, 0), (3, 1)]], [[(3, 1), (2, 0), (1, 1), (0, 0)]])
+
+
+def test_a_lettered_sheet_writes_joined_lines(tmp_path):
+    part = bd.Box(80, 30, 10) - bd.Pos(0, 0, 4.7) * bd.extrude(bd.Text("Deal 2026", font_size=8), amount=1)
+    step = tmp_path / "lettered.step"
+    bd.export_step(part, step)
+    draw(step, {"title": "Lettered", "revision": 1}, tmp_path / "out")
+    doc = ezdxf.readfile(tmp_path / "out" / "blueprint.dxf")
+    assert not doc.audit().has_errors
+    outlines = doc.modelspace().query('LWPOLYLINE[layer=="OUTLINE"]')
+    assert sum(len(line) for line in outlines) > 3 * len(outlines), "segments were written one entity each"
 
 
 def test_title_text_is_one_bounded_line():
