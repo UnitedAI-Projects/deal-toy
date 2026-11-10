@@ -29,6 +29,7 @@ function App() {
   const [page, setPage] = useState<Page>("projects");
   const [projects, setProjects] = useState<ProjectList>({ own: [], demo: [] });
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
+  const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
   async function loadProjects() {
     const list = await call<ProjectList>("projects_list");
@@ -52,8 +53,9 @@ function App() {
       .catch(() => {})
       .finally(() => setChecked(true));
   }, []);
-  async function openProject(projectId: string) {
+  async function openProject(projectId: string, play = false) {
     setWorkspace(await call<WorkspaceData>("projects_get", { projectId }));
+    setPlaying(play);
     setPage("workspace");
   }
   function signedOut() {
@@ -82,6 +84,8 @@ function App() {
           return next;
         }}
         me={identity}
+        playDemo={playing}
+        onExitDemo={() => setPlaying(false)}
         theme={theme}
         themeChoice={choice}
         chooseTheme={choose}
@@ -132,8 +136,8 @@ function App() {
         <Library
           projects={projects}
           canCreate={can(identity, "projects.create")}
-          onOpen={(id) =>
-            void openProject(id).catch((e: Error) => setError(e.message))
+          onOpen={(id, play) =>
+            void openProject(id, play).catch((e: Error) => setError(e.message))
           }
           onCreated={async (id) => {
             await loadProjects();
@@ -206,11 +210,16 @@ function PageHeader(props: {
 
 function ProjectCard(props: {
   project: Project;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, play?: boolean) => void;
 }) {
   const p = props.project;
+  // A project with a recorded demo plays it when opened; Exit demo shows the project itself.
   return (
-    <button className="project" onClick={() => props.onOpen(p.id)}>
+    <button
+      className={`project ${p.has_demo ? "has-demo" : ""}`}
+      onClick={() => props.onOpen(p.id, !!p.has_demo)}
+    >
+      {!!p.has_demo && <span className="play-chip">▶ Play demo</span>}
       <span className="project-art" aria-hidden="true">
         <span className="mark" />
       </span>
@@ -260,7 +269,7 @@ function PhaseStrip({ projectId }: { projectId: string }) {
 function Library(props: {
   projects: ProjectList;
   canCreate: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, play?: boolean) => void;
   onCreated: (id: string) => Promise<void>;
   onRestored: () => void;
 }) {

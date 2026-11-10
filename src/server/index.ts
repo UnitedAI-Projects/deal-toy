@@ -218,11 +218,15 @@ export const app = {
           throw new AppError(415, "Use application/json");
         let input: unknown;
         try {
-          // A MantelCAD design saved from the app may be up to 1 MB, escaped inside the JSON body.
+          // A MantelCAD design saved from the app arrives indented (stored compact, up to 1 MB).
           input = JSON.parse(
             await boundedText(
               request,
-              toolMatch[1] === "models_save" ? 2_500_000 : 150_000,
+              toolMatch[1] === "models_save"
+                ? 5_000_000
+                : toolMatch[1] === "demo_save"
+                  ? 2_500_000
+                  : 150_000,
             ),
           );
         } catch (error) {

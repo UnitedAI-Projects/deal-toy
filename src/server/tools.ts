@@ -39,7 +39,8 @@ import { checkTools } from "./check-tools";
 import { DESIGN_WRITES, designTools } from "./design-tools";
 import { trashTools } from "./trash";
 import { phaseTools } from "./phase-tools";
-import { cadTools, checkSource } from "./cad-tools";
+import { cadTools, checkSource, compactSource } from "./cad-tools";
+import { demoTools } from "./demo-tools";
 import {
   designOf,
   MAX_DESIGN_BYTES,
@@ -85,10 +86,10 @@ export const tools: Tool[] = [
     async (c) => {
       const [own, demo] = await c.env.DB.batch([
         c.env.DB.prepare(
-          "SELECT * FROM projects WHERE owner=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
+          "SELECT projects.*,EXISTS(SELECT 1 FROM project_demos WHERE project_id=projects.id) AS has_demo FROM projects WHERE owner=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         ).bind(c.identity.email),
         c.env.DB.prepare(
-          "SELECT * FROM projects WHERE demo=1 AND owner<>? AND ?=1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
+          "SELECT projects.*,EXISTS(SELECT 1 FROM project_demos WHERE project_id=projects.id) AS has_demo FROM projects WHERE demo=1 AND owner<>? AND ?=1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
         ).bind(
           c.identity.email,
           c.identity.permissions.has("demo.view") ? 1 : 0,
@@ -201,14 +202,19 @@ export const tools: Tool[] = [
     {
       modelId: id,
       expectedRevision: z.number().int().nonnegative(),
-      source: z.string().min(1).max(MAX_DESIGN_BYTES),
+      // MantelCAD's export is indented; it is stored compact and must then fit MAX_DESIGN_BYTES.
+      source: z
+        .string()
+        .min(1)
+        .max(4 * MAX_DESIGN_BYTES),
     },
     false,
     async (c, i) => {
-      checkSource(c, i.source);
-      return saveRevision(c, i.modelId, i.expectedRevision, i.source, {
+      const source = compactSource(i.source);
+      checkSource(c, source);
+      return saveRevision(c, i.modelId, i.expectedRevision, source, {
         sessionId: i.sessionId,
-        request: designOf(i.source)
+        request: designOf(source)
           ? "Saved from MantelCAD"
           : "Saved a new revision",
       });
@@ -613,6 +619,7 @@ export const tools: Tool[] = [
   ...trashTools,
   ...phaseTools,
   ...cadTools,
+  ...demoTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -676,6 +683,8 @@ function summarize(name: string, input: unknown, value: unknown) {
       return `Edited the model in MantelCAD (revision ${v.revision})`;
     case "model_get":
       return "Read the model";
+    case "demo_save":
+      return `Saved the demo (${v.steps} steps)`;
     case "builds_get":
       return `Build ${v.status}${v.error ? `: ${String(v.error).slice(0, 200)}` : ""}`;
     case "models_create":
@@ -789,7 +798,11 @@ export async function dispatch(
                 // Source never enters the log: it is broadcast to every live viewer, and
                 // the revision itself holds it for those allowed to read it.
                 Object.entries(fields).filter(
-                  ([k]) => k !== "sessionId" && k !== "source" && k !== "state",
+                  ([k]) =>
+                    k !== "sessionId" &&
+                    k !== "source" &&
+                    k !== "state" &&
+                    k !== "script",
                 ),
               ),
             ),

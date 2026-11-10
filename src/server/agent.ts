@@ -5,17 +5,27 @@ import { AppError, boundedText, id, projectAccess, type Context } from "./core";
 import { PHASES } from "./phase-tools";
 import { agentState } from "./agent-state";
 import { catalog, dispatch, tools } from "./tools";
+import {
+  AGENT_MODEL_IDS,
+  agentModel,
+  type AgentModelId,
+} from "../shared/agent-models";
 
 export const AGENT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_INPUT_BYTES = 18_000;
 const MAX_OUTPUT_TOKENS = 2048;
 const MAX_TOOL_CALLS = 3;
+// Claude reads each tool result before its next call, so a turn can take several rounds.
+const MAX_CLAUDE_INPUT_BYTES = 400_000;
+const MAX_CLAUDE_TOOL_CALLS = 8;
+const MAX_CLAUDE_ROUNDS = 6;
 const encoder = new TextEncoder();
 const schema = z
   .object({
     id,
     phase: z.enum(PHASES),
     message: z.string().trim().min(1).max(4000),
+    model: z.enum(AGENT_MODEL_IDS).optional(),
   })
   .strict();
 type Turn = {
@@ -25,6 +35,7 @@ type Turn = {
   status: string;
   actions: string;
   created_at: string;
+  model?: string | null;
 };
 type Offered = {
   name: string;
@@ -57,6 +68,7 @@ type Message = {
 type Action = { name: string; ok: boolean; detail: string };
 const visibleTurn = (t: Turn) => ({
   id: t.id,
+  model: t.model ?? null,
   prompt: t.prompt,
   created_at: t.created_at,
   response:
@@ -129,7 +141,7 @@ export async function agentHistory(
   requirePermission(c, "notes.write");
   z.enum(PHASES).parse(phase);
   const { results } = await c.env.DB.prepare(
-    "SELECT id,prompt,response,actions,status,created_at FROM agent_turns WHERE project_id=? AND phase=? AND member=? ORDER BY created_at DESC,id DESC LIMIT 30",
+    "SELECT id,prompt,response,actions,status,created_at,model FROM agent_turns WHERE project_id=? AND phase=? AND member=? ORDER BY created_at DESC,id DESC LIMIT 30",
   )
     .bind(projectId, phase, c.identity.email)
     .all<Turn>();
@@ -312,10 +324,96 @@ async function infer(c: Context, messages: Message[], offered?: Offered[]) {
   }
 }
 
+/** One Claude response, in Anthropic's Messages format, through Cloudflare AI Gateway. */
+const claudeReply = z.object({
+  content: z.array(z.object({ type: z.string() }).passthrough()),
+  stop_reason: z.string().nullish(),
+});
+type ClaudeBlock = z.infer<typeof claudeReply>["content"][number];
+type ClaudeMessage = { role: "user" | "assistant"; content: unknown };
+type ClaudeTool = { name: string; description: string; input_schema: unknown };
+async function inferClaude(
+  c: Context,
+  model: string,
+  systemText: string,
+  messages: ClaudeMessage[],
+  offered: ClaudeTool[],
+) {
+  const body = {
+    max_tokens: 16000,
+    system: systemText,
+    // A copy: the loop keeps appending to its own conversation.
+    messages: [...messages],
+    ...(offered.length ? { tools: offered } : {}),
+    thinking: { type: "adaptive" },
+    // Conversational turns with a few tool calls: Opus 5.5's own default, stated explicitly.
+    output_config: { effort: "medium" },
+  };
+  if (encoder.encode(JSON.stringify(body)).length > MAX_CLAUDE_INPUT_BYTES)
+    throw new AppError(
+      413,
+      "This project's context is too large for the built-in agent.",
+    );
+  const ai = c.env.AI as unknown as {
+    run: (m: string, input: unknown, options: unknown) => Promise<unknown>;
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      ai.run(model, body, {
+        gateway: { id: c.env.AI_GATEWAY_ID || "default" },
+      }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new AppError(
+                504,
+                "The agent timed out. Any completed actions are listed in the conversation.",
+              ),
+            ),
+          150_000,
+        );
+      }),
+    ]);
+    const parsed = claudeReply.safeParse(result);
+    if (!parsed.success) {
+      console.error(
+        JSON.stringify({
+          event: "agent_response_shape",
+          provider: "anthropic",
+        }),
+      );
+      throw parsed.error;
+    }
+    if (parsed.data.stop_reason === "refusal")
+      throw new AppError(
+        422,
+        "Claude declined this request. Rephrase it or ask for a smaller change.",
+      );
+    return parsed.data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+const textOf = (blocks: ClaudeBlock[]) =>
+  blocks
+    .filter((b) => b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text as string)
+    .join("\n")
+    .trim();
+const toolInputSchema = (schema: Offered["parameters"]) => {
+  const { $schema: _, ...rest } = schema as Offered["parameters"] & {
+    $schema?: string;
+  };
+  return rest;
+};
+
 export async function agentTurn(c: Context, projectId: string, input: unknown) {
   await projectAccess(c, projectId);
   requirePermission(c, "notes.write");
   const body = schema.parse(input);
+  const choice = agentModel(body.model);
   const previous = await c.env.DB.prepare(
     "SELECT * FROM agent_turns WHERE id=?",
   )
@@ -420,12 +518,13 @@ export async function agentTurn(c: Context, projectId: string, input: unknown) {
       parameters: z.toJSONSchema(modelParameter) as Offered["parameters"],
     });
   if (
+    choice.provider === "workers-ai" &&
     encoder.encode(JSON.stringify({ messages, tools: offered })).length >
-    MAX_INPUT_BYTES
+      MAX_INPUT_BYTES
   )
     throw new AppError(
       413,
-      "This project's context is too large for the built-in agent. Use a connected agent for this change.",
+      "This project's context is too large for Llama. Choose Claude Opus 5.5 for this project.",
     );
   const at = new Date().toISOString();
   const since = new Date(Date.now() - 86400_000).toISOString();
@@ -449,88 +548,160 @@ export async function agentTurn(c: Context, projectId: string, input: unknown) {
       "Agent request limit reached or this request is already running. Try later.",
     );
   await c.env.DB.prepare(
-    "INSERT INTO agent_turns (id,project_id,phase,member,prompt,status,created_at) VALUES (?,?,?,?,?,'running',?)",
+    "INSERT INTO agent_turns (id,project_id,phase,member,prompt,status,created_at,model) VALUES (?,?,?,?,?,'running',?,?)",
   )
-    .bind(body.id, projectId, body.phase, c.identity.email, body.message, at)
+    .bind(
+      body.id,
+      projectId,
+      body.phase,
+      c.identity.email,
+      body.message,
+      at,
+      choice.id,
+    )
     .run();
   const actions: Action[] = [];
   let response = "";
   let status = "complete";
-  try {
-    const first = await infer(c, messages, offered);
-    const calls = first.tool_calls ?? [];
-    if (calls.length > MAX_TOOL_CALLS)
-      throw new AppError(
-        422,
-        "The agent requested too many actions. Ask for a smaller change.",
+  /** Runs one requested action and records its receipt; a failure becomes the tool's result. */
+  const runCall = async (name: string | undefined, raw: unknown) => {
+    let result: unknown;
+    try {
+      if (!name || !offered.some((t) => t.name === name))
+        throw new AppError(403, "Action is not enabled");
+      const args = typeof raw === "string" ? JSON.parse(raw) : raw;
+      result = await agentTool(
+        c,
+        projectId,
+        name,
+        name === "brief_update"
+          ? {
+              ...z.record(z.string(), z.unknown()).parse(args),
+              expectedVersion: expectedBriefVersion,
+            }
+          : args,
+        model,
       );
-    for (const call of calls) {
-      const name = call.name ?? call.function?.name;
-      const raw = call.arguments ?? call.function?.arguments;
-      let result: unknown;
-      try {
-        if (!name || !offered.some((t) => t.name === name))
-          throw new AppError(403, "Action is not enabled");
-        const args = typeof raw === "string" ? JSON.parse(raw) : raw;
-        result = await agentTool(
-          c,
-          projectId,
-          name,
+      if (name === "brief_update")
+        expectedBriefVersion = (result as { phaseStateVersion: number })
+          .phaseStateVersion;
+      actions.push({
+        name,
+        ok: true,
+        detail:
           name === "brief_update"
-            ? {
-                ...z.record(z.string(), z.unknown()).parse(args),
-                expectedVersion: expectedBriefVersion,
-              }
-            : args,
-          model,
-        );
-        if (name === "brief_update")
-          expectedBriefVersion = (result as { phaseStateVersion: number })
-            .phaseStateVersion;
-        actions.push({
-          name,
-          ok: true,
-          detail:
-            name === "brief_update"
-              ? "Brief answers saved"
-              : name === "phases_save"
-                ? "Phase changes saved"
-                : name === "model_edit" || name === "model_set_parameter"
-                  ? `Model revision ${model.revision} saved; its build is queued`
-                  : "Project information read",
-        });
-      } catch (error) {
-        const detail =
-          error instanceof AppError
-            ? error.message
-            : error instanceof z.ZodError || error instanceof SyntaxError
-              ? "Invalid action arguments"
-              : "Action failed";
-        result = { error: detail };
-        actions.push({ name: name ?? "unknown", ok: false, detail });
-      }
-      // Persist receipts before another model call: a provider failure must not hide saved work.
-      await c.env.DB.prepare("UPDATE agent_turns SET actions=? WHERE id=?")
-        .bind(JSON.stringify(actions), body.id)
-        .run();
-      messages.push(
-        { role: "assistant", content: JSON.stringify(call) },
-        { role: "tool", name, content: JSON.stringify(result) },
-      );
-    }
-    if (calls.length)
-      messages.push({
-        role: "system",
-        content:
-          "Tool execution is finished for this request. No further tools are available. Respond in plain text summarizing the successful receipts and any failure or unfinished part of the request. Do not emit a function call or JSON.",
+            ? "Brief answers saved"
+            : name === "phases_save"
+              ? "Phase changes saved"
+              : name === "model_edit" || name === "model_set_parameter"
+                ? `Model revision ${model.revision} saved; its build is queued`
+                : "Project information read",
       });
-    const final = calls.length ? await infer(c, messages) : first;
-    if (final.tool_calls?.length)
-      throw new AppError(
-        422,
-        "The agent needs another turn. Review completed actions before continuing.",
-      );
-    response = final.response?.trim() ?? "";
+    } catch (error) {
+      const detail =
+        error instanceof AppError
+          ? error.message
+          : error instanceof z.ZodError || error instanceof SyntaxError
+            ? "Invalid action arguments"
+            : "Action failed";
+      result = { error: detail };
+      actions.push({ name: name ?? "unknown", ok: false, detail });
+    }
+    // Persist receipts before another model call: a provider failure must not hide saved work.
+    await c.env.DB.prepare("UPDATE agent_turns SET actions=? WHERE id=?")
+      .bind(JSON.stringify(actions), body.id)
+      .run();
+    return result;
+  };
+  try {
+    if (choice.provider === "anthropic") {
+      // Claude sees each result before deciding its next step, within a bounded loop.
+      const claudeTools: ClaudeTool[] = offered.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: toolInputSchema(t.parameters),
+      }));
+      const [systemMessage, ...rest] = messages;
+      const convo: ClaudeMessage[] = rest.map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      }));
+      let calls = 0;
+      for (let round = 0; ; round++) {
+        if (round >= MAX_CLAUDE_ROUNDS)
+          throw new AppError(
+            422,
+            "The agent needs another turn. Review completed actions before continuing.",
+          );
+        const reply = await inferClaude(
+          c,
+          choice.model,
+          systemMessage.content,
+          convo,
+          claudeTools,
+        );
+        convo.push({ role: "assistant", content: reply.content });
+        const uses = reply.content.filter((b) => b.type === "tool_use");
+        if (!uses.length) {
+          response = textOf(reply.content);
+          break;
+        }
+        calls += uses.length;
+        if (calls > MAX_CLAUDE_TOOL_CALLS)
+          throw new AppError(
+            422,
+            "The agent requested too many actions. Ask for a smaller change.",
+          );
+        const results = [];
+        for (const use of uses) {
+          const result = await runCall(
+            typeof use.name === "string" ? use.name : undefined,
+            use.input ?? {},
+          );
+          const failed =
+            !!result && typeof result === "object" && "error" in result;
+          results.push({
+            type: "tool_result",
+            tool_use_id: use.id,
+            content: JSON.stringify(result),
+            ...(failed ? { is_error: true } : {}),
+          });
+        }
+        convo.push({ role: "user", content: results });
+      }
+    } else {
+      const first = await infer(c, messages, offered);
+      const calls = first.tool_calls ?? [];
+      if (calls.length > MAX_TOOL_CALLS)
+        throw new AppError(
+          422,
+          "The agent requested too many actions. Ask for a smaller change.",
+        );
+      for (const call of calls) {
+        const name = call.name ?? call.function?.name;
+        const result = await runCall(
+          name,
+          call.arguments ?? call.function?.arguments,
+        );
+        messages.push(
+          { role: "assistant", content: JSON.stringify(call) },
+          { role: "tool", name, content: JSON.stringify(result) },
+        );
+      }
+      if (calls.length)
+        messages.push({
+          role: "system",
+          content:
+            "Tool execution is finished for this request. No further tools are available. Respond in plain text summarizing the successful receipts and any failure or unfinished part of the request. Do not emit a function call or JSON.",
+        });
+      const final = calls.length ? await infer(c, messages) : first;
+      if (final.tool_calls?.length)
+        throw new AppError(
+          422,
+          "The agent needs another turn. Review completed actions before continuing.",
+        );
+      response = final.response?.trim() ?? "";
+    }
     if (!response)
       throw new AppError(
         502,
@@ -560,7 +731,7 @@ export async function agentTurn(c: Context, projectId: string, input: unknown) {
     response =
       error instanceof AppError
         ? error.message
-        : "Workers AI could not finish this request. Review completed actions before trying again.";
+        : `${choice.label} could not finish this request. Review completed actions before trying again.`;
   }
   await c.env.DB.prepare(
     "UPDATE agent_turns SET response=?,actions=?,status=? WHERE id=?",
@@ -569,6 +740,7 @@ export async function agentTurn(c: Context, projectId: string, input: unknown) {
     .run();
   return {
     id: body.id,
+    model: choice.id as AgentModelId,
     prompt: body.message,
     response,
     actions,

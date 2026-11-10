@@ -365,6 +365,7 @@ describe("MantelCAD as the model engine", () => {
       id: crypto.randomUUID(),
       phase: "model",
       message: "Make it 80 mm wide",
+      model: "llama-3.3-70b",
     });
     expect(turn.status).toBe("complete");
     expect(turn.actions).toEqual([

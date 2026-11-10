@@ -107,3 +107,21 @@ def test_an_edit_returns_the_edited_design_or_mantelcads_error():
     assert {p["name"]: p["expr"] for p in json.loads(edited["design"])["params"]}["width"] == "80 mm"
     with pytest.raises(ValueError, match="solid.fillet"):
         execute_edit(DESIGN, [{"command": "solid.fillet", "params": {"edges": [[999, 0, 0]], "radius": 2}}])
+
+
+def test_step_colours_follow_each_styled_body_to_its_rgb():
+    from runner import step_colours
+    text = """
+#10=MANIFOLD_SOLID_BREP('Base',#9);
+#11=MANIFOLD_SOLID_BREP('Rocket''s nose',#8);
+#20=COLOUR_RGB('',0.1,0.2,0.3);
+#21=FILL_AREA_STYLE_COLOUR('',#20);
+#22=FILL_AREA_STYLE('',(#21));
+#23=SURFACE_STYLE_FILL_AREA(#22);
+#24=SURFACE_SIDE_STYLE('',(#23));
+#25=SURFACE_STYLE_USAGE(.BOTH.,#24);
+#26=PRESENTATION_STYLE_ASSIGNMENT((#25));
+#27=STYLED_ITEM('color',(#26),#10);
+#28=STYLED_ITEM('color',(#26),#11);
+"""
+    assert step_colours(text) == {"Base": (0.1, 0.2, 0.3), "Rocket's nose": (0.1, 0.2, 0.3)}

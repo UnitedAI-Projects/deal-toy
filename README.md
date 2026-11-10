@@ -22,9 +22,13 @@ Alpha at [Mantel](https://unitedai-deal-toy.ivan27chen.workers.dev). Anyone can 
 
 Open an owned project and ask Mantel in any phase. For example: “Set the Deal answer to Harbor acquires Northline; leave everything else unchanged.” The answer is stored with its source, and the phase updates live. Conversation history survives reloads. A failed final answer still lists actions already saved.
 
-The initial model is Cloudflare-hosted Llama 3.3 70B FP8 Fast. Each request permits at most two model calls, three tool actions and 2,048 output tokens per model call. Defaults are 20 requests per member and 100 across the app per rolling 24 hours. These are usage limits, not a currency-denominated spending cap. See [configuration and acceptance checks](docs/agent.md).
+Choose the model in the agent panel. **Claude Opus 5.5** (the default) runs through [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/) with the Worker's AI binding: no provider key lives in the app, and requests are billed through the gateway's Unified Billing credits or a key stored on the gateway. The gateway is `AI_GATEWAY_ID` in `wrangler.jsonc` (`default`, which Cloudflare creates on first use). Claude reads each tool result before its next step, up to eight actions a turn. **Llama 3.3 70B** runs on Workers AI, with at most two model calls, three tool actions and 2,048 output tokens per request. Defaults are 20 requests per member and 100 across the app per rolling 24 hours. These are usage limits, not a currency-denominated spending cap. See [configuration and acceptance checks](docs/agent.md).
 
-The built-in agent can edit phase metadata and list saved files. It cannot read attachment contents, operate the native editor canvases, build geometry, approve work or order manufacturing. External MCP agents retain their existing build tools.
+The built-in agent can edit phase details, list saved files and, in the Model phase, change the MantelCAD design. It cannot read attachment contents, approve work or order manufacturing. External MCP agents retain their existing build tools.
+
+## Recorded demo
+
+A project can carry a recorded walkthrough that plays when it is opened from the library (**▶ Play demo**): each step shows a phase, its state at that moment and the model revision, and the agent panel replays the conversation. Playback is read-only; **Exit demo** shows the project itself. [examples/spacex-ipo](examples/spacex-ipo/README.md) seeds the SpaceX IPO deal-toy demo, which runs from the client's render through five MantelCAD revisions to an order placed through a simulated Jiga integration.
 
 ## Architecture
 

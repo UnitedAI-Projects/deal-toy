@@ -97,6 +97,8 @@ export type Message = {
   from: "us" | "them";
   text: string;
   at: string;
+  /** Who wrote it, when "them" is a person in a thread with several (a client's deal team). */
+  author?: string;
 };
 export type Supplier = {
   id: string;
@@ -104,6 +106,10 @@ export type Supplier = {
   scope: string;
   quote?: { price: string; lead: string };
   messages: Message[];
+  /** Sourced through a manufacturing network: quotes and messages arrive from it. */
+  via?: "jiga";
+  /** A client thread (proofs and sample approvals), not a supplier. */
+  kind?: "supplier" | "client";
 };
 export const ORDER_STAGES = [
   "Ordered",

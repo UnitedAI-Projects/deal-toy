@@ -174,7 +174,8 @@ def execute_edit(design, commands, timeout=EDIT_SECONDS):
         edited = root / "edited.json"
         if edited.is_symlink() or not edited.is_file():
             raise ValueError("MantelCAD saved no design")
-        text = edited.read_text()
+        # Compact: MantelCAD writes indented JSON, several times the size of the same design.
+        text = json.dumps(json.loads(edited.read_text()), separators=(",", ":"), ensure_ascii=False)
         if len(text.encode()) > MAX_DESIGN_BYTES:
             raise ValueError("The edited design exceeds 1 MB")
         if design_of(text) is None:

@@ -115,6 +115,8 @@ export type Project = {
   brief: string;
   demo: number;
   created_at: string;
+  /** 1 when the project has a recorded demo to play. */
+  has_demo?: number;
 };
 export type ProjectList = { own: Project[]; demo: Project[] };
 export type TrashedProject = Project & {

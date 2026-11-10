@@ -27,6 +27,10 @@ import {
 import { ApiError, call, type PhaseFile } from "./api";
 import { latestBuild } from "./DocumentsPhase";
 import { withConceptSave } from "./phases";
+import { normalize } from "./phase-store";
+import { DemoBar, DemoFocus, useDemo } from "./DemoPlayer";
+import type { DemoScript } from "../shared/demo";
+import type { Turn } from "./PhaseAgent";
 
 export type PhaseProps = {
   state: PhaseState;
@@ -46,6 +50,8 @@ export type PhaseProps = {
   ) => void;
   /** Bumped whenever an engine keeps a save, so file lists refresh. */
   filesVersion: number;
+  /** A demo step's focus: the supplier thread (or other item) to show. */
+  select?: string;
 };
 export type EngineFile = {
   name: string;
@@ -68,16 +74,57 @@ export function initialPhase(s: PhaseState, latestRevision: number): PhaseId {
   return "manufacture";
 }
 
-export function ProjectShell(props: WorkspaceProps) {
-  const { data, me } = props;
-  const projectId = data.project.id;
+/** The project as it stood at a demo step: revisions up to `revision`, and nobody's to edit. */
+function asOf(data: WorkspaceProps["data"], revision: number) {
+  const revisions = data.revisions.filter((r) => r.number <= revision);
+  const ids = new Set(revisions.map((r) => r.id));
+  const jobs = data.jobs.filter((j) => ids.has(j.revision_id));
+  const jobIds = new Set(jobs.map((j) => j.id));
+  return {
+    ...data,
+    // Playback is read-only everywhere: no one owns the project being shown.
+    project: { ...data.project, owner: "demo-playback" },
+    models: data.models.map((m) => ({
+      ...m,
+      revision: Math.min(m.revision, revision),
+    })),
+    revisions,
+    jobs,
+    artifacts: data.artifacts.filter((a) => jobIds.has(a.job_id)),
+  };
+}
+
+export function ProjectShell(
+  props: WorkspaceProps & {
+    /** Open the project's recorded demo and play it. */
+    playDemo?: boolean;
+    onExitDemo?: () => void;
+  },
+) {
+  const projectId = props.data.project.id;
+  const [script, setScript] = useState<DemoScript | null>(null);
+  useEffect(() => {
+    if (!props.playDemo) {
+      setScript(null);
+      return;
+    }
+    call<{ script: DemoScript | null }>("demo_get", { projectId })
+      .then((r) => setScript(r.script))
+      .catch(() => setScript(null));
+  }, [props.playDemo, projectId]);
+  const demo = useDemo(script);
+  const step = script ? demo.step : undefined;
+  const data = step ? asOf(props.data, step.revision) : props.data;
+  const { me } = props;
   const owns = data.project.owner === me.email;
-  const store = usePhases(projectId, owns);
+  const store = usePhases(projectId, props.data.project.owner === me.email);
   const latestRevision = Math.max(0, ...data.models.map((m) => m.revision));
   const [chosen, setPhase] = useState<PhaseId | null>(fromHash);
   // A project opens on the first phase not yet approved, once its phases have loaded.
-  const phase =
-    chosen ?? (store.state ? initialPhase(store.state, latestRevision) : null);
+  const phase = step
+    ? step.phase
+    : (chosen ??
+      (store.state ? initialPhase(store.state, latestRevision) : null));
   useEffect(() => {
     if (phase) history.replaceState(null, "", `#${phase}`);
   }, [phase]);
@@ -146,6 +193,8 @@ export function ProjectShell(props: WorkspaceProps) {
     history.replaceState(null, "", location.pathname);
     props.onBack();
   };
+  if (props.playDemo && !script)
+    return <div className="splash">Opening the demo…</div>;
   if (!store.state || !phase)
     return (
       <div className="splash">
@@ -154,7 +203,46 @@ export function ProjectShell(props: WorkspaceProps) {
           : "Opening the project…"}
       </div>
     );
-  const { state, update } = store;
+  const { state, update } = step
+    ? {
+        state: normalize(step.state),
+        update: (_: (s: PhaseState) => PhaseState) => {},
+      }
+    : { state: store.state, update: store.update };
+  // A demo's conversation so far in each phase; the step now playing is typed out live.
+  const demoTurns = (p: PhaseId) =>
+    script
+      ? {
+          turns: script.steps
+            .slice(0, demo.index + 1)
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => s.phase === p && s.kind === "agent")
+            .map(({ s, i }): Turn => ({
+              id: `demo-${i}`,
+              prompt: s.prompt ?? "",
+              response: s.response ?? "",
+              status: "complete",
+              actions: s.actions ?? [],
+              model: s.model,
+            })),
+          live:
+            step?.kind === "agent" && step.phase === p
+              ? { id: `demo-${demo.index}`, startedAt: demo.startedAt }
+              : undefined,
+        }
+      : undefined;
+  const demoLayer = step ? (
+    <>
+      <DemoFocus selector={step.focus} stepKey={demo.index} />
+      <DemoBar
+        demo={demo}
+        onExit={() => {
+          setScript(null);
+          props.onExitDemo?.();
+        }}
+      />
+    </>
+  ) : null;
   /** A save from an engine: a new phase file, and for a brief attachment, a new attachment. */
   const kept = (file: PhaseFile) => {
     setFilesVersion((v) => v + 1);
@@ -221,7 +309,7 @@ export function ProjectShell(props: WorkspaceProps) {
     await props.reload();
     return `Saved as revision r${saved.number}; building`;
   };
-  const view = views[phase] ?? "mantel";
+  const view = step ? "mantel" : (views[phase] ?? "mantel");
   const phaseEngine = PHASE_ENGINE[phase];
   const showEngine = view === "engine" && engine?.phase === phase;
   const showView = (next: "mantel" | "engine") => {
@@ -288,6 +376,7 @@ export function ProjectShell(props: WorkspaceProps) {
       latestRevision={latestRevision}
       projectId={projectId}
       canNote={owns && can(me, "notes.write")}
+      playback={demoTurns(p)}
       onSuggestion={(text) => {
         if (text === "New artwork") {
           openEngine("mantelart", "art");
@@ -322,11 +411,13 @@ export function ProjectShell(props: WorkspaceProps) {
       <>
         <Workspace
           {...props}
+          data={data}
+          reload={step ? async () => data : props.reload}
           onBack={back}
           phaseBar={phaseBar}
           topRight={viewSwitch}
           agentPanel={agentFor("model")}
-          onOpenCad={() => showView("engine")}
+          onOpenCad={step ? undefined : () => showView("engine")}
           outputBar={
             <ModelOutput
               state={state}
@@ -344,6 +435,7 @@ export function ProjectShell(props: WorkspaceProps) {
         />
         {engineView}
         {saveNote}
+        {demoLayer}
       </>
     );
 
@@ -358,6 +450,7 @@ export function ProjectShell(props: WorkspaceProps) {
     go,
     openEngine,
     filesVersion,
+    select: step?.select,
   };
   return (
     <div className={`phase-page phase-${phase}`}>
@@ -382,6 +475,7 @@ export function ProjectShell(props: WorkspaceProps) {
       </main>
       {engineView}
       {saveNote}
+      {demoLayer}
     </div>
   );
 }

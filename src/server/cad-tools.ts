@@ -24,6 +24,12 @@ import { define, queueBuild, saveRevision, type Tool } from "./tool-kit";
 const seesSource = (c: Context, owner: string) =>
   owner === c.identity.email || c.identity.permissions.has("exports.download");
 
+/** A design stored compactly (MantelCAD exports indented JSON); any other source unchanged. */
+export function compactSource(source: string) {
+  const design = designOf(source);
+  return design ? JSON.stringify(design) : source;
+}
+
 /** Refuses a revision source Mantel cannot build: oversized, or a design written over MCP. */
 export function checkSource(c: Context, source: string) {
   const bytes = new TextEncoder().encode(source).length;

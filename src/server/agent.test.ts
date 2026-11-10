@@ -1,7 +1,7 @@
 import { emptyPhaseState } from "../shared/phases";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
-import { beforeAll, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { agentHistory, agentTool, agentTurn, AGENT_MODEL } from "./agent";
 import { member, cookieFor } from "./test-helpers";
 import { dispatch, execute } from "./tools";
@@ -36,10 +36,12 @@ async function setup(
   })) as { id: string };
   return { c: context, project: p.id, run };
 }
+// These cases run on Workers AI (Llama); Claude's loop has its own tests below.
 const input = (message = "Help with this brief") => ({
   id: crypto.randomUUID(),
   phase: "brief",
   message,
+  model: "llama-3.3-70b",
 });
 const state = (text = "A buys B") => {
   const fresh = emptyPhaseState();
@@ -498,5 +500,103 @@ it("refuses model state that would break the phase UI, without storing it", asyn
   expect(await agentTool(c, project, "phases_get", {})).toMatchObject({
     version: 0,
     state: null,
+  });
+});
+
+describe("Claude Opus 5.5 through Cloudflare AI Gateway", () => {
+  it("is the default model, sees each tool result and preserves its own content", async () => {
+    const { c, project, run } = await setup([
+      {
+        content: [
+          { type: "thinking", thinking: "", signature: "sig-1" },
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "brief_update",
+            input: {
+              updates: [
+                { key: "deal", value: "SpaceX IPO", state: "answered" },
+              ],
+            },
+          },
+        ],
+        stop_reason: "tool_use",
+      },
+      {
+        content: [
+          { type: "text", text: "Recorded the deal as the SpaceX IPO." },
+        ],
+        stop_reason: "end_turn",
+      },
+    ]);
+    const result = await agentTurn(c, project, {
+      id: crypto.randomUUID(),
+      phase: "brief",
+      message: "The deal is the SpaceX IPO",
+    });
+    expect(result).toMatchObject({
+      status: "complete",
+      model: "claude-opus-5.5",
+      response: "Recorded the deal as the SpaceX IPO.",
+      actions: [{ name: "brief_update", ok: true }],
+    });
+    expect(run).toHaveBeenCalledTimes(2);
+    const [model, first, options] = run.mock.calls[0] as unknown as [
+      string,
+      Record<string, unknown> & {
+        tools: { name: string; input_schema: object }[];
+      },
+      unknown,
+    ];
+    expect(model).toBe("anthropic/claude-opus-5.5");
+    expect(options).toEqual({ gateway: { id: "default" } });
+    expect(first).toMatchObject({
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium" },
+    });
+    expect(first).not.toHaveProperty("temperature");
+    expect(first.tools.map((t) => t.name)).toContain("brief_update");
+    expect(first.tools[0].input_schema).not.toHaveProperty("$schema");
+    const second = (run.mock.calls[1] as unknown[])[1] as {
+      messages: { role: string; content: unknown }[];
+    };
+    // The assistant turn goes back unchanged (thinking signature included), then its result.
+    expect(second.messages.at(-2)).toEqual({
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "", signature: "sig-1" },
+        expect.objectContaining({ type: "tool_use", id: "toolu_1" }),
+      ],
+    });
+    expect(second.messages.at(-1)).toMatchObject({
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "toolu_1" }],
+    });
+    expect((await agentHistory(c, project, "brief")).turns[0].model).toBe(
+      "claude-opus-5.5",
+    );
+  });
+
+  it("reports a refusal and marks the tool error for Claude to read", async () => {
+    const { c, project } = await setup([
+      {
+        content: [
+          { type: "tool_use", id: "toolu_2", name: "orders_place", input: {} },
+        ],
+        stop_reason: "tool_use",
+      },
+      { content: [], stop_reason: "refusal" },
+    ]);
+    const result = await agentTurn(c, project, {
+      id: crypto.randomUUID(),
+      phase: "brief",
+      message: "Place the order",
+      model: "claude-opus-5.5",
+    });
+    expect(result.status).toBe("failed");
+    expect(result.response).toMatch(/Claude declined/);
+    expect(result.actions).toEqual([
+      { name: "orders_place", ok: false, detail: "Action is not enabled" },
+    ]);
   });
 });

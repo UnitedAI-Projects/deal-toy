@@ -180,11 +180,49 @@ def design_params(design: dict) -> dict | None:
     return result or None
 
 
-def read_bodies(step: Path):
-    """The STEP file's solids as parts labelled with their body names.
+STEP_ENTITY = re.compile(r"#(\d+)\s*=\s*([A-Z_0-9]+)\s*\((.*?)\)\s*;", re.DOTALL)
+STEP_REF = re.compile(r"#(\d+)")
+STEP_NAME = re.compile(r"\s*'((?:[^']|'')*)'")
 
-    MantelCAD names each body on its solid (MANIFOLD_SOLID_BREP), not on a product, so the part
-    labels come from the entity each solid was read from.
+
+def step_colours(text: str) -> dict:
+    """The colour MantelCAD styled each named solid with: {body name: (r, g, b)}.
+
+    STYLED_ITEM('color', (style), #item) leads through the presentation style to a COLOUR_RGB;
+    the item is a MANIFOLD_SOLID_BREP('name', ...).
+    """
+    entities = {int(n): (kind, body) for n, kind, body in STEP_ENTITY.findall(text)}
+    colours = {}
+    for kind, body in entities.values():
+        if kind != "STYLED_ITEM":
+            continue
+        refs = [int(r) for r in STEP_REF.findall(body)]
+        if len(refs) < 2:
+            continue
+        item, queue, seen = refs[-1], refs[:-1], set()
+        while queue:
+            ref = queue.pop(0)
+            if ref in seen or ref not in entities:
+                continue
+            seen.add(ref)
+            entity_kind, entity_body = entities[ref]
+            if entity_kind == "COLOUR_RGB":
+                values = [float(v) for v in entity_body.split(",")[1:4]]
+                target = entities.get(item)
+                quoted = STEP_NAME.match(target[1]) if target and target[0] == "MANIFOLD_SOLID_BREP" else None
+                if quoted:
+                    name = quoted.group(1).replace("''", "'")
+                    colours.setdefault(name, tuple(min(1.0, max(0.0, v)) for v in values))
+                break
+            queue.extend(int(r) for r in STEP_REF.findall(entity_body))
+    return colours
+
+
+def read_bodies(step: Path):
+    """The STEP file's solids as parts labelled with their body names, and their colours.
+
+    MantelCAD names and colours each body on its solid (MANIFOLD_SOLID_BREP), not on a product, so
+    the labels and colours come from the entity each solid was read from.
     """
     from OCP.IFSelect import IFSelect_RetDone
     from OCP.STEPControl import STEPControl_Reader
@@ -196,26 +234,43 @@ def read_bodies(step: Path):
         raise ValueError("MantelCAD's STEP export could not be read")
     reader.TransferRoots()
     transfer = reader.WS().TransferReader()
+    colours = step_colours(step.read_text(errors="replace"))
     explorer = TopExp_Explorer(reader.OneShape(), TopAbs_SOLID)
-    parts = []
-    while explorer.More() and len(parts) < 500:
+    # A body with separate pieces (a line of lettering) is several solids with one name: one part.
+    bodies: dict[str, list] = {}
+    colour_of: dict[str, tuple] = {}
+    count = 0
+    while explorer.More() and count < 5000:
         solid = bd.Solid(explorer.Current())
         entity = transfer.EntityFromShapeResult(explorer.Current(), 1)
         name = entity.Name().ToCString() if entity is not None and hasattr(entity, "Name") else ""
-        solid.label = name[:120] or f"Body{len(parts) + 1}"
-        parts.append(solid)
+        label = name[:120] or f"Body{len(bodies) + 1}"
+        colour = colours.get(name)
+        if colour is not None:
+            solid.color = bd.Color(*colour)
+            colour_of.setdefault(label, colour)
+        bodies.setdefault(label, []).append(solid)
+        count += 1
         explorer.Next()
+    parts, looks = [], {}
+    for label, solids in list(bodies.items())[:500]:
+        part = solids[0] if len(solids) == 1 else bd.Compound(children=solids)
+        part.label = label
+        if label in colour_of:
+            part.color = bd.Color(*colour_of[label])
+            looks[label] = (colour_of[label], "satin")
+        parts.append(part)
     if not parts:
         raise ValueError("The design produced no solid body")
-    return parts[0] if len(parts) == 1 else bd.Compound(children=parts)
+    return (parts[0] if len(parts) == 1 else bd.Compound(children=parts)), looks
 
 
 def build_from_step(step: Path, destination: Path, design: Path | None = None) -> dict:
     """Exports a model another engine (MantelCAD) built and wrote as STEP; Mantel runs no model code."""
-    shape = read_bodies(step)
+    shape, looks = read_bodies(step)
     if not shape.is_valid:
         raise ValueError("The design's STEP export is not a valid solid")
-    facts = export(shape, destination, write_step=False)
+    facts = export(shape, destination, write_step=False, looks=looks)
     if design is not None:
         params = design_params(json.loads(design.read_text()))
         if params is not None:
