@@ -29,13 +29,14 @@ export async function hash(value: string | Uint8Array): Promise<string> {
 }
 /**
  * "write" admits only the project's owner. "read" also admits demo projects for members who
- * may view the demo. Both report a project the caller cannot see as not found.
+ * may view the demo. Both report a project the caller cannot see as not found, and a project in
+ * the Trash is one nobody can see: only the Trash tools reach it.
  */
 export type AccessMode = "read" | "write";
 function visible(c: Context, mode: AccessMode) {
   const demo = mode === "read" && c.identity.permissions.has("demo.view");
   return {
-    sql: demo ? "(projects.owner=?1 OR projects.demo=1)" : "projects.owner=?1",
+    sql: `projects.deleted_at IS NULL AND ${demo ? "(projects.owner=?1 OR projects.demo=1)" : "projects.owner=?1"}`,
     email: c.identity.email,
   };
 }

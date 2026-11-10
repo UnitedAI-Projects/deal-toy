@@ -15,6 +15,7 @@ import {
 import { Settings } from "./Settings";
 import { SignIn } from "./SignIn";
 import { useTheme, type ThemeChoice } from "./theme";
+import { TrashList } from "./Trash";
 import { Workspace } from "./Workspace";
 import "./style.css";
 type Page = "projects" | "workspace" | "extensions" | "settings";
@@ -135,6 +136,9 @@ function App() {
             await loadProjects();
             await openProject(id);
           }}
+          onRestored={() =>
+            void loadProjects().catch((e: Error) => setError(e.message))
+          }
         />
       )}
     </div>
@@ -224,6 +228,7 @@ function Library(props: {
   canCreate: boolean;
   onOpen: (id: string) => void;
   onCreated: (id: string) => Promise<void>;
+  onRestored: () => void;
 }) {
   const [create, setCreate] = useState(false);
   const [name, setName] = useState("");
@@ -322,6 +327,7 @@ function Library(props: {
           </div>
         </>
       )}
+      {props.canCreate && <TrashList onRestored={props.onRestored} />}
     </main>
   );
 }

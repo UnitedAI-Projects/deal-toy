@@ -21,6 +21,7 @@ import { googleCallback, googleStart } from "./google";
 import { catalog, dispatch } from "./tools";
 import { authorize } from "./consent";
 import { serve } from "./oauth";
+import { purgeExpired } from "./trash";
 export { CadContainer } from "./builds";
 export { ProjectLive } from "./live";
 /** The app itself: every route except the OAuth endpoints and /mcp, which the provider owns. */
@@ -227,5 +228,7 @@ export default {
     await env.DB.prepare(
       "DELETE FROM measurements WHERE status='queued' AND job_id IN (SELECT id FROM jobs WHERE status='failed')",
     ).run();
+    // Projects whose 30 days in the Trash are up are deleted for good.
+    await purgeExpired(env);
   },
 } satisfies ExportedHandler<Env>;

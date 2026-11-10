@@ -83,6 +83,11 @@ export type Project = {
   created_at: string;
 };
 export type ProjectList = { own: Project[]; demo: Project[] };
+export type TrashedProject = Project & {
+  deleted_at: string;
+  deleted_by: string;
+  purge_after: string;
+};
 export type Model = { id: string; name: string; revision: number };
 export type Revision = {
   id: string;

@@ -34,7 +34,7 @@ const now = () => new Date().toISOString();
 const within = (granted: Iterable<Permission>, held: Set<Permission>) =>
   [...granted].every((p) => held.has(p));
 
-function audit(
+export function audit(
   c: Context,
   target: string,
   action: string,
@@ -321,7 +321,7 @@ export async function deleteLevel(c: Context, id: string) {
 export async function setDemo(c: Context, projectId: string, demo: boolean) {
   requirePermission(c, "settings.manage");
   const result = await c.env.DB.prepare(
-    "UPDATE projects SET demo=? WHERE id=? AND owner=?",
+    "UPDATE projects SET demo=? WHERE id=? AND owner=? AND deleted_at IS NULL",
   )
     .bind(demo ? 1 : 0, projectId, c.identity.email)
     .run();

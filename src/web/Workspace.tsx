@@ -47,6 +47,7 @@ import {
 import { ghostShape } from "./ghost";
 import { refFromPick } from "./refs";
 import { Toolbar, type ToolbarAction } from "./Toolbar";
+import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
 import { changedModel, initialModel } from "./follow";
@@ -177,6 +178,7 @@ export function Workspace(props: Props) {
   } | null>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [menu, setMenu] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [chatOpen, setChatOpen] = useState(
     () => !matchMedia("(max-width: 760px)").matches,
   );
@@ -975,6 +977,23 @@ export function Workspace(props: Props) {
                   }
                 : undefined
             }
+            onDelete={owns ? () => setDeleting(true) : undefined}
+          />
+        )}
+        {deleting && (
+          <ConfirmName
+            title={`Delete ${data.project.name}?`}
+            body="It moves to the Trash, where it is hidden from everyone, including demo viewers. You can restore it from the Trash in the project library for 30 days; after that it is deleted for good."
+            name={data.project.name}
+            action="Move to Trash"
+            onCancel={() => setDeleting(false)}
+            onConfirm={async () => {
+              await call("projects_delete", {
+                projectId,
+                name: data.project.name,
+              });
+              props.onBack();
+            }}
           />
         )}
       </header>
@@ -1473,6 +1492,7 @@ function Menu(props: {
   sheetLabel: string;
   hasSheet: boolean;
   demo?: { on: boolean; toggle: () => void };
+  onDelete?: () => void;
 }) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => first.current?.focus(), []);
@@ -1545,6 +1565,21 @@ function Menu(props: {
           </button>
         ))}
       </div>
+      {props.onDelete && (
+        <>
+          <hr />
+          <button
+            role="menuitem"
+            className="danger"
+            onClick={() => {
+              props.onClose();
+              props.onDelete?.();
+            }}
+          >
+            Delete project…
+          </button>
+        </>
+      )}
       <hr />
       <button role="menuitem" onClick={props.onSignOut}>
         Sign out
