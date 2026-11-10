@@ -33,6 +33,9 @@ export type BriefFile = {
   type: string;
   size: number;
   field: string;
+  /** The stored file (/api/phase-files/<id>). */
+  url?: string;
+  /** An inline copy, from before files were stored on the server; imported once. */
   dataUrl?: string;
 };
 export type Brief = {
