@@ -10,8 +10,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/checks.yml
   # Each engine's browser app, built from engines/<engine> and uploaded to R2 under its Git tree,
-  # unless that exact build is already there. Builds are cached by tree, so only changed engines
-  # compile.
+  # unless that exact build is already there. The build cache is this job's own (deploy-* keys,
+  # written only here on main), never one shared with pull-request or test workflows.
   engine-web:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     needs: checks
@@ -48,7 +48,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/web
-          key: engine-web-${{ matrix.engine }}-${{ steps.tree.outputs.tree }}
+          key: deploy-engine-web-${{ matrix.engine }}-${{ steps.tree.outputs.tree }}
       - if: steps.deployed.outputs.uploaded != 'true' && steps.cache.outputs.cache-hit != 'true'
         run: >-
           sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -66,6 +66,7 @@ jobs:
           echo "2ab8d548fd5ed9cda50906f61fd8654204e7893bd52ebbfd90533862b7d71ee1  trunk.tgz" | sha256sum -c -
           mkdir -p "$HOME/.local/bin" && tar -xzf trunk.tgz -C "$HOME/.local/bin" && rm trunk.tgz
           export PATH="$HOME/.local/bin:$PATH"
+          eval "$(bash engines/fetch-inputs.sh ${{ matrix.engine }} "$RUNNER_TEMP/inputs" | sed 's/^/export /')"
           bash engines/build-web.sh ${{ matrix.engine }} "$RUNNER_TEMP/web"
       - if: steps.deployed.outputs.uploaded != 'true'
         name: Upload to R2
