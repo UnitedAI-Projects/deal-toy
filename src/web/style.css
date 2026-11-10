@@ -1723,15 +1723,6 @@ textarea.code.editor.short {
     color: var(--ink);
     font-size: 12px;
   }
-  .cadbar-menu,
-  .command-results {
-    position: fixed;
-    left: 10px;
-    right: 10px;
-    top: 96px;
-    width: auto;
-    max-height: 70vh;
-  }
   .action-form {
     left: 10px !important;
     right: 10px;
@@ -2332,4 +2323,38 @@ tr.selected {
   z-index: 4;
   pointer-events: none;
   overflow: visible;
+}
+/* Below the wide layout the bar has its own row, so the triad moves under it. */
+@media (max-width: 1240px) {
+  .triad {
+    top: 100px;
+  }
+}
+@media (max-width: 760px) {
+  .triad {
+    top: 128px;
+    right: 6px;
+  }
+  /* The bar's menus drop from the whole bar (its blur makes it their containing block), and the
+     search results from under the top bar, overriding the phone rule that docks popovers low. */
+  .cadbar-group {
+    position: static;
+  }
+  .cadbar-menu {
+    position: absolute;
+    left: 0 !important;
+    right: 0;
+    top: 40px !important;
+    bottom: auto;
+    width: auto;
+    max-height: 70vh;
+  }
+  .command-results {
+    position: fixed;
+    left: 10px !important;
+    right: 10px;
+    top: 56px !important;
+    bottom: auto;
+    width: auto;
+  }
 }

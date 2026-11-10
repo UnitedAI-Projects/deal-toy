@@ -182,6 +182,11 @@ export function Viewer(props: Props) {
       renderer.setSize(width, height);
       camera.aspect = width / Math.max(height, 1);
       camera.updateProjectionMatrix();
+      // Before the first model is fitted, portrait screens step back so the origin fits across.
+      if (!state.current?.fittedFor)
+        camera.position
+          .set(160, 110, 180)
+          .multiplyScalar(Math.max(1, 1 / camera.aspect));
     });
     resize.observe(element);
     let frame = 0;
