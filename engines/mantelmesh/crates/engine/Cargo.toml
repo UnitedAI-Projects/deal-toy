@@ -12,6 +12,7 @@ mantelmesh-mesh.workspace = true
 mantelmesh-ops.workspace = true
 mantelmesh-doc.workspace = true
 mantelmesh-io.workspace = true
+mantelmesh-render.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true

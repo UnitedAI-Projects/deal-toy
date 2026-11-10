@@ -1,6 +1,6 @@
 //! `mantelmesh-cli commands` lists the commands; `mantelmesh-cli run script.json --out file`
 //! runs a script (a JSON list of {"command", "params"}) and writes the result: .mmesh, .glb,
-//! .obj or .stl by the output's extension.
+//! .obj, .stl or a .png render by the output's extension.
 
 use base64::Engine as _;
 use mantelmesh_engine::Session;
@@ -49,7 +49,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 let result = match ext.as_str() {
                     "mmesh" => s.execute("document.save", &json!({})),
                     "glb" | "obj" | "stl" => s.execute("document.export", &json!({ "format": ext })),
-                    _ => return Err("--out must end in .mmesh, .glb, .obj or .stl".into()),
+                    "png" => s.execute("document.render", &json!({})),
+                    _ => return Err("--out must end in .mmesh, .glb, .obj, .stl or .png".into()),
                 }
                 .map_err(|e| e.0)?;
                 let b64 = result["dataBase64"].as_str().unwrap_or_default();

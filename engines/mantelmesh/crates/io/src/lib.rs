@@ -12,6 +12,11 @@ pub const FORMAT: &str = "mantelmesh";
 pub const VERSION: u32 = 1;
 /// Largest file read, so a hostile file can't exhaust memory.
 pub const MAX_READ_BYTES: usize = 200 * 1024 * 1024;
+/// Geometry limits for files read, so a hostile file can't make loading slow or huge.
+pub const MAX_VERTICES: usize = 5_000_000;
+pub const MAX_FACES: usize = 5_000_000;
+pub const MAX_OBJECTS: usize = 10_000;
+pub const MAX_FACE_VERTICES: usize = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IoError(pub String);
@@ -48,13 +53,23 @@ pub fn load_native(bytes: &[u8]) -> Result<Document, IoError> {
     if n.version > VERSION {
         return err(format!("made by a newer MantelMesh (file version {})", n.version));
     }
+    let (mut verts, mut faces) = (0usize, 0usize);
+    if n.document.objects.len() > MAX_OBJECTS {
+        return err("the file has too many objects");
+    }
     for o in &n.document.objects {
+        verts += o.mesh.positions.len();
+        faces += o.mesh.faces.len();
+        if verts > MAX_VERTICES || faces > MAX_FACES {
+            return err("the file has more geometry than MantelMesh opens");
+        }
         for f in &o.mesh.faces {
-            let mut check = Mesh {
-                positions: o.mesh.positions.clone(),
-                faces: vec![],
-            };
-            check.add_face(f).map_err(|e| IoError(format!("{}: {e}", o.name)))?;
+            if f.len() > MAX_FACE_VERTICES {
+                return err(format!("{}: a face has more than {MAX_FACE_VERTICES} vertices", o.name));
+            }
+            o.mesh
+                .validate_loop(f)
+                .map_err(|e| IoError(format!("{}: {e}", o.name)))?;
         }
     }
     Ok(n.document)
@@ -266,20 +281,35 @@ pub fn import_obj(text: &str) -> Result<Vec<(String, Mesh)>, IoError> {
                 if let Some(last) = out.last_mut() {
                     last.1.push(face);
                 }
+                if out.len() > MAX_OBJECTS + 1 {
+                    return err("the file has too many objects");
+                }
             }
             _ => {}
         }
     }
+    let groups: Vec<_> = out.into_iter().filter(|(_, f)| !f.is_empty()).collect();
+    if groups.len() > MAX_OBJECTS {
+        return err("the file has too many objects");
+    }
+    if all.len() > MAX_VERTICES || groups.iter().map(|(_, f)| f.len()).sum::<usize>() > MAX_FACES {
+        return err("the file has more geometry than MantelMesh opens");
+    }
     let mut meshes = Vec::new();
-    for (name, faces) in out.into_iter().filter(|(_, f)| !f.is_empty()) {
-        let mut m = Mesh {
-            positions: all.clone(),
-            faces: vec![],
-        };
+    for (name, faces) in groups {
+        // Only the vertices this group uses, renumbered.
+        let mut local: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+        let mut m = Mesh::new();
         for f in faces {
-            m.add_face(&f).map_err(|e| IoError(format!("{name}: {e}")))?;
+            if f.len() > MAX_FACE_VERTICES {
+                return err(format!("{name}: a face has more than {MAX_FACE_VERTICES} vertices"));
+            }
+            let lp: Vec<u32> = f
+                .iter()
+                .map(|&v| *local.entry(v).or_insert_with(|| m.add_vertex(all[v as usize])))
+                .collect();
+            m.add_face(&lp).map_err(|e| IoError(format!("{name}: {e}")))?;
         }
-        m.compact();
         meshes.push((name, m));
     }
     if meshes.is_empty() {
@@ -371,5 +401,16 @@ mod tests {
         assert!((back[0].1.volume() - 1000.0).abs() < 1e-9);
         assert!(import_obj("v 0 0 0\nf 1 2 3\n").is_err());
         assert!(import_obj("# nothing\n").is_err());
+        // Many groups sharing one big vertex list stay linear: each keeps only its own vertices.
+        let mut big = String::new();
+        for i in 0..3000 {
+            big.push_str(&format!("v {i} 0 0\nv {i} 1 0\nv {i} 0 1\n"));
+        }
+        for g in 0..1000 {
+            big.push_str(&format!("o g{g}\nf {} {} {}\n", g * 3 + 1, g * 3 + 2, g * 3 + 3));
+        }
+        let groups = import_obj(&big).unwrap();
+        assert_eq!(groups.len(), 1000);
+        assert!(groups.iter().all(|(_, m)| m.positions.len() == 3));
     }
 }

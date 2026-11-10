@@ -243,6 +243,17 @@ pub const COMMANDS: &[Command] = &[
         inputs: &[input("format", "\"glb\" | \"obj\" | \"stl\"", true, "Format")],
     },
     Command {
+        name: "document.render",
+        description: "A still render of the visible objects as a PNG, as base64: the three-quarter card view, or an azimuth and elevation.",
+        edits: false,
+        inputs: &[
+            input("width", "pixels", false, "Default 800"),
+            input("height", "pixels", false, "Default 600"),
+            input("azimuth", "degrees", false, "Around the scene (default -35)"),
+            input("elevation", "degrees", false, "Above the ground (default 22)"),
+        ],
+    },
+    Command {
         name: "edit.undo",
         description: "Undo the last edit.",
         edits: false,
@@ -542,6 +553,15 @@ impl Session {
                 Some("stl") => Ok(encode(&mantelmesh_io::export_stl(&self.doc))),
                 _ => fail("format must be glb, obj or stl"),
             },
+            "document.render" => {
+                let size = |k: &str, d: f64| -> Result<u32> { Ok(num(p, k)?.unwrap_or(d).clamp(1.0, 4096.0) as u32) };
+                let view = mantelmesh_render::View {
+                    azimuth: num(p, "azimuth")?.unwrap_or(mantelmesh_render::CARD.azimuth),
+                    elevation: num(p, "elevation")?.unwrap_or(mantelmesh_render::CARD.elevation),
+                };
+                let image = mantelmesh_render::render(&self.doc, size("width", 800.0)?, size("height", 600.0)?, view).map_err(CommandError)?;
+                Ok(encode(&mantelmesh_render::png(&image).map_err(CommandError)?))
+            }
             "edit.undo" => Ok(json!({ "undid": self.journal.undo(&mut self.doc) })),
             "edit.redo" => Ok(json!({ "redid": self.journal.redo(&mut self.doc) })),
             "engine.commands" => Ok(json!(COMMANDS.iter().map(|c| json!({

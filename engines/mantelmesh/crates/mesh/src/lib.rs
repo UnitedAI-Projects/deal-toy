@@ -125,15 +125,18 @@ impl Mesh {
         Ok((self.faces.len() - 1) as u32)
     }
 
-    fn validate_loop(&self, verts: &[u32]) -> Result<(), MeshError> {
+    /// Checks a face loop against this mesh's vertices without adding it: at least three
+    /// vertices, all existing, none repeated. Linear in the loop's length.
+    pub fn validate_loop(&self, verts: &[u32]) -> Result<(), MeshError> {
         if verts.len() < 3 {
             return Err(MeshError::TooFewVertices);
         }
-        for (i, &v) in verts.iter().enumerate() {
+        let mut seen = std::collections::HashSet::with_capacity(verts.len());
+        for &v in verts {
             if v as usize >= self.positions.len() {
                 return Err(MeshError::MissingVertex(v));
             }
-            if verts[..i].contains(&v) {
+            if !seen.insert(v) {
                 return Err(MeshError::RepeatedVertex(v));
             }
         }
