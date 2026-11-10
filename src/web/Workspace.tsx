@@ -58,6 +58,7 @@ import { Toolbar, type ToolbarAction } from "./Toolbar";
 import { CommandSearch } from "./CommandSearch";
 import { BrowserPanel } from "./BrowserPanel";
 import { browserTree } from "./browser-tree";
+import { addStepTo } from "./first-step";
 import { Triad, type TriadHandle } from "./AxisTriad";
 import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
@@ -566,25 +567,25 @@ export function Workspace(props: Props) {
           name: form.editing,
           inputs: body,
         });
-      else {
-        // A project with no model yet gets one; the first step saves its revision 1.
-        const id =
-          model?.id ??
-          (
-            await call<{ id: string }>("models_create", {
-              projectId,
-              name: "Model 01",
-            })
-          ).id;
-        if (!model) setModelId(id);
-        await call("steps_add", {
-          modelId: id,
-          expectedRevision: latest?.number ?? 0,
-          action: form.savedKey ? "custom" : form.action.id,
-          name: form.name.trim(),
-          inputs: body,
-        });
-      }
+      // A project with no model yet gets one; the first step saves its revision 1.
+      else
+        await addStepTo(
+          call,
+          {
+            projectId,
+            modelId: model?.id,
+            expectedRevision: latest?.number ?? 0,
+          },
+          {
+            action: form.savedKey ? "custom" : form.action.id,
+            name: form.name.trim(),
+            inputs: body,
+          },
+          async (id) => {
+            setModelId(id);
+            await props.reload();
+          },
+        );
       setForm(null);
       setFollow(true);
       await props.reload();
