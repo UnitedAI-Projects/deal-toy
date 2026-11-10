@@ -51,6 +51,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The larger engines' test builds need more disk than a runner has free by default.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - run: >-
           sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential pkg-config
           libudev-dev libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev libxrandr-dev libxi-dev
@@ -74,7 +79,15 @@ jobs:
         run: bash engines/fetch-inputs.sh ${{ matrix.engine }} "$RUNNER_TEMP/inputs" >> "$GITHUB_ENV"
       - name: Test
         working-directory: engines/${{ matrix.engine }}
-        run: cargo test --workspace --locked
+        env:
+          CARGO_INCREMENTAL: "0"
+        # Engines that define a lighter `ci` profile (less debug info) test with it, as their own CI does.
+        run: |
+          if grep -q '^\[profile.ci\]' Cargo.toml; then
+            cargo test --workspace --locked --profile ci
+          else
+            cargo test --workspace --locked
+          fi
       - id: tree
         run: echo "tree=$(git rev-parse HEAD:engines/${{ matrix.engine }})" >> "$GITHUB_OUTPUT"
       - id: cache
