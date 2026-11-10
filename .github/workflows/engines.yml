@@ -83,7 +83,12 @@ jobs:
           CARGO_INCREMENTAL: "0"
         # Engines that define a lighter `ci` profile (less debug info) test with it, as their own CI does.
         run: |
-          if grep -q '^\[profile.ci\]' Cargo.toml; then
+          if [ "${{ matrix.engine }}" = mantelcad ]; then
+            # Desktop tests include cold graphics-driver initialization and real socket deadlines.
+            # Run that package serially so hardware probes cannot stall the daemon's reader tests.
+            cargo test --package mantelcad --locked --profile ci -- --test-threads=1
+            cargo test --workspace --exclude mantelcad --locked --profile ci
+          elif grep -q '^\[profile.ci\]' Cargo.toml; then
             cargo test --workspace --locked --profile ci
           else
             cargo test --workspace --locked
