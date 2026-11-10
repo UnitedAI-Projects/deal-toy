@@ -24,7 +24,7 @@ The import pins above remain the provenance record; integration fixes are commit
 
 The engines workflow runs desktop CAD tests serially because cold graphics-driver initialization can stall the socket-based daemon tests. The remaining workspace packages retain normal test parallelism. Failed runs retain compiled dependency caches and continue through the remaining test binaries, while still failing the job.
 
-The CAD kernel is a nested workspace, so its shell regression tests run in the separate **mantelcad shell kernel** job. It checks analytic volumes and topology, boundary refusals, and the offset executive golden cases. To reproduce it from a fresh checkout, fetch the pinned data files (no upstream code is built):
+The CAD kernel is a nested workspace, so its shell regression tests run in the separate **mantelcad shell kernel** job. It checks analytic volumes and topology, boundary refusals, and the offset executive golden cases. The script enters the nested workspace so Rustup uses its checked-in compiler pin; the outer CAD app has its own toolchain. To reproduce it from a fresh checkout, fetch the pinned data files (no upstream code is built):
 
 ```bash
 (
