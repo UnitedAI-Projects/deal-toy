@@ -63,7 +63,10 @@ mod tests {
         .ok();
         let (obj, face, t) = pick(&s.doc, [0.0, 0.0, 100.0], [0.0, 0.0, -1.0]).unwrap_or((0, 0, 0.0));
         assert_eq!((obj, face), (1, 1), "the top face of the upper box");
-        assert!((t - 90.0).abs() < 1e-9, "the box stands on the ground, its top at 10 mm");
+        assert!(
+            (t - 90.0).abs() < 1e-9,
+            "the box stands on the ground, its top at 10 mm"
+        );
         assert!(pick(&s.doc, [50.0, 50.0, 100.0], [0.0, 0.0, -1.0]).is_none());
     }
 }
