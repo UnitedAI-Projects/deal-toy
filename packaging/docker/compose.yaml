@@ -1,0 +1,24 @@
+# Build and serve MantelCAD from this checkout; no published registry image is required.
+# From the repository root:
+#   docker compose -f packaging/docker/compose.yaml up -d --build
+# Rebuild after updating the source using the same command.
+# MANTELCAD_PORT selects the host port (default 8080).
+# Browser design storage requires HTTPS or localhost; use TLS for remote access.
+name: mantelcad
+services:
+  mantelcad:
+    image: mantelcad-web:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile
+    ports:
+      - "${MANTELCAD_PORT:-8080}:8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

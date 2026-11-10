@@ -1,0 +1,306 @@
+[
+ {
+  "source": "ichen27/mantelcad#4172",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4180",
+  "why": "no reproduction: a chamfer's edge points only, the design stays on the reporter's computer (truck intersection-curve tolerance panic)"
+ },
+ {
+  "source": "ichen27/mantelcad#4181",
+  "why": "no geometry: unclean exit after a body rename, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#4186",
+  "why": "no geometry: viewport speed on a 2,146-body STEP assembly (render)"
+ },
+ {
+  "source": "ichen27/mantelcad#4188",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4215",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4237",
+  "why": "no geometry: unclean exit with no command and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#4243",
+  "why": "no geometry: unclean exit after a selection, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#4244",
+  "why": "no geometry: unclean exit after a selection, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#4246",
+  "why": "no geometry: unclean exit while sketching, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#4254",
+  "why": "no geometry: unclean exit with no command and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#4255",
+  "why": "UI only: a selection-mode switch (feature request)"
+ },
+ {
+  "source": "ichen27/mantelcad#4275",
+  "why": "no geometry: viewport speed on a 662-body STEP import (render)"
+ },
+ {
+  "source": "ichen27/mantelcad#4290",
+  "why": "no geometry: unclean exit after selections, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#4293",
+  "why": "no reproduction: the display triangulation library's assertion, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#4319",
+  "why": "duplicate of #2470: modelled M8 thread groove crash on Windows; the part is not given"
+ },
+ {
+  "source": "ichen27/mantelcad#4329",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4406",
+  "why": "no geometry: unclean exit with no command and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#4416",
+  "why": "no geometry: unclean exit while dragging sketch geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4422",
+  "why": "render: wgpu surface not configured, no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4469",
+  "why": "the recipe needs sketch.offset of a free-form chain (PR #4156), refused on this branch before the kernel is reached; the two-distance chamfer of a spline rim is fillets/4332-two-distance-chamfer-of-spline-rim"
+ },
+ {
+  "source": "ichen27/mantelcad#4476",
+  "why": "no geometry: unclean exit in timeline.dependents (document), the design is not given"
+ },
+ {
+  "source": "ichen27/mantelcad#4478",
+  "why": "no reproduction: the display triangulation library's assertion, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#4491",
+  "why": "render: blank or corrupted offscreen captures, no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4559",
+  "why": "no geometry: unclean exit with no command running (an agent driving the app)"
+ },
+ {
+  "source": "ichen27/mantelcad#4599",
+  "why": "render: a GPU hang (Intel/Mesa); the replay rebuilds cleanly"
+ },
+ {
+  "source": "ichen27/mantelcad#4604",
+  "why": "no geometry: measuring a large assembly runs on the window thread (document/UI)"
+ },
+ {
+  "source": "ichen27/mantelcad#4605",
+  "why": "render: startup failure creating the graphics device on macOS"
+ },
+ {
+  "source": "ichen27/mantelcad#4627",
+  "why": "render: crash inside the NVIDIA driver, no command"
+ },
+ {
+  "source": "ichen27/mantelcad#4709",
+  "why": "no reproduction: a slow extrude shown by screenshot only"
+ },
+ {
+  "source": "ichen27/mantelcad#4777",
+  "why": "no geometry: unclean exit with no command and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#4791",
+  "why": "render: capture buffer and GPU hang on Intel/Mesa, no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4840",
+  "why": "no geometry: unclean exit on 0.15.0, gone on 0.19.0"
+ },
+ {
+  "source": "ichen27/mantelcad#4845",
+  "why": "no reproduction: inspect.clearance between two user bodies, the design is not given"
+ },
+ {
+  "source": "ichen27/mantelcad#4892",
+  "why": "no geometry: drawing references and updates (feature plan)"
+ },
+ {
+  "source": "ichen27/mantelcad#4931",
+  "why": "no geometry: unclean exit on 0.12.0 after selections"
+ },
+ {
+  "source": "ichen27/mantelcad#4944",
+  "why": "no reproduction: timeline.edit of a bore in a user's design, the design is not given"
+ },
+ {
+  "source": "ichen27/mantelcad#4951",
+  "why": "no geometry: an empty crash report"
+ },
+ {
+  "source": "ichen27/mantelcad#4958",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4975",
+  "why": "no geometry: an empty crash report (inspect.interference)"
+ },
+ {
+  "source": "ichen27/mantelcad#4981",
+  "why": "render: startup on the software fallback renderer, no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#4993",
+  "why": "no geometry: unclean exit between commands, no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#5018",
+  "why": "no reproduction: unclean exit during a fillet on 0.16.2, nothing recorded"
+ },
+ {
+  "source": "ichen27/mantelcad#5021",
+  "why": "no geometry: a design file's integer coordinates skip the load range check (document)"
+ },
+ {
+  "source": "ichen27/mantelcad#5049",
+  "why": "render: GPU tessellation buffer padding (an empty vertex list), not the kernel; the STEP file can't be shared"
+ },
+ {
+  "source": "ichen27/mantelcad#5065",
+  "why": "no geometry: unclean exit after a timeline delete, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#5068",
+  "why": "no reproduction: the display triangulation library's assertion, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#5069",
+  "why": "no reproduction: the display triangulation library's collinear-edge assertion, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#5079",
+  "why": "no geometry: the crash journal leaves out component.activate (document)"
+ },
+ {
+  "source": "ichen27/mantelcad#5102",
+  "why": "no geometry: an empty crash report during startup (surface configure)"
+ },
+ {
+  "source": "ichen27/mantelcad#5122",
+  "why": "no reproduction: an access violation between commands, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#5125",
+  "why": "no geometry: unclean exit with no command and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#5144",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5189",
+  "why": "render: lost GPU device (wgpu) in Preferences and the viewport"
+ },
+ {
+  "source": "ichen27/mantelcad#5211",
+  "why": "render: GPU out of memory and a capture buffer (#2195), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5229",
+  "why": "no reproduction: the display triangulation library's assertion, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#5243",
+  "why": "no geometry: an empty crash report"
+ },
+ {
+  "source": "ichen27/mantelcad#5248",
+  "why": "no geometry: motion trace curves are not associative (feature request)"
+ },
+ {
+  "source": "ichen27/mantelcad#5251",
+  "why": "no geometry: an empty crash report"
+ },
+ {
+  "source": "ichen27/mantelcad#5263",
+  "why": "no reproduction: unclean exit in solid.box after a run of boxes, no sizes and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#5274",
+  "why": "no geometry: unclean exit while dragging a sliding joint (garbage in the window: graphics)"
+ },
+ {
+  "source": "ichen27/mantelcad#5314",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5359",
+  "why": "no reproduction: unclean exit after parameter changes in a user's design of box patterns and a loft, nothing given"
+ },
+ {
+  "source": "ichen27/mantelcad#5360",
+  "why": "no reproduction: truck intersection-curve panic during a timeline reorder, the design is not given"
+ },
+ {
+  "source": "ichen27/mantelcad#5361",
+  "why": "render: Save As thumbnail capture buffer (#4791), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5372",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5383",
+  "why": "no reproduction: the display triangulation library's assertion, title only"
+ },
+ {
+  "source": "ichen27/mantelcad#5395",
+  "why": "no geometry: unclean exit with no command and no replay"
+ },
+ {
+  "source": "ichen27/mantelcad#5407",
+  "why": "UI only: moving a sketch dimension, gone after a restart"
+ },
+ {
+  "source": "ichen27/mantelcad#5411",
+  "why": "no geometry: an empty crash report (occurrence.properties, document)"
+ },
+ {
+  "source": "ichen27/mantelcad#5421",
+  "why": "no geometry: unclean exit after selections, nothing running"
+ },
+ {
+  "source": "ichen27/mantelcad#5429",
+  "why": "no reproduction: unclean exit in inspect.interference while an agent cut an O-ring groove in a user's part"
+ },
+ {
+  "source": "ichen27/mantelcad#5437",
+  "why": "render: the capture buffer map failure (#2195), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5438",
+  "why": "render: lost GPU device (wgpu), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5448",
+  "why": "render: a GPU buffer map failure (#4791), no geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#5460",
+  "why": "no reproduction: unclean exit during an extrude, title only"
+ }
+]

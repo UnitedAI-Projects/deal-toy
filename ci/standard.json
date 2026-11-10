@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "profile": "rust",
+  "runner": "ubuntu-24.04",
+  "default_branch": "main",
+  "required_check": "test",
+  "review": "manual",
+  "deployment": "not configured",
+  "rust_toolchain": "1.99.1"
+}

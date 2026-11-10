@@ -1,0 +1,38 @@
+[package]
+name = "mantelcad-cli"
+description = "MantelCAD headless CLI: run command scripts, measure, export, render snapshots, replay oracle recipes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+default-run = "mantelcad-cli"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mantelcad-cli"
+path = "src/main.rs"
+
+[features]
+default = ["raytrace-cpu", "profile"]
+bundled-render-library = ["mantelcad-engine/bundled-render-library"]
+raytrace-cpu = ["mantelcad-engine/raytrace-cpu"]
+# The profiler, compiled in so any build can say where its time goes (`--profile`,
+# MANTELCAD_PROFILE=1); it records nothing until asked.
+profile = ["mantelcad-engine/profile"]
+
+[dependencies]
+mantelcad-viewport-gpu = { workspace = true }
+mantelcad-viewport = { workspace = true }
+solidcore-record = { workspace = true }
+mantelcad-engine = { workspace = true }
+mantelcad-gpu = { workspace = true }
+mantelcad-mcp = { workspace = true }
+log = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# Snapshot tests decode the pictures to compare them with a tolerance.
+image = { workspace = true }
+# Tests measure meshes at their own tolerances.
+mantelcad-kernel = { workspace = true }

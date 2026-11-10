@@ -1,0 +1,15 @@
+[package]
+name = "mantelcad-theme"
+description = "The token contract UI components draw with: MantelCAD's light and dark tokens, colour vision, tab accents and the theme state a host sets"
+version.workspace = true
+edition.workspace = true
+license-file = "LICENSE"
+
+[lints]
+workspace = true
+
+[dependencies]
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+mantelcad-color = { workspace = true }

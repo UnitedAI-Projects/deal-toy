@@ -1,0 +1,23 @@
+[package]
+name = "mantelcad-mcp"
+description = "MantelCAD MCP server: JSON-RPC 2.0 over stdio, driving a headless session or the running app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mantelcad-viewport-gpu = { workspace = true }
+mantelcad-viewport = { workspace = true }
+mantelcad-engine = { workspace = true }
+mantelcad-control = { workspace = true }
+mantelcad-mcp-server = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# The renderer `mantelcad-cli mcp` installs, so the tests' screenshots are drawn as the server's.
+mantelcad-gpu = { workspace = true }
+# Synthetic reference pictures for the compare_picture test.
+image = { workspace = true }
