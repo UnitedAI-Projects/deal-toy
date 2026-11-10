@@ -1007,14 +1007,16 @@ button.wide {
 .state.running {
   background: var(--busy);
 }
-/* Step timeline: one chip per modeling step, coloured by its state in the shown build. */
+/* Step timeline: one chip per modeling step, coloured by its state in the shown build. It floats
+   at the bottom centre, above the revision chips, clear of the section tools on the right. */
 .timeline {
   position: absolute;
-  top: 64px;
+  bottom: 52px;
   left: 368px;
-  right: 14px;
+  right: 440px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   z-index: 6;
   pointer-events: none;
@@ -1086,22 +1088,183 @@ button.wide {
 .step-detail {
   color: var(--muted);
 }
-.toolbar {
-  position: relative;
+/* The floating tool bar (layout B): groups of featured buttons, each with a ▾ list. */
+.cadbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  max-width: calc(100% - 28px);
 }
-.toolbar-menu {
-  right: 0;
-  top: 40px;
-  width: 320px;
+.cadbar-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.cadbar-group + .cadbar-group {
+  border-left: 1px solid var(--line);
+  padding-left: 2px;
+  margin-left: 2px;
+}
+.cadbar-button,
+.cadbar-more {
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 9px;
+  width: auto;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cadbar-more {
+  color: var(--muted);
+  padding: 5px 6px;
+}
+/* With featured buttons beside it, the ▾ alone stands for the group on a wide screen. */
+.cadbar-more.has-featured .cadbar-group-name {
+  display: none;
+}
+.cadbar-button:hover:not(:disabled),
+.cadbar-more:hover:not(:disabled),
+.cadbar-more[aria-expanded="true"] {
+  background: var(--surface-2);
+}
+.cadbar button:disabled {
+  opacity: 0.5;
+}
+.cadbar-menu {
+  left: 0;
+  top: 38px;
+  width: 300px;
   max-height: 70vh;
   overflow-y: auto;
 }
-.toolbar-menu h3 {
+.command-search {
+  position: relative;
+}
+.command-results {
+  right: 0;
+  top: 40px;
+  width: 320px;
+}
+.command-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.toolbar-item.active {
+  background: var(--surface-2);
+}
+/* Between phone and wide desktop the bar takes its own row under the top bar. */
+@media (max-width: 1240px) {
+  .cadbar {
+    top: 58px;
+  }
+  .chat-shell {
+    top: 104px;
+  }
+}
+/* The Browser card: the top of the left column, above the activity feed, which fills the rest. */
+.browser {
+  pointer-events: auto;
+  flex: none;
+  max-height: 45%;
+  overflow-y: auto;
+  background: var(--float);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 16px rgba(20, 22, 28, 0.08);
+  font-size: 13px;
+  width: 220px;
+}
+.browser-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+.browser-body {
+  padding: 0 8px 8px;
+}
+.browser details > summary {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--faint);
-  margin: 6px 0 2px;
+  padding: 4px 4px 2px;
+  cursor: pointer;
+}
+.browser ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.browser li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 4px;
+  min-height: 26px;
+}
+.browser li.hidden .browser-label,
+.browser li.hidden .swatch {
+  opacity: 0.4;
+}
+.browser .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.browser-label {
+  flex: 1;
+  color: var(--ink);
+}
+.browser .eye {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 2px 6px;
+  width: auto;
+  font-size: 13px;
+}
+.browser-item {
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.browser-item:hover,
+.browser-item.on {
+  background: var(--surface-2);
 }
 .toolbar-item {
   display: flex;
@@ -1519,7 +1682,7 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     bottom: auto;
-    top: 60px;
+    top: 100px;
     justify-content: flex-start;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1528,21 +1691,37 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     bottom: auto;
-    top: 96px;
+    top: 172px;
     max-width: none;
   }
   .timeline {
     left: 10px;
     right: 10px;
-    top: 132px;
+    bottom: 52px;
+    justify-content: flex-start;
   }
-  .toolbar-menu {
+  .browser {
     position: fixed;
+    top: 136px;
+    left: 10px;
+    width: min(260px, calc(100% - 20px));
+    max-height: 50vh;
+    z-index: 12;
+  }
+  .cadbar {
+    top: 56px;
     left: 10px;
     right: 10px;
-    top: 60px;
-    width: auto;
-    max-height: 70vh;
+    transform: none;
+    max-width: none;
+    justify-content: space-between;
+  }
+  .cadbar-more.has-featured .cadbar-group-name {
+    display: inline;
+  }
+  .cadbar-more {
+    color: var(--ink);
+    font-size: 12px;
   }
   .action-form {
     left: 10px !important;
@@ -1556,20 +1735,20 @@ textarea.code.editor.short {
     left: 10px;
     right: 10px;
     bottom: auto;
-    top: 240px;
+    top: 280px;
     max-width: none;
   }
   .inspect-tools {
     right: 10px;
     left: 10px;
     bottom: auto;
-    top: 204px;
+    top: 244px;
     flex-wrap: wrap;
   }
   .asof-banner {
     left: 10px;
     right: 10px;
-    top: 168px;
+    top: 208px;
     max-width: none;
     flex-wrap: wrap;
   }
@@ -2134,4 +2313,48 @@ tr.selected {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+
+/* The model axes in the view's top-right corner, under any open panel. */
+.triad {
+  position: absolute;
+  top: 60px;
+  right: 14px;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}
+/* Below the wide layout the bar has its own row, so the triad moves under it. */
+@media (max-width: 1240px) {
+  .triad {
+    top: 100px;
+  }
+}
+@media (max-width: 760px) {
+  .triad {
+    top: 128px;
+    right: 6px;
+  }
+  /* The bar's menus drop from the whole bar (its blur makes it their containing block), and the
+     search results from under the top bar, overriding the phone rule that docks popovers low. */
+  .cadbar-group {
+    position: static;
+  }
+  .cadbar-menu {
+    position: absolute;
+    left: 0 !important;
+    right: 0;
+    top: 40px !important;
+    bottom: auto;
+    width: auto;
+    max-height: 70vh;
+  }
+  .command-results {
+    position: fixed;
+    left: 10px !important;
+    right: 10px;
+    top: 56px !important;
+    bottom: auto;
+    width: auto;
+  }
 }

@@ -45,8 +45,21 @@ import {
   type FormValues,
 } from "./forms";
 import { ghostShape } from "./ghost";
+import {
+  ORIGIN_ITEMS,
+  ORIGIN_PLANES,
+  originPickRef,
+  originVisible,
+  type OriginItem,
+  type OriginPlane,
+} from "./origin";
 import { refFromPick } from "./refs";
 import { Toolbar, type ToolbarAction } from "./Toolbar";
+import { CommandSearch } from "./CommandSearch";
+import { BrowserPanel } from "./BrowserPanel";
+import { browserTree } from "./browser-tree";
+import { addStepTo } from "./first-step";
+import { Triad, type TriadHandle } from "./AxisTriad";
 import { ConfirmName } from "./Trash";
 import { asOfLabel } from "./timeline-chips";
 import { diffLines } from "./diff";
@@ -136,6 +149,11 @@ export function Workspace(props: Props) {
     error: string;
     busy: boolean;
   } | null>(null);
+  const triad = useRef<TriadHandle>(null);
+  // Shown or hidden by hand in the Browser; otherwise the origin follows originVisible.
+  const [originOverrides, setOriginOverrides] = useState<
+    Partial<Record<OriginItem, boolean>>
+  >({});
   const [savedActions, setSavedActions] = useState<ToolbarAction[]>([]);
   // The Checks panel, what it colours on the model, and a tick that refetches it on live changes.
   const [checksOpen, setChecksOpen] = useState(false);
@@ -469,9 +487,12 @@ export function Workspace(props: Props) {
   const paramNames = Object.entries(facts?.params ?? {})
     .filter(([, v]) => !v.unit || v.unit === "mm")
     .map(([k]) => k);
-  const planeNames = (facts?.steps ?? [])
-    .filter((s) => s.action === "plane")
-    .map((s) => s.name);
+  const planeNames: string[] = [
+    ...ORIGIN_PLANES,
+    ...(facts?.steps ?? [])
+      .filter((s) => s.action === "plane")
+      .map((s) => s.name),
+  ];
   const builtins = (
     catalog.actions as unknown as (ActionSchema & ToolbarAction)[]
   ).filter((a) => a.id !== "custom");
@@ -524,27 +545,47 @@ export function Workspace(props: Props) {
       busy: false,
     });
   }
+  // Opens a saved step's form with its current inputs, from the timeline or the Browser.
+  async function editStep(name: string) {
+    if (!model) return;
+    const { steps } = await call<{
+      steps: { action: string; name: string; inputs: FormValues }[];
+    }>("steps_list", { modelId: model.id });
+    const step = steps.find((s) => s.name === name);
+    if (step) await openAction(step.action, { name, inputs: step.inputs });
+  }
   async function submitForm() {
-    if (!form || !model || !latest) return;
+    if (!form || (form.editing && (!model || !latest))) return;
     const inputs = submitValues(form.action, form.values);
     const body = form.savedKey ? { ...inputs, action: form.savedKey } : inputs;
     setForm({ ...form, busy: true, error: "" });
     try {
       if (form.editing)
         await call("steps_edit", {
-          modelId: model.id,
-          expectedRevision: latest.number,
+          modelId: model!.id,
+          expectedRevision: latest!.number,
           name: form.editing,
           inputs: body,
         });
+      // A project with no model yet gets one; the first step saves its revision 1.
       else
-        await call("steps_add", {
-          modelId: model.id,
-          expectedRevision: latest.number,
-          action: form.savedKey ? "custom" : form.action.id,
-          name: form.name.trim(),
-          inputs: body,
-        });
+        await addStepTo(
+          call,
+          {
+            projectId,
+            modelId: model?.id,
+            expectedRevision: latest?.number ?? 0,
+          },
+          {
+            action: form.savedKey ? "custom" : form.action.id,
+            name: form.name.trim(),
+            inputs: body,
+          },
+          async (id) => {
+            setModelId(id);
+            await props.reload();
+          },
+        );
       setForm(null);
       setFollow(true);
       await props.reload();
@@ -622,6 +663,41 @@ export function Workspace(props: Props) {
     setForm({ ...form, values: next.values, active: next.next, error: "" });
     return true;
   }
+  // The active form field takes a plane, so the origin planes show and a click on one fills it.
+  const pickingPlane =
+    !!form?.active &&
+    !!fieldsFor(form.action, form.values)
+      .find((f) => f.name === form.active)
+      ?.refKinds?.includes("datum");
+  function pickPlaneIntoForm(name: OriginPlane) {
+    if (!form?.active) return;
+    const next = applyPick(
+      fieldsFor(form.action, form.values),
+      form.values,
+      form.active,
+      originPickRef(name),
+    );
+    setForm({ ...form, values: next.values, active: next.next, error: "" });
+  }
+  const originContext = {
+    hasParts: parts.length > 0,
+    pickingPlane,
+    overrides: originOverrides,
+  };
+  const originShown = Object.fromEntries(
+    ORIGIN_ITEMS.map((item) => [item, originVisible(item, originContext)]),
+  ) as Record<OriginItem, boolean>;
+  const originBounds =
+    record && record.parts.length
+      ? {
+          min: [0, 1, 2].map((k) =>
+            Math.min(...record.parts.map((p) => p.bbox.min[k])),
+          ) as [number, number, number],
+          max: [0, 1, 2].map((k) =>
+            Math.max(...record.parts.map((p) => p.bbox.max[k])),
+          ) as [number, number, number],
+        }
+      : null;
   const ghost =
     form && record
       ? ghostShape(
@@ -631,14 +707,17 @@ export function Workspace(props: Props) {
           paramValues,
         )
       : null;
+  // A model with no revision yet is started by its first step, so only saved models are checked.
   const toolbarReason = () =>
     !canEdit
       ? "Only the project owner can add steps"
-      : !facts?.steps
-        ? "This model has no steps section; ask the agent to adopt the standard layout"
-        : !editable
-          ? "View the latest revision to add steps"
-          : undefined;
+      : !latest
+        ? undefined
+        : !facts?.steps
+          ? "This model has no steps section; ask the agent to adopt the standard layout"
+          : !editable
+            ? "View the latest revision to add steps"
+            : undefined;
   // The model as it was after one step, from a view-as-of preview build.
   const [asOf, setAsOf] = useState<{
     step: string;
@@ -861,6 +940,13 @@ export function Workspace(props: Props) {
           handle={posed ? null : handle}
           pose={pose}
           move={move}
+          onView={(q) => triad.current?.update(q)}
+          origin={{
+            visible: originShown,
+            bounds: asOf ? null : originBounds,
+            pickPlanes: pickingPlane,
+            onPickPlane: pickPlaneIntoForm,
+          }}
           onSelect={(label, point, hit, additive) => {
             setAgentPoint(null);
             if (label && pickIntoForm(label, hit)) return;
@@ -882,6 +968,7 @@ export function Workspace(props: Props) {
           }}
         />
       </Suspense>
+      <Triad ref={triad} />
 
       <header className="topbar">
         <div className="topbar-left">
@@ -924,12 +1011,13 @@ export function Workspace(props: Props) {
               Checks
             </button>
           )}
-          <Toolbar
-            actions={[...builtins, ...savedActions]}
-            disabledReason={toolbarReason()}
-            onOpen={() => void loadCatalog()}
-            onChoose={(id) => void openAction(id)}
-          />
+          {canEdit && (
+            <CommandSearch
+              actions={[...builtins, ...savedActions]}
+              disabledReason={toolbarReason()}
+              onChoose={(id) => void openAction(id)}
+            />
+          )}
           <span
             className="chip status"
             title={connected ? "Live" : "Reconnecting…"}
@@ -997,8 +1085,31 @@ export function Workspace(props: Props) {
           />
         )}
       </header>
+      {canEdit && (
+        <Toolbar
+          actions={[...builtins, ...savedActions]}
+          disabledReason={toolbarReason()}
+          onOpen={() => void loadCatalog()}
+          onChoose={(id) => void openAction(id)}
+        />
+      )}
 
       <div className={`chat-shell ${chatOpen ? "open" : ""}`}>
+        <BrowserPanel
+          tree={browserTree({ parts, steps: facts?.steps ?? [] })}
+          visible={originShown}
+          onToggle={(item) =>
+            setOriginOverrides((o) => ({ ...o, [item]: !originShown[item] }))
+          }
+          selected={
+            selection && selection.face === undefined ? selection.label : null
+          }
+          onSelectBody={(label, at) => {
+            setSelection({ label, ...at });
+            setSecond(null);
+          }}
+          onOpenStep={(name) => void editStep(name).catch(() => {})}
+        />
         <button className="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
           {chatOpen ? "Hide activity" : "Agent activity"}
           {running && <span className="dot on" />}
@@ -1255,15 +1366,7 @@ export function Workspace(props: Props) {
             await props.reload();
           }}
           onViewAsOf={viewAsOf}
-          onEdit={async (name) => {
-            if (!model) return;
-            const { steps } = await call<{
-              steps: { action: string; name: string; inputs: FormValues }[];
-            }>("steps_list", { modelId: model.id });
-            const step = steps.find((s) => s.name === name);
-            if (step)
-              await openAction(step.action, { name, inputs: step.inputs });
-          }}
+          onEdit={editStep}
         />
       )}
 

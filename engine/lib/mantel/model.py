@@ -9,6 +9,9 @@ from . import geometry as g
 from .refs import DatumRef, EdgesRef, FaceRef, P, PartRef, PointRef
 from .schema import InvalidInput, check_object
 
+# Built-in construction planes every model starts with; no step may take these names.
+ORIGIN_PLANES = ("XY", "XZ", "YZ")
+
 CATALOG = json.loads(Path(__file__).with_name("catalog.json").read_text())
 ACTIONS = {a["id"]: a for a in CATALOG["actions"]}
 IMPLEMENTATIONS = {}
@@ -76,7 +79,7 @@ class Model:
     def __init__(self, base=None, params=None):
         global _LAST
         self.parts: dict[str, bd.Shape] = {}
-        self.datums: dict[str, bd.Plane] = {}
+        self.datums: dict[str, bd.Plane] = {name: getattr(bd.Plane, name) for name in ORIGIN_PLANES}
         # Part label -> ((r, g, b), finish), set by appearance steps and applied in result().
         self.looks: dict[str, tuple[tuple[float, float, float], str]] = {}
         self.params = params or {}

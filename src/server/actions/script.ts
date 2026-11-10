@@ -40,6 +40,25 @@ export type Step = {
 
 const BEGIN = "# mantel:steps begin";
 const END = "# mantel:steps end";
+/** The standard layout with no steps yet, written when step tools start an empty model. */
+export const STARTER_SOURCE = [
+  "import build123d as bd",
+  "import mantel as mt",
+  "",
+  "PARAMS = {}",
+  "",
+  "",
+  "def base():",
+  "    return None",
+  "",
+  "",
+  "def build():",
+  "    m = mt.Model(base(), params=PARAMS)",
+  `    ${BEGIN}`,
+  `    ${END}`,
+  "    return m.result()",
+  "",
+].join("\n");
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const NO_SECTION =
   "This model has no steps section; ask the agent to adopt the standard model layout";

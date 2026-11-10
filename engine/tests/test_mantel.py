@@ -358,3 +358,28 @@ def test_stop_after_runs_only_the_first_steps(tmp_path):
     assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["facts.json", "model.glb"]
     full = build(source, tmp_path / "full")
     assert "stoppedAfter" not in full and len(full["steps"]) == 3
+
+
+def test_origin_planes_resolve_with_standard_axes():
+    from mantel.model import Model
+    m = Model()
+    for name, x, y, z in [("XY", (1, 0, 0), (0, 1, 0), (0, 0, 1)),
+                          ("XZ", (1, 0, 0), (0, 0, 1), (0, -1, 0)),
+                          ("YZ", (0, 1, 0), (0, 0, 1), (1, 0, 0))]:
+        plane, label, faces = m.resolve_plane(m.datum(name))
+        assert (label, faces) == (None, [])
+        assert tuple(plane.x_dir) == pytest.approx(x)
+        assert tuple(plane.y_dir) == pytest.approx(y)
+        assert tuple(plane.z_dir) == pytest.approx(z)
+        assert tuple(plane.origin) == pytest.approx((0, 0, 0))
+
+
+def test_steps_build_from_origin_planes(tmp_path):
+    facts = run(tmp_path, script([BLOCK, 'm.plane("Lift", method="offset", reference=m.datum("XY"), distance=10)']))
+    assert states(facts) == {"Block": "ok", "Lift": "ok"}
+
+
+def test_origin_plane_names_are_reserved(tmp_path):
+    facts = run(tmp_path, script([BLOCK, 'm.plane("XY", method="offset", reference=m.datum("XZ"), distance=1)']))
+    assert step(facts, "XY")["state"] == "failed"
+    assert step(facts, "XY")["code"] == "duplicate_name"
