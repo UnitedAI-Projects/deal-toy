@@ -14,7 +14,7 @@ Each directory is its own Cargo workspace and keeps its own README, AGENTS.md, l
 
 ## Known state
 
-- **MantelPDF** is imported from its pushed `main`, which still carries the upstream PDFCraft names. The MantelPDF rebrand exists only as uncommitted work in another checkout. Import it with a subtree pull once it is pushed.
+- **MantelPDF** is imported from its pushed `main`, which still carries the upstream PDFCraft names. The MantelPDF rebrand is pushed in [upstream PR #1](https://github.com/ichen27/mantelpdf/pull/1), which remains open with a failing test check as of 2026-11-10. The import pin is unchanged; review and validate that PR before updating the subtree.
 - **MantelArt's** prebuilt Mac preview (`artifacts/MantelArt-preview-macos-arm64.zip`, 86 MB in Git LFS) is not copied here. It stays in the MantelArt repository.
 - **MantelCAD's** `crates/ui-kit`, `crates/look`, `crates/theme` and branding are under its [Brand and Interface Licence](mantelcad/LICENSE-BRAND). Their use in MantelCAD rests on written permission the owner reported. Other engines must not link them.
 

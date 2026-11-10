@@ -8,6 +8,9 @@ flowchart LR
   MCP[External MCP client] --> API
   API --> AUTH[Identity and ownership checks]
   AUTH --> TOOLS[Typed operation registry]
+  AUTH --> AGENT[Bounded phase agent]
+  AGENT --> AI[Workers AI]
+  AGENT --> TOOLS
   TOOLS --> D1[D1 metadata and source revisions]
   TOOLS --> Q[Build queue]
   Q --> C[Fresh Linux container per build]
@@ -18,11 +21,17 @@ flowchart LR
 
 ## Why these boundaries
 
-Cloudflare Workers serve the application, authorization and remote MCP. Native OCCT libraries run in a Linux container. The build123d Python interface is the modeling language; OCCT is its geometric kernel, not a separately reimplemented engine. External agents write and revise Python through MCP; the application does not run an LLM or consume a provider API key.
+Cloudflare Workers serve the application, authorization and remote MCP. Native OCCT libraries run in a Linux container. The build123d Python interface is the modeling language; OCCT is its geometric kernel, not a separately reimplemented engine. External agents write and revise Python through MCP; the built-in phase panel uses a Workers AI binding without exposing provider credentials to the browser. Its tools are a small subset of the same dispatcher, with the agent channel preserving people-only approval rules.
 
 D1 stores projects, models, immutable source revisions, build status, artifact metadata, document history, skill history, members, access levels, and hashed browser sessions and sign-in links. OAuth grants and tokens live in Workers KV. R2 stores binary exports. The application persists completed exports before destroying the container, because container disk is ephemeral. Queue redelivery does not implicitly reexecute a running job; stale claims fail after fifteen minutes and the caller can submit a new build.
 
 Each project has one owner, who alone writes to it. Projects flagged as demos are readable by members with "View the demo". Shared project ACLs are a planned additive capability.
+
+## Built-in phase conversations
+
+The authenticated, same-origin /api/projects/:id/agent route admits only the project owner with note permission. It reads history from D1; clients cannot supply system prompts or fabricated prior messages. Tools receive the server-owned project ID and cannot name sessions or another project. Phase writes also need model-edit permission, recheck current tool enablement, use optimistic versions and run through the MCP/agent approval guard. The pure phase template and rules live in src/shared/phases.ts.
+
+Admission is a conditional D1 insert, making per-member and global rolling quotas atomic under concurrent requests. Failed attempts count. Quota records survive project deletion; private conversation rows cascade with the project. Every tool result is persisted before the final model call so a provider interruption cannot conceal an applied edit. Requests time out and have finite model-call, action, input-byte and output-token bounds; details and limitations are in [agent.md](agent.md).
 
 ## Agent contracts
 

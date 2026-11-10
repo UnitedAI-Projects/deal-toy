@@ -3648,3 +3648,26 @@ label.cadbar-button.disabled {
   font-size: 18px;
   letter-spacing: 0.05em;
 }
+
+.agent-turn .agent-msg,
+.agent-turn .my-msg {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-action {
+  margin-top: 6px;
+}
+@media (max-width: 860px) {
+  .phase-agent.has-conversation {
+    height: min(60dvh, 480px);
+  }
+  .phase-agent.has-conversation .phase-agent-log {
+    overflow-y: auto;
+  }
+  .phase-agent.has-conversation .phase-agent-log > :not(.peek) {
+    display: block;
+  }
+  .phase-agent.has-conversation .phase-agent-log .peek {
+    display: none;
+  }
+}
