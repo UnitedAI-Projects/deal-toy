@@ -18,6 +18,12 @@ Each directory is its own Cargo workspace and keeps its own README, AGENTS.md, l
 - **MantelArt's** prebuilt Mac preview (`artifacts/MantelArt-preview-macos-arm64.zip`, 86 MB in Git LFS) is not copied here. It stays in the MantelArt repository.
 - **MantelCAD's** `crates/ui-kit`, `crates/look`, `crates/theme` and branding are under its [Brand and Interface Licence](mantelcad/LICENSE-BRAND). Their use in MantelCAD rests on written permission the owner reported. Other engines must not link them.
 
+## Integration validation
+
+The import pins above remain the provenance record; integration fixes are committed in this repository. Historical CAD fixtures keep their `.solidcraft` extensions, while current design fixtures use `.sc`. Corpus tests check that the historical collection is populated. MantelArt retains `.vectorcraft` as its native format.
+
+The engines workflow runs desktop CAD tests serially because cold graphics-driver initialization can stall the socket-based daemon tests. The remaining workspace packages retain normal test parallelism. Failed runs retain compiled dependency caches and continue through the remaining test binaries, while still failing the job.
+
 ## Build a browser app
 
 Some engines read pinned public inputs at build time. MantelPDF reads its translations from `storytold/craft-i18n` at the commit in `craft-i18n.rev`; without them it builds English-only and its language tests fail. Fetch them and export the variables first:
