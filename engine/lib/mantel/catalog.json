@@ -98,7 +98,7 @@
           },
           "on": {
             "x-ref": ["face", "datum"],
-            "description": "Optional face or plane the body stands on; its bottom is placed on it, centred at the projection of at"
+            "description": "Optional face, construction plane or origin plane (XY, XZ, YZ) the body stands on; its bottom is placed on it, centred at the projection of at"
           }
         },
         "required": ["shape"],
@@ -194,8 +194,8 @@
         },
         {
           "code": "datum_not_found",
-          "explanation": "No construction plane has that name.",
-          "fix": "Use the name of an earlier plane step."
+          "explanation": "No construction plane or origin plane has that name.",
+          "fix": "Use the name of an earlier plane step, or XY, XZ or YZ."
         },
         {
           "code": "not_planar",
@@ -232,7 +232,7 @@
       "title": "Construction plane",
       "category": "Construct",
       "summary": "Add a named construction plane: offset from a face, angled about an edge, midway between faces, or through 3 points.",
-      "description": "Use to place features where no face exists, such as text floating on a mid-plane or a cut through the middle of a part. A plane adds no material. Later steps refer to it with m.datum(name).",
+      "description": "Use to place features where no face exists, such as text floating on a mid-plane or a cut through the middle of a part. A plane adds no material. Later steps refer to it with m.datum(name). The origin planes XY, XZ and YZ are always available as m.datum('XY') and so on, and no step may take those names.",
       "inputs": {
         "type": "object",
         "properties": {
@@ -243,7 +243,7 @@
           },
           "reference": {
             "x-ref": ["face", "datum"],
-            "description": "The face or plane to offset or rotate from"
+            "description": "The face, construction plane or origin plane (XY, XZ, YZ) to offset or rotate from"
           },
           "distance": {
             "type": "number",
@@ -387,8 +387,8 @@
         },
         {
           "code": "datum_not_found",
-          "explanation": "No construction plane has that name.",
-          "fix": "Use the name of an earlier plane step."
+          "explanation": "No construction plane or origin plane has that name.",
+          "fix": "Use the name of an earlier plane step, or XY, XZ or YZ."
         },
         {
           "code": "not_planar",
@@ -436,7 +436,7 @@
         "properties": {
           "on": {
             "x-ref": ["face", "datum"],
-            "description": "The flat face or construction plane to work on"
+            "description": "The flat face, construction plane or origin plane (XY, XZ, YZ) to work on"
           },
           "profile": {
             "type": "string",
@@ -685,8 +685,8 @@
         },
         {
           "code": "datum_not_found",
-          "explanation": "No construction plane has that name.",
-          "fix": "Use the name of an earlier plane step."
+          "explanation": "No construction plane or origin plane has that name.",
+          "fix": "Use the name of an earlier plane step, or XY, XZ or YZ."
         },
         {
           "code": "part_not_found",
@@ -1387,7 +1387,7 @@
           },
           "to": {
             "x-ref": ["face", "datum"],
-            "description": "The face or plane to align it to"
+            "description": "The face, construction plane or origin plane (XY, XZ, YZ) to align it to"
           },
           "offset": {
             "type": "number",
@@ -1484,8 +1484,8 @@
         },
         {
           "code": "datum_not_found",
-          "explanation": "No construction plane has that name.",
-          "fix": "Use the name of an earlier plane step."
+          "explanation": "No construction plane or origin plane has that name.",
+          "fix": "Use the name of an earlier plane step, or XY, XZ or YZ."
         },
         {
           "code": "not_planar",

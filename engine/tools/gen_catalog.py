@@ -47,7 +47,7 @@ F = {
     "ambiguous_reference": ("A face or edge query matched two candidates equally well, so the step refused to guess.",
                             "Move the reference point closer to the intended face, or pick it by a created name."),
     "part_not_found": ("No part has the label this step refers to.", "Check the part label in the model summary."),
-    "datum_not_found": ("No construction plane has that name.", "Use the name of an earlier plane step."),
+    "datum_not_found": ("No construction plane or origin plane has that name.", "Use the name of an earlier plane step, or XY, XZ or YZ."),
     "invalid_input": ("An input is missing, has the wrong type or is out of range.", "Read the action's inputs with actions_describe and correct the value."),
     "invalid_geometry": ("The operation produced geometry that is not a valid solid.", "Try a smaller size or a different face; check the step's inputs against the part's size."),
     "duplicate_name": ("Another step or part already uses this name.", "Give the step a unique name."),
@@ -68,7 +68,7 @@ def failures(*codes):
     return [{"code": c, "explanation": F[c][0], "fix": F[c][1]} for c in [*codes, *common]]
 
 
-ON_FACE = ref(["face", "datum"], "The flat face or construction plane to work on")
+ON_FACE = ref(["face", "datum"], "The flat face, construction plane or origin plane (XY, XZ, YZ) to work on")
 AT = vec3("A point in model coordinates, projected onto the face; defaults to the face's centre")
 
 extent = {
@@ -91,7 +91,7 @@ actions = [
             "top_diameter": num("Top diameter of a cone; 0 makes a point", "mm", 0, 2000),
             "height": num("Height of a cylinder or cone", "mm", 0.1, 2000),
             "at": vec3("Where the centre of the body's bottom sits, in model coordinates", ),
-            "on": ref(["face", "datum"], "Optional face or plane the body stands on; its bottom is placed on it, centred at the projection of at"),
+            "on": ref(["face", "datum"], "Optional face, construction plane or origin plane (XY, XZ, YZ) the body stands on; its bottom is placed on it, centred at the projection of at"),
         }, ["shape"], [
             when("shape", "box", ["size"]), when("shape", "rounded_box", ["size", "radius"]),
             when("shape", "cylinder", ["diameter", "height"]), when("shape", "cone", ["diameter", "top_diameter", "height"]),
@@ -104,10 +104,10 @@ actions = [
     {
         "id": "plane", "title": "Construction plane", "category": "Construct", "preview": "plane",
         "summary": "Add a named construction plane: offset from a face, angled about an edge, midway between faces, or through 3 points.",
-        "description": "Use to place features where no face exists, such as text floating on a mid-plane or a cut through the middle of a part. A plane adds no material. Later steps refer to it with m.datum(name).",
+        "description": "Use to place features where no face exists, such as text floating on a mid-plane or a cut through the middle of a part. A plane adds no material. Later steps refer to it with m.datum(name). The origin planes XY, XZ and YZ are always available as m.datum('XY') and so on, and no step may take those names.",
         "inputs": obj({
             "method": enum(["offset", "angle", "midplane", "three_points"], "How the plane is defined"),
-            "reference": ref(["face", "datum"], "The face or plane to offset or rotate from"),
+            "reference": ref(["face", "datum"], "The face, construction plane or origin plane (XY, XZ, YZ) to offset or rotate from"),
             "distance": num("Offset along the normal of the reference", "mm", -2000, 2000, default=0),
             "about": ref("edges", "The straight edge to rotate about, for method angle"),
             "angle": num("Rotation about the edge, for method angle", "deg", -180, 180),
@@ -248,7 +248,7 @@ actions = [
             "angle": num("Rotation angle", "deg", -360, 360),
             "origin": vec3("A point on the rotation axis"),
             "face": ref("face", "The face of the moving part to align"),
-            "to": ref(["face", "datum"], "The face or plane to align it to"),
+            "to": ref(["face", "datum"], "The face, construction plane or origin plane (XY, XZ, YZ) to align it to"),
             "offset": num("Gap left between the aligned faces", "mm", -2000, 2000, default=0),
         }, ["part", "method"], [
             when("method", "translate", ["by"]), when("method", "rotate", ["axis", "angle"]),
