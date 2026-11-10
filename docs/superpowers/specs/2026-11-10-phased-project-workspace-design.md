@@ -1,6 +1,6 @@
 # Phased project workspace: Brief, Concepts, Model, Documents, Manufacture
 
-Status: proposed UX design, 2026-11-10. This is the interface only. The data model, agent runtime, CAD backend and manufacturing integration each need their own design before anything is built. Mockup: [2026-11-10-phased-workspace-mockup.html](../../design/2026-11-10-phased-workspace-mockup.html). Screenshots: `docs/design/2026-11-10-phased-*.png`.
+Status: UX design approved by the product owner, 2026-11-10. This is the interface only. The data model, agent runtime, CAD backend and manufacturing integration each need their own design before anything is built. Mockup: [2026-11-10-phased-workspace-mockup.html](../../design/2026-11-10-phased-workspace-mockup.html). Screenshots: `docs/design/2026-11-10-phased-*.png`.
 
 ## Intent
 
