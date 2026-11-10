@@ -71,6 +71,45 @@ it("saves a demo for its owner and plays it to anyone who may view the project",
   ).rejects.toThrow(/not found/i);
 });
 
+it("hides who approved each step from demo viewers, as phases_get does", async () => {
+  const owner = await member("demo-people@test.example");
+  const project = (await execute(owner, "projects_create", {
+    name: "People",
+    brief: "",
+  })) as { id: string };
+  const approved = script();
+  const state = approved.steps[0].state as ReturnType<typeof emptyPhaseState>;
+  state.brief.approved = {
+    by: "demo-people@test.example",
+    at: "2026-05-04T15:10:00.000Z",
+    version: 1,
+    fields: [],
+  };
+  await execute(owner, "demo_save", {
+    projectId: project.id,
+    script: approved,
+  });
+  await env.DB.prepare("UPDATE projects SET demo=1 WHERE id=?")
+    .bind(project.id)
+    .run();
+  const viewer = await member("demo-viewer@test.example", { level: "Demo" });
+  type Read = {
+    script: {
+      steps: { state: { brief: { approved: { by: string } } } }[];
+    };
+  };
+  const seen = (await execute(viewer, "demo_get", {
+    projectId: project.id,
+  })) as Read;
+  expect(seen.script.steps[0].state.brief.approved.by).toBe("");
+  const own = (await execute(owner, "demo_get", {
+    projectId: project.id,
+  })) as Read;
+  expect(own.script.steps[0].state.brief.approved.by).toBe(
+    "demo-people@test.example",
+  );
+});
+
 it("refuses malformed scripts", async () => {
   const owner = await member("demo-shape@test.example");
   const project = (await execute(owner, "projects_create", {
