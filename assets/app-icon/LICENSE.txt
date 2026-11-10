@@ -1,0 +1,4 @@
+MantelArt icon and all derived files in this directory.
+Copyright (c) 2026 ichen27.
+Original artwork licensed under MIT OR Apache-2.0, at your option.
+See the repository LICENSE-MIT and LICENSE-APACHE.

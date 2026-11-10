@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<title>MantelArt</title>
+<desc>An ivory M drawn as a continuous vector path on a warm coral tile.</desc>
+<rect width="512" height="512" rx="112" fill="#e8573f"/>
+<path d="M112 356V156L256 296L400 156V356" fill="none" stroke="#fff6e8" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="112" cy="156" r="13" fill="#272523"/>
+<circle cx="400" cy="156" r="13" fill="#272523"/>
+</svg>
