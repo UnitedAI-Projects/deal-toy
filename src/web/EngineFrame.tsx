@@ -87,6 +87,11 @@ export function EngineFrame(props: {
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const artApi = useRef<ArtApi | undefined>(undefined);
+  const artSaved = useRef<string | null>(null);
+  const artRevision = (info: Record<string, unknown>) =>
+    typeof info.uid === "number" && typeof info.revision === "number"
+      ? info.uid + ":" + info.revision
+      : null;
   const cadApi = useRef<CadApi | undefined>(undefined);
   const cadSaved = useRef<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -181,6 +186,13 @@ export function EngineFrame(props: {
       await keep(`${base}.vectorcraft`, fromBase64(String(doc.dataBase64)));
       const svg = await api.execute("document.export", { format: "svg" });
       await keep(`${base}.svg`, fromBase64(String(svg.dataBase64)));
+      artSaved.current = artRevision(info);
+      const current = await api.execute("document.inspect", {});
+      setDirty(
+        current.dirty === true &&
+          (artSaved.current === null ||
+            artRevision(current) !== artSaved.current),
+      );
       setStatus(`Saved ${base}.vectorcraft and ${base}.svg`);
     } catch (err) {
       setError(`Couldn't save to the project: ${(err as Error).message}`);
@@ -228,6 +240,9 @@ export function EngineFrame(props: {
         body,
       );
       setFailedSaves((names) => names.filter((n) => n !== fileName));
+      setError((message) =>
+        message.startsWith("Couldn't keep " + fileName + ":") ? "" : message,
+      );
       setSaved((s) => [{ file, at: new Date().toLocaleTimeString() }, ...s]);
       props.onSaved(file);
       return file;
@@ -355,7 +370,12 @@ export function EngineFrame(props: {
         if (stopped) break;
         try {
           const info = await api.execute("document.inspect", {});
-          if (!stopped) setDirty(info.dirty === true);
+          if (!stopped)
+            setDirty(
+              info.dirty === true &&
+                (artSaved.current === null ||
+                  artRevision(info) !== artSaved.current),
+            );
         } catch {
           // A busy editor must not clear the last known unsaved state.
         }

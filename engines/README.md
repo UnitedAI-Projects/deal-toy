@@ -1,6 +1,6 @@
 # Engines
 
-The apps that do each phase's real work. Each one runs in the browser, opened from its phase in Mantel, and headless through its CLI and MCP server for agents. See the [phase engines design](../docs/superpowers/specs/2026-11-10-phase-engines-design.md).
+The apps that do each phase's real work. The browser apps open from their phases in Mantel and save editable files to the project. The imported CLI/MCP implementations are available in the source; Mantel's hosted build jobs and agent tools still use build123d. Wiring those to the new engines remains a separate step. See the [phase engines design](../docs/superpowers/specs/2026-11-10-phase-engines-design.md).
 
 | Directory | App | Phase | Browser app | Imported from |
 | --- | --- | --- | --- | --- |
