@@ -28,8 +28,9 @@ export type Turn = {
 };
 export type PlaybackTurns = {
   turns: Turn[];
-  /** The step now playing, when it is this phase's newest turn: typed, then answered. */
-  live?: { id: string; startedAt: number };
+  /** The step now playing, when it is this phase's newest turn: typed, then answered,
+      within `ms`. */
+  live?: { id: string; startedAt: number; ms: number };
 };
 export function PhaseAgent(props: {
   phase: PhaseId;
@@ -105,32 +106,37 @@ function Conversation(props: Parameters<typeof PhaseAgent>[0]) {
     };
   }, [path, props.phase, props.canNote]);
   // A demo's turns, the newest one played out: its prompt typed, a pause, then the answer.
+  // The step's time splits into typing the prompt, a moment of thinking, then the answer
+  // streaming in, so a turn plays out within its share of the demo whatever its length.
+  const live = props.playback?.turns.find(
+    (t) => t.id === props.playback?.live?.id,
+  );
+  const span = props.playback?.live?.ms ?? 4000;
+  const typing = span * 0.22;
+  const pause = span * 0.08;
+  const answering = span * 0.5;
   const shown = props.playback
     ? props.playback.turns.map((t) => {
-        if (t.id !== props.playback!.live?.id) return t;
-        const typed = Math.max(0, elapsed - 300);
-        const prompting = typed < t.prompt.length * 28;
-        const thinking = elapsed - 300 - t.prompt.length * 28;
-        if (prompting) return null;
-        if (thinking < 1600) return { ...t, status: "running", response: "" };
-        const chars = Math.floor((thinking - 1600) / 9);
+        if (t.id !== live?.id) return t;
+        if (elapsed < typing) return null;
+        if (elapsed < typing + pause)
+          return { ...t, status: "running", response: "" };
+        const share = Math.min(1, (elapsed - typing - pause) / answering);
+        const chars = Math.ceil(t.response.length * share);
         return {
           ...t,
           response: t.response.slice(0, chars),
-          actions: chars >= t.response.length ? t.actions : [],
+          actions: share >= 1 ? t.actions : [],
         };
       })
     : turns;
-  const playingPrompt = (() => {
-    const live = props.playback?.turns.find(
-      (t) => t.id === props.playback?.live?.id,
-    );
-    if (!live) return "";
-    const typed = Math.max(0, elapsed - 300);
-    return typed < live.prompt.length * 28
-      ? live.prompt.slice(0, Math.floor(typed / 28))
+  const playingPrompt =
+    live && elapsed < typing
+      ? live.prompt.slice(
+          0,
+          Math.floor((live.prompt.length * elapsed) / typing),
+        )
       : "";
-  })();
   const visible = shown.filter((t): t is Turn => t !== null);
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });

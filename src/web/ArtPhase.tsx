@@ -69,7 +69,11 @@ export function ArtPhase(props: PhaseProps) {
       .then((r) => setFiles(r.files))
       .catch((e: Error) => setError(e.message));
   }, [props.data.project.id, props.filesVersion]);
-  const list = useMemo(() => pieces(files), [files]);
+  const { fileShown } = props;
+  const list = useMemo(
+    () => pieces(fileShown ? files.filter(fileShown) : files),
+    [files, fileShown],
+  );
   // A piece's kind is kept in the phases once it exists, so its status counts it.
   useEffect(() => {
     if (readOnly) return;
