@@ -36,8 +36,163 @@ JOB_SECONDS = 810
 
 MODULE_KEY = re.compile(r"^[a-z][a-z0-9-]{1,39}@[0-9]{1,6}$")
 
+# MantelCAD's headless CLI (engines/mantelcad, built by engines/build-cad-cli.sh).
+CLI = Path(os.environ.get("MANTELCAD_CLI") or Path(__file__).with_name("bin") / "mantelcad-cli")
+MAX_DESIGN_BYTES = 1_000_000
+DESIGN_FORMAT = re.compile(r"^solidcraft/[0-9]{1,4}$")
+CLI_SECONDS = 300
+EDIT_SECONDS = 120
+MAX_COMMANDS = 60
+COMMAND = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+){1,3}$")
+# Modelling commands only: never file, render, view, interface or settings commands (src/shared/cad-source.ts).
+COMMAND_FAMILIES = {"sketch", "solid", "construct", "parameters", "timeline", "appearance", "material",
+                    "body", "surface", "sheet", "component", "joint", "occurrence", "plastic"}
+# Commands that read or write other files: a job's design is self-contained.
+COMMAND_DENIED = re.compile(r"(export|import|insert|extract|links|edit_in_place|finish_edit|paste|break_link|replace)")
+
+
+def design_of(source):
+    """The MantelCAD design a source holds, or None for anything else (such as build123d Python)."""
+    if not isinstance(source, str) or not source.lstrip().startswith("{"):
+        return None
+    try:
+        value = json.loads(source)
+    except ValueError:
+        return None
+    if isinstance(value, dict) and isinstance(value.get("format"), str) and DESIGN_FORMAT.match(value["format"]):
+        return value
+    return None
+
+
+def run_cli(args, root: Path, timeout: int, what: str) -> str:
+    """Runs mantelcad-cli in root with no environment beyond its home; returns its standard output."""
+    if not CLI.is_file():
+        raise ValueError("MantelCAD is not installed in this CAD runtime")
+    with (root / f"{what}.out").open("w+") as out, (root / f"{what}.err").open("w+") as err:
+        process = subprocess.Popen(
+            [sys.executable, "-I", str(Path(__file__).with_name("limited.py")), str(timeout), str(CLI), *args],
+            cwd=root, stdout=out, stderr=err, start_new_session=True,
+            env={"HOME": str(root), "RAYON_NUM_THREADS": "2", "RUST_BACKTRACE": "0"})
+        try:
+            code = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise ValueError(f"MantelCAD {what} exceeded its time limit") from None
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if code:
+            err.seek(0)
+            detail = err.read()[-2000:].strip() or f"exit status {code}"
+            raise ValueError(f"MantelCAD {what} failed: {detail.removeprefix('error: ')}")
+        out.seek(0)
+        return out.read(2_000_000)
+
+
+def _read_artifacts(root: Path, preview=False):
+    artifacts = []
+    size = 0
+    for name, media in FILES.items():
+        if preview and name not in PREVIEW_FILES:
+            continue
+        path = root / "out" / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Missing or unsafe artifact: " + name)
+        size += path.stat().st_size
+        if size > MAX_ARTIFACT_BYTES:
+            raise ValueError("Build artifacts exceed 15 MiB")
+        artifacts.append({"name": name, "mediaType": media,
+                          "base64": base64.b64encode(path.read_bytes()).decode()})
+    return {"artifacts": artifacts}
+
+
+def execute_design(source: str, timeout=JOB_SECONDS):
+    """Builds a MantelCAD design: MantelCAD computes and writes STEP; OCCT reads it for the other exports."""
+    if len(source.encode()) > MAX_DESIGN_BYTES:
+        raise ValueError("A MantelCAD design can be up to 1 MB")
+    with tempfile.TemporaryDirectory(prefix="design-") as directory:
+        root = Path(directory)
+        (root / "design.json").write_text(source)
+        (root / "out").mkdir()
+        run_cli(["run", "--in", "design.json", "--out", "out/model.step", "--quiet"], root,
+                min(CLI_SECONDS, timeout), "build")
+        step = root / "out" / "model.step"
+        if step.is_symlink() or not step.is_file() or step.stat().st_size == 0:
+            raise ValueError("MantelCAD wrote no STEP file: the design has no solid body")
+        with (root / "logs.txt").open("w+") as logs:
+            process = subprocess.Popen(
+                [sys.executable, "-I", str(Path(__file__).with_name("runner.py")),
+                 str(step), str(root / "out"), "--step", "--design", str(root / "design.json")],
+                cwd=root, env={"PATH": os.environ.get("PATH", ""), "HOME": str(root),
+                               "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
+                stdout=logs, stderr=logs, start_new_session=True)
+            try:
+                code = process.wait(timeout=max(60, timeout - CLI_SECONDS))
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+                raise ValueError("Build exceeded its time limit") from None
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            if code:
+                logs.seek(0)
+                raise ValueError("Build failed: " + logs.read()[-4000:])
+        return _read_artifacts(root)
+
+
+def execute_edit(design, commands, timeout=EDIT_SECONDS):
+    """Applies MantelCAD commands to a design (or to a new one) and returns the edited design."""
+    if design is not None and design_of(design) is None:
+        raise ValueError("design must be a MantelCAD design")
+    if design is not None and len(design.encode()) > MAX_DESIGN_BYTES:
+        raise ValueError("A MantelCAD design can be up to 1 MB")
+    if not isinstance(commands, list) or not 1 <= len(commands) <= MAX_COMMANDS:
+        raise ValueError(f"commands must list 1 to {MAX_COMMANDS} MantelCAD commands")
+    for c in commands:
+        if not (isinstance(c, dict) and set(c) <= {"command", "params"} and isinstance(c.get("command"), str)
+                and COMMAND.match(c["command"]) and c["command"].split(".")[0] in COMMAND_FAMILIES
+                and not COMMAND_DENIED.search(c["command"])
+                and isinstance(c.get("params", {}), dict)):
+            raise ValueError("Each command needs a modelling command name and an object of params")
+    script = json.dumps({"commands": [{"command": c["command"], "params": c.get("params", {})} for c in commands]})
+    if len(script) > 200_000:
+        raise ValueError("The commands exceed 200 KB")
+    with tempfile.TemporaryDirectory(prefix="edit-") as directory:
+        root = Path(directory)
+        (root / "script.json").write_text(script)
+        args = ["run", "script.json"]
+        if design is not None:
+            (root / "design.json").write_text(design)
+            args += ["--in", "design.json"]
+        output = run_cli([*args, "--save", "edited.json", "--results", "--quiet"], root, timeout, "edit")
+        edited = root / "edited.json"
+        if edited.is_symlink() or not edited.is_file():
+            raise ValueError("MantelCAD saved no design")
+        # Compact: MantelCAD writes indented JSON, several times the size of the same design.
+        text = json.dumps(json.loads(edited.read_text()), separators=(",", ":"), ensure_ascii=False)
+        if len(text.encode()) > MAX_DESIGN_BYTES:
+            raise ValueError("The edited design exceeds 1 MB")
+        if design_of(text) is None:
+            raise ValueError("MantelCAD saved something other than a design")
+        try:
+            results = json.loads(output)
+        except ValueError:
+            results = None
+        summary = json.dumps(results)
+        return {"design": text, "results": results if len(summary) <= 60_000 else summary[:60_000]}
+
 
 def execute(source: str, timeout=JOB_SECONDS, stop_after=None, preview=False, modules=None, check=None):
+    if design_of(source) is not None:
+        if stop_after is not None or preview or modules or check is not None:
+            raise ValueError("MantelCAD designs build whole: view-as-of and saved actions are for Python models")
+        return execute_design(source, timeout)
     if not isinstance(source, str) or not 0 < len(source.encode()) <= 100000:
         raise ValueError("Expected Python source up to 100 KB")
     if stop_after is not None and (isinstance(stop_after, bool) or not isinstance(stop_after, int)
@@ -88,24 +243,13 @@ def execute(source: str, timeout=JOB_SECONDS, stop_after=None, preview=False, mo
             if code:
                 logs.seek(0)
                 raise ValueError("Build failed: " + logs.read(4000))
-        artifacts = []
-        size = 0
-        for name, media in FILES.items():
-            if preview and name not in PREVIEW_FILES:
-                continue
-            path = root / "out" / name
-            if path.is_symlink() or not path.is_file():
-                raise ValueError("Missing or unsafe artifact: " + name)
-            size += path.stat().st_size
-            if size > MAX_ARTIFACT_BYTES:
-                raise ValueError("Build artifacts exceed 15 MiB")
-            artifacts.append({"name": name, "mediaType": media,
-                              "base64": base64.b64encode(path.read_bytes()).decode()})
-        return {"artifacts": artifacts}
+        return _read_artifacts(root, preview)
 
 
 MAX_STEP_BYTES = 15 * 1024 * 1024
 MAX_MEASURE_REQUEST = 21_000_000
+# A design and its JSON escaping inside the request.
+MAX_DESIGN_REQUEST = 2_500_000
 
 
 def _target_ok(target):
@@ -212,15 +356,19 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200, {"ready": True})
 
     def do_POST(self):
-        if self.path not in ("/build", "/measure", "/drawing") or Handler.used:
+        if self.path not in ("/build", "/measure", "/drawing", "/edit") or Handler.used:
             self.reply(409, {"error": "Container already used or invalid route"})
             return
         Handler.used = True
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= (MAX_MEASURE_REQUEST if self.path != "/build" else 150000):
+            limit = {"/build": MAX_DESIGN_REQUEST, "/edit": MAX_DESIGN_REQUEST}.get(self.path, MAX_MEASURE_REQUEST)
+            if not 0 < length <= limit:
                 raise ValueError("Invalid request size")
             payload = json.loads(self.rfile.read(length))
+            if self.path == "/edit":
+                self.reply(200, execute_edit(payload.get("design"), payload.get("commands")))
+                return
             if self.path == "/measure":
                 self.reply(200, execute_measure(payload["step"], payload["requests"]))
                 return

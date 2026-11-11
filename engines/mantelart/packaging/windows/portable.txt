@@ -1,0 +1,15 @@
+MantelArt portable mode
+
+While this file sits next to mantelart.exe, MantelArt keeps its preferences, swatch and
+graphic style libraries, added fonts, crash-recovery files and logs in the MantelArtData folder
+beside it, and writes nothing to %APPDATA%. Copy the whole folder to move MantelArt with its
+settings. The first time MantelArtData is created, any settings already in
+%APPDATA%\MantelArt are copied into it; the originals are left where they were.
+
+Keep this folder somewhere only you can write to: whoever can write here decides your settings,
+including the plug-ins and fonts folders MantelArt loads from, and the Data Recovery copies of
+your unsaved documents are kept here too.
+
+Delete this file to use the normal per-user settings folder (%APPDATA%\MantelArt) instead.
+If MantelArtData can't be written (for example on a read-only drive), MantelArt logs a
+warning and uses %APPDATA%\MantelArt instead.

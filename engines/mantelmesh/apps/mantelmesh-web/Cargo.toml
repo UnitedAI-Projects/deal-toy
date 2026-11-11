@@ -1,0 +1,26 @@
+[package]
+name = "mantelmesh-web"
+description = "MantelMesh in the browser: the eframe web runner (WebGL2) and the Craft host bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "mantelmesh-web"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+mantelmesh-ui.workspace = true
+eframe = { workspace = true, features = ["glow", "default_fonts"] }
+# The host messages (storytold/craft-libs): the same contract and bridge as the other engines.
+craft-web-host = { git = "https://github.com/storytold/craft-libs", rev = "fd5e2feff6ea25bed371a99cc732b3968d621505", version = "0.1.0" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "console"] }

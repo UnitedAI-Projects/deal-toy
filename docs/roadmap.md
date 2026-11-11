@@ -11,13 +11,16 @@
 - Live agent sessions: verbatim prompts, progress notes, recorded tool calls, team notes delivered on the next tool call, WebSocket updates, click-to-edit part parameters and light/dark themes.
 - Accounts: Google sign-in and signup, owner-edited access levels with per-person adjustments, a read-only demo project, OAuth sign-in for MCP clients, and the Mantel sign-in screen.
 
-## Now: phased project workspace (UI first)
+## Now: phased workspace and browser engines
 
-The five phases from the [phased workspace design](superpowers/specs/2026-11-10-phased-project-workspace-design.md) are usable in the interface ([plan](superpowers/plans/2026-11-10-phased-workspace-ui.md)). Each of these stand-ins needs its own design next:
+The six phases are Brief, Art, Concepts, Model, Documents and Manufacture. The [phase engines design](superpowers/specs/2026-11-10-phase-engines-design.md) extends the original [workspace design](superpowers/specs/2026-11-10-phased-project-workspace-design.md). Browser editors open inside the workspace and save editable files back to the project. This interface integration does not yet replace the server's build123d model contract.
 
 1. **Phase data on the server.** Done: `phase_states` and `phase_files` (migration 0012), `phases_get`, `phases_save` and `phase_files_list` for the UI and MCP, approval stamping and the agent guard, live updates, and a one-time import from browser storage.
-2. **The built-in agent.** The panel shows deterministic guidance (`agentGuide`) and sends notes. A real in-app agent needs a provider and cost decision first.
-3. **Concept generation, client share links and the manufacturing service.** Their controls are disabled or labelled "saved here, not sent".
+2. **The built-in agent.** Workers AI now provides bounded phase chat, saved history and project-scoped phase actions. Direct native-editor commands, attachment understanding and geometry builds from this panel remain unfinished.
+3. **Browser engines.** MantelPDF handles reference and proof PDFs, MantelArt handles artwork, MantelMesh handles rough polygon concepts, MantelCAD handles detailed interactive designs, and MantelDocs handles drawings. Their code lives in this repository under engines/. See [engine integration](../engines/README.md) for build and hosting details.
+4. **Native model builds and agent tools.** MantelCAD designs save as .sc phase files, but the main model canvas, revisions, build jobs and document provenance still use build123d. Introduce a versioned model-engine contract and run the same MantelCAD CLI in the isolated build container before treating a CAD save as a production model revision.
+5. **Concept generation and mesh editing.** The browser mesh editor supports primitives, face selection, transforms, extrude/inset, materials, undo and file export. Modifiers, loop cut, bevel, sculpting and the hosted agent interface remain planned.
+6. **Client share links and manufacturing.** Jiga integration is explicitly paused. Disabled controls and saved supplier drafts do not send messages or orders.
 
 ## Next: agent presence and change history
 
@@ -46,4 +49,4 @@ Known limit: `appearance` colours whole parts. Colouring one area of a part, suc
 
 ## Intentionally absent
 
-There is no built-in chat model, provider-key storage, automatic tool-code installation, supplier ordering, production approval, reviewed or feature-dimensioned engineering drawings or CAD GUI feature tree in this foundation. A script and its exported result are the current editable model contract. These are explicit extension points, not hidden completed features.
+There is no provider-key storage, automatic tool-code installation, supplier ordering, production approval, reviewed or feature-dimensioned engineering drawings in this foundation. MantelCAD has an interactive feature tree, but a build123d script and its exports remain the server model contract. These are explicit extension points, not hidden completed features.

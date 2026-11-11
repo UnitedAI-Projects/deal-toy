@@ -25,6 +25,7 @@ export type PhaseFile = {
   media_type: string;
   size: number;
   url: string;
+  created_at: string;
 };
 /** Stores a file in one of a project's phases (logos, sketches, references, engine saves). */
 export async function uploadPhaseFile(
@@ -114,6 +115,8 @@ export type Project = {
   brief: string;
   demo: number;
   created_at: string;
+  /** 1 when the project has a recorded demo to play. */
+  has_demo?: number;
 };
 export type ProjectList = { own: Project[]; demo: Project[] };
 export type TrashedProject = Project & {

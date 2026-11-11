@@ -1,0 +1,330 @@
+{
+  "brief": {
+    "version": 1,
+    "fields": [
+      {
+        "key": "deal",
+        "section": "Occasion",
+        "label": "Deal",
+        "required": true,
+        "hint": "Who acquired or financed whom",
+        "value": "Harbor acquires Northline",
+        "state": "answered",
+        "source": "agent",
+        "note": "Updated in the phase conversation"
+      },
+      {
+        "key": "parties",
+        "section": "Occasion",
+        "label": "Parties",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "date",
+        "section": "Occasion",
+        "label": "Closing date",
+        "required": true,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "recipients",
+        "section": "Occasion",
+        "label": "Recipients",
+        "required": false,
+        "hint": "Who receives one",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "quantity",
+        "section": "Occasion",
+        "label": "Quantity",
+        "required": true,
+        "value": "50 units",
+        "state": "answered",
+        "source": "agent",
+        "note": "Updated in the phase conversation"
+      },
+      {
+        "key": "story",
+        "section": "Occasion",
+        "label": "The story",
+        "required": false,
+        "hint": "What the toy should say about the deal",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "budget",
+        "section": "Commercials",
+        "label": "Budget",
+        "required": true,
+        "hint": "Per unit and in total",
+        "value": "$120 per unit",
+        "state": "answered",
+        "source": "agent",
+        "note": "Updated in the phase conversation"
+      },
+      {
+        "key": "deadline",
+        "section": "Commercials",
+        "label": "In hand by",
+        "required": true,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "delivery",
+        "section": "Commercials",
+        "label": "Delivery",
+        "required": false,
+        "hint": "Address or event",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "rush",
+        "section": "Commercials",
+        "label": "Rush allowed",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "logos",
+        "section": "Artwork",
+        "label": "Logos",
+        "required": true,
+        "hint": "Attach vector files (.svg, .eps, .ai, .pdf)",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "lettering",
+        "section": "Artwork",
+        "label": "Lettering",
+        "required": false,
+        "hint": "Exact wording and where it goes",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "colours",
+        "section": "Artwork",
+        "label": "Colours",
+        "required": false,
+        "hint": "Pantone or brand references",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "placement",
+        "section": "Artwork",
+        "label": "Placement",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "envelope",
+        "section": "Size",
+        "label": "Envelope",
+        "required": true,
+        "hint": "Max W \u00d7 D \u00d7 H in mm",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "weight",
+        "section": "Size",
+        "label": "Weight",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "footprint",
+        "section": "Size",
+        "label": "Desk footprint",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "primary",
+        "section": "Materials and finish",
+        "label": "Primary material",
+        "required": true,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "secondary",
+        "section": "Materials and finish",
+        "label": "Secondary materials",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "finish",
+        "section": "Materials and finish",
+        "label": "Finish",
+        "required": true,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "embeds",
+        "section": "Materials and finish",
+        "label": "Embedded objects",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "subject",
+        "section": "Form and features",
+        "label": "Subject",
+        "required": true,
+        "hint": "Bridge, tower, tombstone, \u2026",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "adjustability",
+        "section": "Form and features",
+        "label": "Adjustability",
+        "required": false,
+        "hint": "Moving parts, if any",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "assembly",
+        "section": "Form and features",
+        "label": "Assembly look",
+        "required": true,
+        "hint": "Seamless, visible fasteners, \u2026",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "fragile",
+        "section": "Constraints",
+        "label": "Fragile details",
+        "required": true,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "minfeature",
+        "section": "Constraints",
+        "label": "Minimum feature size",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "avoid",
+        "section": "Constraints",
+        "label": "Things to avoid",
+        "required": false,
+        "hint": "Brand or regulatory rules",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "box",
+        "section": "Packaging",
+        "label": "Box",
+        "required": true,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "presentation",
+        "section": "Packaging",
+        "label": "Presentation",
+        "required": false,
+        "hint": "Insert, sleeve, card",
+        "value": "",
+        "state": "open",
+        "source": "you"
+      },
+      {
+        "key": "notes",
+        "section": "Notes",
+        "label": "Notes",
+        "required": false,
+        "value": "",
+        "state": "open",
+        "source": "you"
+      }
+    ],
+    "files": []
+  },
+  "art": {
+    "kinds": {}
+  },
+  "concepts": [],
+  "docs": {
+    "proof": {
+      "kind": "proof",
+      "content": ""
+    },
+    "drawings": {
+      "kind": "drawings",
+      "content": ""
+    },
+    "parts": {
+      "kind": "parts",
+      "content": ""
+    },
+    "assembly": {
+      "kind": "assembly",
+      "content": ""
+    },
+    "files": {
+      "kind": "files",
+      "content": ""
+    },
+    "inspection": {
+      "kind": "inspection",
+      "content": ""
+    },
+    "revisions": {
+      "kind": "revisions",
+      "content": ""
+    }
+  },
+  "suppliers": []
+}

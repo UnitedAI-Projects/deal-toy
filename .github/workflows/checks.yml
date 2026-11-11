@@ -11,10 +11,38 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # MantelCAD's headless CLI for the CAD image, built for the image's Debian release once per
+  # engines/mantelcad tree (a cold build takes a while; a cached one is a download).
+  cad-cli:
+    name: cad-cli
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tree
+        run: echo "tree=$(git rev-parse HEAD:engines/mantelcad)" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: engine/bin/mantelcad-cli
+          key: cad-cli-${{ steps.tree.outputs.tree }}-${{ hashFiles('engines/build-cad-cli.sh') }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: bash engines/build-cad-cli.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mantelcad-cli
+          path: engine/bin/mantelcad-cli
+          retention-days: 3
   test:
     name: test
+    needs: cad-cli
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,6 +56,11 @@ jobs:
           version: "0.11.26"
       - run: sudo apt-get update && sudo apt-get install -y libgl1 libglu1-mesa libxrender1 libxext6 fonts-liberation
       - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: mantelcad-cli
+          path: engine/bin
+      - run: chmod 0755 engine/bin/mantelcad-cli
       - run: bash ci/run.sh
       - name: Build Linux CAD runtime
         run: docker build -f engine/Dockerfile -t deal-toy-cad:test .

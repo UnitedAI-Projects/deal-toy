@@ -31,6 +31,7 @@
       "bucket_name": "deal-toy-artifacts",
     },
   ],
+  "ai": { "binding": "AI" },
   "queues": {
     "producers": [
       {
@@ -88,6 +89,10 @@
   "vars": {
     "GOOGLE_CLIENT_ID": "704587941992-1gff7b427l59odf5kefmmjlsgtfagajn.apps.googleusercontent.com",
     "DAILY_BUILD_LIMIT": "100",
+    "AGENT_DAILY_LIMIT": "20",
+    // The AI Gateway Claude runs through; "default" is created on its first request.
+    "AI_GATEWAY_ID": "default",
+    "AGENT_GLOBAL_DAILY_LIMIT": "100",
     "RELEASE_SHA": "development",
     "APP_ORIGIN": "https://unitedai-deal-toy.ivan27chen.workers.dev",
   },

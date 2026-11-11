@@ -11,6 +11,8 @@ import {
   emptyPhaseState,
   phaseStatus,
   releaseReady,
+  withBriefLogo,
+  withConceptSave,
   DOCS,
   type Concept,
   type PhaseState,
@@ -121,6 +123,81 @@ describe("phaseStatus", () => {
     expect(phaseStatus(s, "model", 6)).toBe("approved");
     expect(phaseStatus(s, "model", 7)).toBe("stale");
     expect(phaseStatus(emptyPhaseState(), "model", 3)).toBe("active");
+  });
+});
+
+describe("art", () => {
+  it("is none until there is artwork, then active, approved and stale", () => {
+    let s = emptyPhaseState();
+    expect(phaseStatus(s, "art", 0)).toBe("none");
+    s = { ...s, art: { kinds: { "logo.svg": "logo" } } };
+    expect(phaseStatus(s, "art", 0)).toBe("active");
+    s = approveBrief(complete(s), by, at);
+    s = {
+      ...s,
+      art: { ...s.art, approved: { files: ["f1"], briefVersion: 1, by, at } },
+    };
+    expect(phaseStatus(s, "art", 0)).toBe("approved");
+    s = approveBrief(editBriefField(s, "box", { value: "walnut box" }), by, at);
+    expect(phaseStatus(s, "art", 0)).toBe("stale");
+  });
+
+  it("sends a file to the brief's logos and answers the field", () => {
+    const s = withBriefLogo(emptyPhaseState(), {
+      id: "f1",
+      name: "harbor.svg",
+      type: "image/svg+xml",
+      size: 10,
+      field: "logos",
+      url: "/api/phase-files/f1",
+    });
+    expect(s.brief.files.map((f) => f.id)).toEqual(["f1"]);
+    expect(s.brief.fields.find((f) => f.key === "logos")).toMatchObject({
+      value: "harbor.svg",
+      state: "answered",
+      source: "file",
+    });
+    // Sending it again doesn't add it twice.
+    expect(withBriefLogo(s, s.brief.files[0]).brief.files).toHaveLength(1);
+  });
+});
+
+describe("MantelMesh saves in Concepts", () => {
+  it("make a card, then update it by id or by name", () => {
+    let s = withConceptSave(emptyPhaseState(), {
+      name: "Tower.mmesh",
+      url: "/m1",
+    });
+    expect(s.concepts).toHaveLength(1);
+    expect(s.concepts[0]).toMatchObject({ name: "Tower", mesh: "/m1" });
+    s = withConceptSave(s, { name: "Tower.png", url: "/p1" });
+    expect(s.concepts).toHaveLength(1);
+    expect(s.concepts[0].image).toBe("/p1");
+    const id = s.concepts[0].id;
+    s = withConceptSave(s, { name: "Concept.mmesh", url: "/m2" }, id);
+    expect(s.concepts).toHaveLength(1);
+    expect(s.concepts[0].mesh).toBe("/m2");
+    expect(withConceptSave(s, { name: "notes.txt", url: "/x" })).toBe(s);
+  });
+});
+
+it("keeps separate mesh concepts with the same default name and pairs their previews", () => {
+  let s = withConceptSave(
+    emptyPhaseState(),
+    { name: "Concept.mmesh", url: "/a" },
+    "a",
+  );
+  s = withConceptSave(s, { name: "Concept.png", url: "/b-png" }, "b");
+  s = withConceptSave(s, { name: "Concept.mmesh", url: "/b" }, "b");
+  s = withConceptSave(s, { name: "Concept.png", url: "/a-png" }, "a");
+  expect(s.concepts).toHaveLength(2);
+  expect(s.concepts.find((c) => c.id === "a")).toMatchObject({
+    mesh: "/a",
+    image: "/a-png",
+  });
+  expect(s.concepts.find((c) => c.id === "b")).toMatchObject({
+    mesh: "/b",
+    image: "/b-png",
   });
 });
 

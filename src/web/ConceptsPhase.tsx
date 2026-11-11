@@ -116,6 +116,14 @@ export function ConceptsPhase(props: PhaseProps) {
           >
             ✎ Sketch
           </button>
+          <button
+            className="cadbar-button"
+            disabled={readOnly}
+            title="Model a concept in MantelMesh; each save becomes a card"
+            onClick={() => props.openEngine("mantelmesh", "concepts")}
+          >
+            ◇ Model in MantelMesh
+          </button>
           <label className={`cadbar-button ${readOnly ? "disabled" : ""}`}>
             ⤒ Reference
             <input
@@ -225,6 +233,22 @@ export function ConceptsPhase(props: PhaseProps) {
                     }}
                   >
                     Open
+                  </button>
+                  <button
+                    className="link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      props.openEngine(
+                        "mantelmesh",
+                        "concepts",
+                        c.mesh
+                          ? { name: `${c.name}.mmesh`, url: c.mesh }
+                          : undefined,
+                        c.id,
+                      );
+                    }}
+                  >
+                    {c.mesh ? "Open in MantelMesh" : "Model in MantelMesh"}
                   </button>
                   {!readOnly && (
                     <button

@@ -1,0 +1,18 @@
+[package]
+name = "mantelcad-dynamics"
+description = "MantelCAD multibody dynamics: rigid bodies, joint constraints, gravity and springs, integrated in time"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+solidcore-record = { workspace = true }
+mantelcad-geom = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

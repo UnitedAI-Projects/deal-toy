@@ -2620,6 +2620,20 @@ tr.selected {
   gap: 8px;
   margin-right: auto;
 }
+.phase-agent-head {
+  flex-wrap: wrap;
+}
+.agent-model {
+  order: 3;
+  flex: 1 0 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel, transparent);
+  color: inherit;
+}
 .phase-agent-log {
   flex: 1;
   overflow: auto;
@@ -3579,4 +3593,340 @@ label.cadbar-button.disabled {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 10px;
+}
+
+/* A phase engine opened over the project. */
+.engine-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.engine-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  min-height: 48px;
+  flex-wrap: wrap;
+}
+.engine-bar .error {
+  color: var(--bad);
+}
+.engine-iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #22282f;
+}
+.engine-missing {
+  margin: 80px auto;
+  max-width: 520px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.edited h4 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+
+.art-brief {
+  margin-bottom: 16px;
+}
+.art-brief h3 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.art-piece .concept-pv {
+  background: #fff;
+}
+.art-piece select {
+  width: auto;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.art-piece .concept-blank {
+  font-size: 18px;
+  letter-spacing: 0.05em;
+}
+
+.agent-turn .agent-msg,
+.agent-turn .my-msg {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-action {
+  margin-top: 6px;
+}
+@media (max-width: 860px) {
+  .phase-agent.has-conversation {
+    height: min(60dvh, 480px);
+  }
+  .phase-agent.has-conversation .phase-agent-log {
+    overflow-y: auto;
+  }
+  .phase-agent.has-conversation .phase-agent-log > :not(.peek) {
+    display: block;
+  }
+  .phase-agent.has-conversation .phase-agent-log .peek {
+    display: none;
+  }
+}
+
+/* Mantel's view or the phase engine's professional one. */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 999px;
+  background: var(--surface-glass);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+.view-switch button {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.view-switch button:hover:not(.on) {
+  background: var(--surface-2);
+  filter: none;
+}
+.view-switch button.on {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.dot-unsaved {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+/* The engine sits under the top bar, so the phase bar and the view switch stay in reach. */
+.engine-frame {
+  top: 60px;
+  z-index: 20;
+}
+/* The phase top bar stays above the engine, so its menus open over it. */
+.phase-page .topbar,
+.workspace.with-phases .topbar {
+  z-index: 30;
+}
+.engine-frame.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.workspace.with-agent .chat-shell {
+  left: 368px;
+}
+.workspace.with-agent .output-shell {
+  left: 368px;
+}
+@media (max-width: 860px) {
+  .workspace.with-agent .chat-shell,
+  .workspace.with-agent .output-shell {
+    left: 10px;
+  }
+  .engine-frame {
+    top: 56px;
+  }
+}
+
+/* The simulated Jiga integration in Manufacture. */
+.jiga-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel, transparent);
+  flex-wrap: wrap;
+}
+.jiga-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #5b3df5;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+}
+.tag.jiga {
+  margin-left: 6px;
+  background: #5b3df5;
+  color: #fff;
+}
+.doc-t .tag {
+  margin-left: 6px;
+}
+
+/* Demo playback. */
+.project.has-demo {
+  position: relative;
+}
+.play-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.demo-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(980px, calc(100vw - 32px));
+  z-index: 60;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg, #111) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.demo-progress {
+  display: flex;
+  gap: 2px;
+  height: 5px;
+}
+.demo-tick {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  min-height: 0;
+  background: var(--line);
+  cursor: pointer;
+}
+.demo-tick.done {
+  background: color-mix(in srgb, var(--accent, #4f46e5) 55%, transparent);
+}
+.demo-tick.on {
+  background: var(--accent, #4f46e5);
+}
+.demo-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+}
+.demo-controls {
+  display: flex;
+  gap: 4px;
+}
+.demo-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.demo-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.demo-kind {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent, #4f46e5);
+}
+.demo-kind.kind-manual {
+  color: #d97706;
+}
+.demo-kind.kind-message {
+  color: #059669;
+}
+.demo-kind.kind-system {
+  color: #6b7280;
+}
+.demo-title {
+  font-size: 15px;
+}
+.demo-caption {
+  font-size: 13px;
+  color: var(--muted, #888);
+}
+.demo-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.demo-side select {
+  width: auto;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+}
+.demo-note {
+  font-size: 11px;
+}
+.demo-focus {
+  position: fixed;
+  z-index: 55;
+  pointer-events: none;
+  border: 2px solid var(--accent, #4f46e5);
+  border-radius: 10px;
+  box-shadow: 0 0 0 6px
+    color-mix(in srgb, var(--accent, #4f46e5) 22%, transparent);
+  animation: demo-pulse 1.6s ease-in-out infinite;
+  transition: all 0.35s ease;
+}
+@keyframes demo-pulse {
+  50% {
+    box-shadow: 0 0 0 12px
+      color-mix(in srgb, var(--accent, #4f46e5) 8%, transparent);
+  }
+}
+.phase-agent .thinking {
+  opacity: 0.7;
+  animation: demo-pulse-text 1.2s ease-in-out infinite;
+}
+@keyframes demo-pulse-text {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (max-width: 720px) {
+  .demo-main {
+    flex-wrap: wrap;
+  }
+  .demo-side {
+    flex-direction: row;
+    width: 100%;
+    justify-content: space-between;
+  }
 }

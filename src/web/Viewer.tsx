@@ -336,13 +336,22 @@ export function Viewer(props: Props) {
         if (s.fittedFor !== latest.current.modelKey) {
           // Portrait screens need more distance to fit the model's width.
           const radius = size.length() / Math.min(1, s.camera.aspect);
-          const target = new THREE.Vector3(0, size.y / 2, 0);
+          // A tall, slim model (a tower, a rocket) is framed from the front and a little above,
+          // far enough back that all of its height fits, sitting high enough to clear the bars below.
+          const tall = size.y > 1.8 * Math.max(size.x, size.z);
+          const target = new THREE.Vector3(0, size.y * (tall ? 0.4 : 0.5), 0);
           s.controls.target.copy(target);
+          const half = THREE.MathUtils.degToRad(s.camera.fov / 2);
+          const reach = (size.y * 0.72) / Math.tan(half);
           s.camera.position
             .copy(target)
-            .add(new THREE.Vector3(radius * 0.95, radius * 0.6, radius * 1.05));
+            .add(
+              tall
+                ? new THREE.Vector3(reach * 0.42, reach * 0.18, reach * 0.9)
+                : new THREE.Vector3(radius * 0.95, radius * 0.6, radius * 1.05),
+            );
           s.camera.near = Math.max(0.01, radius / 1000);
-          s.camera.far = radius * 100;
+          s.camera.far = Math.max(radius, reach) * 100;
           s.camera.updateProjectionMatrix();
           s.fittedFor = latest.current.modelKey;
         }

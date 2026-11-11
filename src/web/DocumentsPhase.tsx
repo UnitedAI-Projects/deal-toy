@@ -1,7 +1,14 @@
 /* Phase 4: the manufacturing package. Each document says which revision and brief version it
    was built from, turns stale when either moves on, and is approved by a person. */
 import { useEffect, useMemo, useState } from "react";
-import { download, type Artifact, type Facts } from "./api";
+import {
+  call,
+  download,
+  type Artifact,
+  type Facts,
+  type PhaseFile,
+} from "./api";
+import { ENGINE_NAMES, engineFor } from "./EngineFrame";
 import { Banner, OutputBar } from "./PhaseFrame";
 import type { PhaseProps } from "./ProjectShell";
 import {
@@ -121,6 +128,15 @@ export function DocumentsPhase(props: PhaseProps) {
     });
   }, [latestRevision, parts.join("|"), build?.artifacts.length]);
 
+  const [edited, setEdited] = useState<PhaseFile[]>([]);
+  useEffect(() => {
+    call<{ files: PhaseFile[] }>("phase_files_list", {
+      projectId: data.project.id,
+      phase: "documents",
+    })
+      .then((r) => setEdited(r.files))
+      .catch(() => setEdited([]));
+  }, [data.project.id, props.filesVersion]);
   const doc = state.docs[kind];
   const st = docStatus(doc, latestRevision, bv);
   const title = DOCS.find((d) => d.kind === kind)!.title;
@@ -190,6 +206,10 @@ export function DocumentsPhase(props: PhaseProps) {
             build={build}
             revisions={data.revisions}
             canDownload={props.canDownload}
+            onOpen={(name, url) => {
+              const engine = engineFor(name);
+              if (engine) props.openEngine(engine, "documents", { name, url });
+            }}
             readOnly={readOnly || !!doc.approved}
             content={doc.content}
             onContent={(content) =>
@@ -199,6 +219,37 @@ export function DocumentsPhase(props: PhaseProps) {
               }))
             }
           />
+          {edited.length > 0 && (
+            <section className="edited">
+              <h4>Edited in the apps</h4>
+              <ul className="file-list">
+                {edited.map((f) => (
+                  <li key={f.id}>
+                    <span>{f.name}</span>
+                    <span className="muted small">
+                      {new Date(f.created_at).toLocaleString()}
+                    </span>
+                    {engineFor(f.name) && (
+                      <button
+                        className="secondary"
+                        onClick={() =>
+                          props.openEngine(engineFor(f.name)!, "documents", {
+                            name: f.name,
+                            url: f.url,
+                          })
+                        }
+                      >
+                        Open
+                      </button>
+                    )}
+                    <a className="link" href={f.url} download={f.name}>
+                      Download
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
         <aside className="doc-side">
           <h4>Built from</h4>
@@ -390,6 +441,7 @@ function DocBody(props: {
   build: ReturnType<typeof latestBuild>;
   revisions: PhaseProps["data"]["revisions"];
   canDownload: boolean;
+  onOpen: (name: string, url: string) => void;
   readOnly: boolean;
   content: string;
   onContent: (c: string) => void;
@@ -405,6 +457,20 @@ function DocBody(props: {
           <li key={a.id}>
             <span>{a.name}</span>
             <span className="muted small">{(a.size / 1024).toFixed(0)} KB</span>
+            {engineFor(a.name) && engineFor(a.name) !== "mantelcad" && (
+              <button
+                className="secondary"
+                disabled={!props.canDownload}
+                title={
+                  props.canDownload
+                    ? undefined
+                    : "Opening build files needs the Download exports permission"
+                }
+                onClick={() => props.onOpen(a.name, `/api/artifacts/${a.id}`)}
+              >
+                Open in {ENGINE_NAMES[engineFor(a.name)!]}
+              </button>
+            )}
             <button
               className="secondary"
               disabled={!props.canDownload}

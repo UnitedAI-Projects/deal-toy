@@ -1,6 +1,6 @@
 /* Phase 5: quotes, threads and the order. No manufacturing service is connected yet, so
    messages are kept here and labelled as not sent. A person moves the order along. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Banner, OutputBar } from "./PhaseFrame";
 import type { PhaseProps } from "./ProjectShell";
 import {
@@ -20,6 +20,10 @@ export function ManufacturePhase(props: PhaseProps) {
   const [scope, setScope] = useState("");
   const [text, setText] = useState("");
   const [from, setFrom] = useState<"us" | "them">("us");
+  // A demo step shows the thread it is about.
+  useEffect(() => {
+    if (props.select) setSelected(props.select);
+  }, [props.select]);
   const supplier = state.suppliers.find((s) => s.id === selected) ?? null;
   const bv = approvedBriefVersion(state);
   const release = state.release;
@@ -35,6 +39,7 @@ export function ManufacturePhase(props: PhaseProps) {
       (f) => f.key === "deadline",
     )?.value || "";
   const quotes = state.suppliers.filter((s) => s.quote);
+  const jiga = state.suppliers.filter((s) => s.via === "jiga");
   const ordered = state.suppliers.find((s) => s.id === state.order?.supplierId);
 
   const patch = (id: string, p: (s: Supplier) => Supplier) =>
@@ -69,6 +74,19 @@ export function ManufacturePhase(props: PhaseProps) {
           </Banner>
         )}
       </div>
+      {jiga.length > 0 && (
+        <div className="jiga-strip" role="status">
+          <span className="jiga-mark" aria-hidden="true">
+            J
+          </span>
+          <span>
+            <strong>Jiga</strong> · RFQ for release r{release?.revision ?? "–"}{" "}
+            sent to {jiga.length} manufacturers ·{" "}
+            {jiga.filter((s) => s.quote).length} quoted
+          </span>
+          <span className="tag">Simulated integration</span>
+        </div>
+      )}
       <div className="mfg-grid">
         <nav className="card doc-list" aria-label="Suppliers">
           <div className="muted small">
@@ -78,15 +96,24 @@ export function ManufacturePhase(props: PhaseProps) {
           {state.suppliers.map((s) => (
             <button
               key={s.id}
+              data-supplier={s.id}
               className={`doc-row ${s.id === selected ? "sel" : ""}`}
               onClick={() => setSelected(s.id)}
             >
               <span>
-                <span className="doc-t">{s.name}</span>
+                <span className="doc-t">
+                  {s.name}
+                  {s.via === "jiga" && <span className="tag jiga">Jiga</span>}
+                  {s.kind === "client" && <span className="tag">Client</span>}
+                </span>
                 <span className="doc-s">
                   {s.scope || "whole toy"} ·{" "}
-                  {s.quote ? `quote ${s.quote.price}` : "no quote yet"} ·{" "}
-                  {s.messages.length} messages
+                  {s.kind === "client"
+                    ? "proofs and approvals"
+                    : s.quote
+                      ? `quote ${s.quote.price}`
+                      : "no quote yet"}{" "}
+                  · {s.messages.length} messages
                 </span>
               </span>
               {state.order?.supplierId === s.id && (
@@ -157,7 +184,8 @@ export function ManufacturePhase(props: PhaseProps) {
                     })}
                   </div>
                 </div>
-                {state.order?.supplierId === supplier.id ? (
+                {supplier.kind === "client" ? null : state.order?.supplierId ===
+                  supplier.id ? (
                   <select
                     aria-label="Order stage"
                     disabled={readOnly}
@@ -207,42 +235,44 @@ export function ManufacturePhase(props: PhaseProps) {
                   </button>
                 )}
               </div>
-              <div className="quote-row">
-                <label>
-                  Price
-                  <input
-                    value={supplier.quote?.price ?? ""}
-                    placeholder="$152 / unit"
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      patch(supplier.id, (x) => ({
-                        ...x,
-                        quote: {
-                          lead: x.quote?.lead ?? "",
-                          price: e.target.value,
-                        },
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Lead time
-                  <input
-                    value={supplier.quote?.lead ?? ""}
-                    placeholder="Sample 10 days · run 18 days"
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      patch(supplier.id, (x) => ({
-                        ...x,
-                        quote: {
-                          price: x.quote?.price ?? "",
-                          lead: e.target.value,
-                        },
-                      }))
-                    }
-                  />
-                </label>
-              </div>
+              {supplier.kind !== "client" && (
+                <div className="quote-row">
+                  <label>
+                    Price
+                    <input
+                      value={supplier.quote?.price ?? ""}
+                      placeholder="$152 / unit"
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        patch(supplier.id, (x) => ({
+                          ...x,
+                          quote: {
+                            lead: x.quote?.lead ?? "",
+                            price: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Lead time
+                    <input
+                      value={supplier.quote?.lead ?? ""}
+                      placeholder="Sample 10 days · run 18 days"
+                      disabled={readOnly}
+                      onChange={(e) =>
+                        patch(supplier.id, (x) => ({
+                          ...x,
+                          quote: {
+                            price: x.quote?.price ?? "",
+                            lead: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              )}
               <div className="thread-body">
                 {supplier.messages.map((m) => (
                   <div
@@ -250,9 +280,14 @@ export function ManufacturePhase(props: PhaseProps) {
                     className={`bubble ${m.from === "us" ? "us" : "them"}`}
                   >
                     <div className="bubble-by">
-                      {m.from === "us" ? "You" : supplier.name} ·{" "}
+                      {m.from === "us" ? "You" : (m.author ?? supplier.name)} ·{" "}
                       {new Date(m.at).toLocaleDateString()}
-                      {m.from === "us" && " · saved here, not sent"}
+                      {m.from === "us" &&
+                        (supplier.via === "jiga"
+                          ? " · sent through Jiga (simulated)"
+                          : supplier.kind === "client"
+                            ? " · shared with the client (simulated)"
+                            : " · saved here, not sent")}
                     </div>
                     {m.text}
                   </div>
@@ -306,8 +341,9 @@ export function ManufacturePhase(props: PhaseProps) {
                 </form>
               )}
               <p className="muted small thread-foot">
-                No manufacturing service is connected, so nothing is sent from
-                here. Messages are a record for the team.
+                {supplier.via === "jiga" || supplier.kind === "client"
+                  ? "This thread is simulated for the demo: no message leaves Mantel."
+                  : "No manufacturing service is connected, so nothing is sent from here. Messages are a record for the team."}
               </p>
             </>
           )}

@@ -1,0 +1,294 @@
+[
+ {
+  "source": "ichen27/mantelcad#25",
+  "why": "test infrastructure (spatial reference comparison), no geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#195",
+  "why": "sketch.create refusal on a user's face; needs the user's design, no geometry spec"
+ },
+ {
+  "source": "ichen27/mantelcad#255",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#287",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#291",
+  "why": "feature request (integer arithmetic), no geometry case"
+ },
+ {
+  "source": "ichen27/mantelcad#331",
+  "why": "kernel evaluation or tracking, not a geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#344",
+  "why": "sketch.create refusal on a user's face; needs the user's design, no geometry spec"
+ },
+ {
+  "source": "ichen27/mantelcad#415",
+  "why": "sketch.create refusal on two intersecting cylinders plus a feature request; no dimensions to rebuild"
+ },
+ {
+  "source": "ichen27/mantelcad#424",
+  "why": "other area: threads"
+ },
+ {
+  "source": "ichen27/mantelcad#446",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#466",
+  "why": "other area: tessellation (revolved cone tip shows indentations; the profile coordinates are not given)"
+ },
+ {
+  "source": "ichen27/mantelcad#467",
+  "why": "no reproduction data (screenshot or video only)"
+ },
+ {
+  "source": "ichen27/mantelcad#611",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#669",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#759",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#763",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#767",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#770",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#772",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#987",
+  "why": "other area: threads"
+ },
+ {
+  "source": "ichen27/mantelcad#1008",
+  "why": "other area: fillets"
+ },
+ {
+  "source": "ichen27/mantelcad#1191",
+  "why": "other area: fillets"
+ },
+ {
+  "source": "ichen27/mantelcad#1202",
+  "why": "no reproduction data (screenshot or video only)"
+ },
+ {
+  "source": "ichen27/mantelcad#1308",
+  "why": "property-test PR, tests not a failing case"
+ },
+ {
+  "source": "ichen27/mantelcad#1317",
+  "why": "UI or customization PR, not geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#1328",
+  "why": "no reproduction data (screenshot or video only)"
+ },
+ {
+  "source": "ichen27/mantelcad#1431",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#1437",
+  "why": "extrude join result beyond the sketch; needs the user's design (earlier features not given)"
+ },
+ {
+  "source": "ichen27/mantelcad#1466",
+  "why": "surface-modelling feature or proposal, not a failing solid operation"
+ },
+ {
+  "source": "ichen27/mantelcad#1508",
+  "why": "sketch projection of solid edges (sketch area), not a kernel failure"
+ },
+ {
+  "source": "ichen27/mantelcad#1531",
+  "why": "feature request (partial taper where the sides would cross); the refusal is intended; needs the user's plate"
+ },
+ {
+  "source": "ichen27/mantelcad#1603",
+  "why": "other area: sheet-metal"
+ },
+ {
+  "source": "ichen27/mantelcad#1737",
+  "why": "extrude join leaves a gap after a fillet; the base solid is only in a screenshot"
+ },
+ {
+  "source": "ichen27/mantelcad#1788",
+  "why": "extra seam edge from a mirrored sketch, marked possibly intentional; no dimensions"
+ },
+ {
+  "source": "ichen27/mantelcad#1891",
+  "why": "profiling or tracing tooling, not geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#1967",
+  "why": "other area: sweeps (loft reported as not working, no details)"
+ },
+ {
+  "source": "ichen27/mantelcad#1995",
+  "why": "other area: threads"
+ },
+ {
+  "source": "ichen27/mantelcad#2064",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#2074",
+  "why": "part library or fastener fill feature, not a failing operation"
+ },
+ {
+  "source": "ichen27/mantelcad#2274",
+  "why": "part library or fastener fill feature, not a failing operation"
+ },
+ {
+  "source": "ichen27/mantelcad#2343",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#2428",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#2509",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#2545",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#2572",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#2768",
+  "why": "documentation"
+ },
+ {
+  "source": "ichen27/mantelcad#2876",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#2968",
+  "why": "UI or customization PR, not geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#3013",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#3104",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#3126",
+  "why": "sphere placement UI (centre taken from the picked point); the cut itself is not wrong"
+ },
+ {
+  "source": "ichen27/mantelcad#3134",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#3226",
+  "why": "test layout housekeeping"
+ },
+ {
+  "source": "ichen27/mantelcad#3268",
+  "why": "profiling or tracing tooling, not geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#3272",
+  "why": "fix for #2970 (bore guard in a two-profile join): geometry only in the user's design, no dimensions"
+ },
+ {
+  "source": "ichen27/mantelcad#3450",
+  "why": "solid.move pivot/point-to-point selection UI, no geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#3486",
+  "why": "solid.move pivot/point-to-point selection UI, no geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#3517",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#3525",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#3551",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#3569",
+  "why": "UI or customization PR, not geometry"
+ },
+ {
+  "source": "ichen27/mantelcad#3592",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#3594",
+  "why": "feature (wrap sketches onto cylinders), not a failing operation"
+ },
+ {
+  "source": "ichen27/mantelcad#3756",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#3900",
+  "why": "transform input validation (refuses non-affine matrices); not a geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#3907",
+  "why": "performance only, no wrong result"
+ },
+ {
+  "source": "ichen27/mantelcad#3976",
+  "why": "refactor or rollup PR with no behaviour change to grade"
+ },
+ {
+  "source": "ichen27/mantelcad#3992",
+  "why": "kernel evaluation or tracking, not a geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#3997",
+  "why": "kernel evaluation or tracking, not a geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#4002",
+  "why": "construct.plane.three_points selection UI"
+ },
+ {
+  "source": "ichen27/mantelcad#4012",
+  "why": "kernel evaluation or tracking, not a geometry failure"
+ },
+ {
+  "source": "ichen27/mantelcad#4024",
+  "why": "fill tolerance check in geom, no geometry case"
+ },
+ {
+  "source": "ichen27/mantelcad#4148",
+  "why": "revolve join 'no result' on a sketch not given in the report; needs the user's design"
+ }
+]

@@ -1,0 +1,15 @@
+[package]
+name = "mantelmesh-ops"
+description = "MantelMesh's mesh primitives and edit operations: pure functions from a mesh to a new mesh and a report"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mantelmesh-mesh.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

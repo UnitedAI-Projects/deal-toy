@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "profile": "rust",
+  "runner": "ubuntu-24.04",
+  "default_branch": "main",
+  "ai_review": "disabled",
+  "timeout_exception": "90 minutes for a cold native and WASM Rust workspace build"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "manteldocs",
+  "name": "MantelDocs",
+  "upgradeCode": "7C7D3271-C7A6-4614-A677-B2C46C643F47",
+  "sources": [
+    "manteldocs.wxs"
+  ],
+  "icon": "assets/app-icon/manteldocs.ico",
+  "localization": [],
+  "extensions": [
+    "UI"
+  ],
+  "payloads": [
+    "manteldocs-cli.exe",
+    "manteldocs.exe"
+  ],
+  "registry": [
+    [
+      "-1",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\manteldocs.exe",
+      "",
+      "[#ManteldocsExe]"
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\manteldocs.exe\\shell\\open\\command",
+      "",
+      "\"[#ManteldocsExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.dxf\\OpenWithProgids",
+      "MantelDocs.Drawing",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.dwg\\OpenWithProgids",
+      "MantelDocs.Drawing",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\MantelDocs.Drawing\\shell\\open\\command",
+      "",
+      "\"[#ManteldocsExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\ichen27\\MantelDocs",
+      "DesktopShortcut",
+      "1"
+    ]
+  ],
+  "mode": "dualScope"
+}

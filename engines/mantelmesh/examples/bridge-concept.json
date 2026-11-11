@@ -1,0 +1,16 @@
+[
+  { "command": "object.add", "params": { "shape": "box", "name": "Base", "size": [210, 84, 20], "at": [0, 0, 10] } },
+  { "command": "object.material", "params": { "object": 1, "preset": "walnut" } },
+  { "command": "object.add", "params": { "shape": "box", "name": "Deck", "size": [190, 14, 6], "at": [0, 0, 70] } },
+  { "command": "object.material", "params": { "object": 2, "preset": "satin-nickel" } },
+  { "command": "object.add", "params": { "shape": "box", "name": "Tower", "size": [10, 10, 150], "at": [0, 0, 95] } },
+  { "command": "mesh.scale", "params": { "object": 3, "faces": [1], "factor": [0.4, 0.4, 1] } },
+  { "command": "object.material", "params": { "object": 3, "preset": "satin-nickel" } },
+  { "command": "object.add", "params": { "shape": "cylinder", "name": "Cable fan", "radius": 1, "height": 120, "segments": 8, "at": [-45, 0, 75] } },
+  { "command": "object.transform", "params": { "object": 4, "rotation": [0, 35, 0] } },
+  { "command": "object.material", "params": { "object": 4, "preset": "brass" } },
+  { "command": "object.add", "params": { "shape": "box", "name": "Logo plate", "size": [60, 2, 12], "at": [0, -43, 10] } },
+  { "command": "mesh.inset", "params": { "object": 5, "faces": [2], "amount": 0.15 } },
+  { "command": "mesh.extrude", "params": { "object": 5, "faces": [2], "distance": -0.6 } },
+  { "command": "object.material", "params": { "object": 5, "preset": "brass" } }
+]

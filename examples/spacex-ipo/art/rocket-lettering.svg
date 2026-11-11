@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 760" width="120" height="760">
+  <rect x="20" y="10" width="80" height="740" rx="10" fill="#f2f2ef" stroke="#c9c9c4"/>
+  <g font-family="Liberation Sans, Arial, sans-serif" fill="#161616" text-anchor="middle">
+    <text transform="translate(76 560) rotate(-90)" font-size="46" letter-spacing="8">SPACEX</text>
+    <text transform="translate(68 215) rotate(-90)" font-size="18" letter-spacing="3">NASDAQ: SPCX</text>
+    <text transform="translate(68 70) rotate(-90)" font-size="18" letter-spacing="3">IPO 2026</text>
+  </g>
+</svg>

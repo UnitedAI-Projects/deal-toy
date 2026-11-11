@@ -7,3 +7,6 @@ dist
 .wrangler
 package-lock.json
 .superpowers
+engines
+# MantelCAD designs, stored compact as Mantel stores revisions.
+examples/spacex-ipo/designs

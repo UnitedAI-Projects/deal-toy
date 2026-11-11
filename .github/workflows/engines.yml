@@ -1,0 +1,115 @@
+name: Engines
+# Tests and builds the browser app of each engine under engines/ whose files changed. Each engine is
+# its own Cargo workspace; a full run takes 30-90 minutes, so only changed engines run.
+on:
+  pull_request:
+    paths: ["engines/**", ".github/workflows/engines.yml"]
+  push:
+    branches: [main]
+    paths: ["engines/**", ".github/workflows/engines.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: engines-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      engines: ${{ steps.pick.outputs.engines }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: pick
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          all='["manteldocs","mantelcad","mantelart","mantelpdf","mantelmesh"]'
+          if [ "$EVENT" = workflow_dispatch ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+            || git diff --name-only "$BASE" HEAD | grep -q '^.github/workflows/engines.yml$'; then
+            echo "engines=$all" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          picked=$(git diff --name-only "$BASE" HEAD | sed -n 's#^engines/\([^/]*\)/.*#\1#p' | sort -u \
+            | grep -E '^(manteldocs|mantelcad|mantelart|mantelpdf|mantelmesh)$' | jq -R . | jq -cs .)
+          echo "engines=$picked" >> "$GITHUB_OUTPUT"
+  engine:
+    needs: changes
+    if: needs.changes.outputs.engines != '[]'
+    name: ${{ matrix.engine }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJSON(needs.changes.outputs.engines) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The larger engines' test builds need more disk than a runner has free by default.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential pkg-config
+          libudev-dev libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev libxrandr-dev libxi-dev
+          libfontconfig1-dev libfreetype-dev libglib2.0-dev libgtk-3-dev libssl-dev libheif-dev
+          mesa-vulkan-drivers libgl1-mesa-dev qpdf poppler-utils
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.99.1"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: engines/${{ matrix.engine }}
+          cache-on-failure: true
+      - name: Install Trunk 0.22.1
+        run: |
+          curl -fsSL -o trunk.tgz https://github.com/trunk-rs/trunk/releases/download/v0.22.1/trunk-x86_64-unknown-linux-gnu.tar.gz
+          echo "2ab8d548fd5ed9cda50906f61fd8654204e7893bd52ebbfd90533862b7d71ee1  trunk.tgz" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin" && tar -xzf trunk.tgz -C "$HOME/.local/bin" && rm trunk.tgz
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # Translations and other pinned public inputs the engine's own CI provides (craft-i18n).
+      - name: Fetch the engine's pinned inputs
+        run: bash engines/fetch-inputs.sh ${{ matrix.engine }} "$RUNNER_TEMP/inputs" >> "$GITHUB_ENV"
+      - name: Test
+        working-directory: engines/${{ matrix.engine }}
+        env:
+          CARGO_INCREMENTAL: "0"
+        # Engines that define a lighter `ci` profile (less debug info) test with it, as their own CI does.
+        run: |
+          if [ "${{ matrix.engine }}" = mantelcad ]; then
+            # Desktop tests include cold graphics-driver initialization and real socket deadlines.
+            # Run that package serially so hardware probes cannot stall the daemon's reader tests.
+            cargo test --package mantelcad --locked --profile ci -- --test-threads=1
+            cargo test --workspace --exclude mantelcad --locked --profile ci --no-fail-fast
+          elif grep -q '^\[profile.ci\]' Cargo.toml; then
+            cargo test --workspace --locked --profile ci --no-fail-fast
+          else
+            cargo test --workspace --locked --no-fail-fast
+          fi
+      - id: tree
+        run: echo "tree=$(git rev-parse HEAD:engines/${{ matrix.engine }})" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/web
+          key: engine-web-${{ matrix.engine }}-${{ steps.tree.outputs.tree }}
+      - name: Lint
+        if: matrix.engine == 'mantelmesh'
+        working-directory: engines/mantelmesh
+        run: cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build the browser app
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash engines/build-web.sh ${{ matrix.engine }} "$RUNNER_TEMP/web"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-${{ matrix.engine }}
+          path: ${{ runner.temp }}/web
+          retention-days: 14

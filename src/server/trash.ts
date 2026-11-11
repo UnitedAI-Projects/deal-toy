@@ -52,6 +52,7 @@ function purgeStatements(db: D1Database, projectId: string) {
     `DELETE FROM documents WHERE project_id=?1`,
     `DELETE FROM phase_files WHERE project_id=?1`,
     `DELETE FROM phase_states WHERE project_id=?1`,
+    `DELETE FROM project_demos WHERE project_id=?1`,
     `DELETE FROM jobs WHERE revision_id IN (${revisions})`,
     `DELETE FROM project_events WHERE project_id=?1`,
     `DELETE FROM revisions WHERE model_id IN (${models})`,

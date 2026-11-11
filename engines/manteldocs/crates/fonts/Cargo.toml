@@ -1,0 +1,18 @@
+[package]
+name = "manteldocs-fonts"
+description = "MantelDocs text: the built-in single-stroke drafting font and TEXT/MTEXT layout"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+manteldocs-geom = { workspace = true }
+manteldocs-dxf = { workspace = true }
+skrifa = { workspace = true }
+harfrust = { workspace = true }
+unicode-bidi = { workspace = true }
+icu_segmenter = { workspace = true }
+encoding_rs = { workspace = true }

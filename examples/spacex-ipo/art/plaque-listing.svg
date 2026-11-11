@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 180" width="580" height="180">
+  <rect x="2" y="2" width="576" height="176" rx="6" fill="#c5c8cc" stroke="#8d9196" stroke-width="2"/>
+  <text x="290" y="58" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="18" letter-spacing="4" fill="#161616">NASDAQ</text>
+  <text x="290" y="112" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="45" letter-spacing="4" fill="#161616">SPCX</text>
+  <text x="290" y="150" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif" font-size="16" letter-spacing="2" fill="#161616">JUNE 12, 2026</text>
+</svg>

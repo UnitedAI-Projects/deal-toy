@@ -16,6 +16,15 @@ Reproduce from the repository root:
 uv run --project engine python engine/runner.py examples/bridge.py examples/exports
 ```
 
+[bracket.mantelcad.json](bracket.mantelcad.json) is a MantelCAD design (an L bracket with two holes and the parameters `width` and `thickness`), the kind of revision the Model phase saves. Open it in MantelCAD, or build it as Mantel does:
+
+```sh
+bash engines/build-cad-cli.sh   # or set MANTELCAD_CLI to a local mantelcad-cli build
+uv run --project engine python -c "import sys; sys.path.insert(0, 'engine'); import service, pathlib; print([a['name'] for a in service.execute(pathlib.Path('examples/bracket.mantelcad.json').read_text())['artifacts']])"
+```
+
+`engine/tests/fixtures/bracket-mantelcad.step` is MantelCAD's STEP export of it, which the engine tests read.
+
 The STEP round-trip test reopens the export and checks its validity, bounds and volume. Export byte identity is not promised: geometry equivalence is the current contract.
 
 ## Steps layout
@@ -63,3 +72,7 @@ uv run --project engine python engine/runner.py examples/tea_cup_steps.py exampl
 ## Brand model
 
 [brand/](brand/README.md) holds the Mantel name shown on the sign-in screen: its build123d source, exports and the bundled Inter font with its license.
+
+## Built-in phase agent
+
+[Editable synthetic phase data and browser evidence](agent/README.md) demonstrate project-scoped Workers AI guidance and brief editing.

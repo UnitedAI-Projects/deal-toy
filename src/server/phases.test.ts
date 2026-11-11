@@ -170,6 +170,7 @@ describe("phases", () => {
     for (const state of [
       { ...brief(), brief: { ...brief().brief, approved: { version: 1 } } },
       { ...brief(), modelReady: { revision: 9 } },
+      { ...brief(), art: { kinds: {}, approved: { files: ["f"] } } },
       {
         ...brief(),
         docs: { proof: { content: "x", approved: { revision: 1 } } },

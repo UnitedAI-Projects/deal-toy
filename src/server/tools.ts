@@ -39,6 +39,13 @@ import { checkTools } from "./check-tools";
 import { DESIGN_WRITES, designTools } from "./design-tools";
 import { trashTools } from "./trash";
 import { phaseTools } from "./phase-tools";
+import { cadTools, checkSource, compactSource } from "./cad-tools";
+import { demoTools } from "./demo-tools";
+import {
+  designOf,
+  MAX_DESIGN_BYTES,
+  setDesignParameter,
+} from "../shared/cad-source";
 import { stopSessionPlans } from "./design/plans";
 import { catalogIndex } from "./actions/catalog";
 import {
@@ -79,10 +86,10 @@ export const tools: Tool[] = [
     async (c) => {
       const [own, demo] = await c.env.DB.batch([
         c.env.DB.prepare(
-          "SELECT * FROM projects WHERE owner=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
+          "SELECT projects.*,EXISTS(SELECT 1 FROM project_demos WHERE project_id=projects.id) AS has_demo FROM projects WHERE owner=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         ).bind(c.identity.email),
         c.env.DB.prepare(
-          "SELECT * FROM projects WHERE demo=1 AND owner<>? AND ?=1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
+          "SELECT projects.*,EXISTS(SELECT 1 FROM project_demos WHERE project_id=projects.id) AS has_demo FROM projects WHERE demo=1 AND owner<>? AND ?=1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20",
         ).bind(
           c.identity.email,
           c.identity.permissions.has("demo.view") ? 1 : 0,
@@ -190,19 +197,28 @@ export const tools: Tool[] = [
   ),
   define(
     "models_save",
-    "Save an immutable build123d Python revision. Define build() returning a solid Shape; millimetres, Z up. Supply expectedRevision to prevent overwriting newer work. Prefer the steps_* tools for changes inside the steps section." +
+    "Save an immutable revision: build123d Python (define build() returning a solid Shape; millimetres, Z up; up to 100 KB) or, from MantelCAD, its design JSON (up to 1 MB). Supply expectedRevision to prevent overwriting newer work. Prefer the steps_* tools for changes inside a Python model's steps section." +
       PLAN_NOTE,
     {
       modelId: id,
       expectedRevision: z.number().int().nonnegative(),
-      source: z.string().min(1).max(100000),
+      // MantelCAD's export is indented; it is stored compact and must then fit MAX_DESIGN_BYTES.
+      source: z
+        .string()
+        .min(1)
+        .max(4 * MAX_DESIGN_BYTES),
     },
     false,
-    async (c, i) =>
-      saveRevision(c, i.modelId, i.expectedRevision, i.source, {
+    async (c, i) => {
+      const source = compactSource(i.source);
+      checkSource(c, source);
+      return saveRevision(c, i.modelId, i.expectedRevision, source, {
         sessionId: i.sessionId,
-        request: "Saved a new revision",
-      }),
+        request: designOf(source)
+          ? "Saved from MantelCAD"
+          : "Saved a new revision",
+      });
+    },
     "models.edit",
   ),
   define(
@@ -448,7 +464,7 @@ export const tools: Tool[] = [
   ),
   define(
     "models_set_parameter",
-    "Change one declared PARAMS value of the latest revision, save it as a new revision and queue its build. Only the value literal changes; the edit is refused if it cannot be located exactly once or is out of range. Agents declare Framework in the change plan's edit list first." +
+    "Change one parameter of the latest revision (a Python model's declared PARAMS value, or a MantelCAD design's named parameter), save it as a new revision and queue its build. Only the value literal changes; the edit is refused if it cannot be located exactly once or is out of range. Agents declare Framework in the change plan's edit list first." +
       PLAN_NOTE,
     {
       modelId: id,
@@ -493,7 +509,15 @@ export const tools: Tool[] = [
           400,
           `${i.name} must be between ${spec.min ?? "−∞"} and ${spec.max ?? "∞"}`,
         );
-      const source = setParameter(revision.source, i.name, i.value);
+      let source: string;
+      if (designOf(revision.source))
+        try {
+          source = setDesignParameter(revision.source, i.name, i.value);
+        } catch (error) {
+          throw new AppError(400, (error as Error).message);
+        }
+      else source = setParameter(revision.source, i.name, i.value);
+      checkSource(c, source);
       const saved = await saveRevision(
         c,
         i.modelId,
@@ -594,6 +618,8 @@ export const tools: Tool[] = [
   ...designTools,
   ...trashTools,
   ...phaseTools,
+  ...cadTools,
+  ...demoTools,
 ];
 export async function catalog(c: Context) {
   const { results } = await c.env.DB.prepare(
@@ -632,6 +658,7 @@ const MODEL_CHANGES = new Set([
   "models_save",
   "models_build",
   "models_set_parameter",
+  "models_edit",
   ...STEP_WRITES,
 ]);
 function summarize(name: string, input: unknown, value: unknown) {
@@ -652,6 +679,12 @@ function summarize(name: string, input: unknown, value: unknown) {
         : `Measure ${v.key}: ${v.status}`;
     case "models_build":
       return "Queued a build";
+    case "models_edit":
+      return `Edited the model in MantelCAD (revision ${v.revision})`;
+    case "model_get":
+      return "Read the model";
+    case "demo_save":
+      return `Saved the demo (${v.steps} steps)`;
     case "builds_get":
       return `Build ${v.status}${v.error ? `: ${String(v.error).slice(0, 200)}` : ""}`;
     case "models_create":
@@ -765,7 +798,11 @@ export async function dispatch(
                 // Source never enters the log: it is broadcast to every live viewer, and
                 // the revision itself holds it for those allowed to read it.
                 Object.entries(fields).filter(
-                  ([k]) => k !== "sessionId" && k !== "source" && k !== "state",
+                  ([k]) =>
+                    k !== "sessionId" &&
+                    k !== "source" &&
+                    k !== "state" &&
+                    k !== "script",
                 ),
               ),
             ),
