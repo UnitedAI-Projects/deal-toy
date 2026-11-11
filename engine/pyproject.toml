@@ -8,4 +8,4 @@ dependencies = [
     "matplotlib==3.11.2",
 ]
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
+dev = ["pytest>=8,<10", "ruff>=0.17.4,<1"]
