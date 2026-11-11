@@ -26,6 +26,11 @@ export function stepWeight(step: DemoStep) {
   return Math.max(5500, Math.min(16000, 3500 + reading));
 }
 
+/** When a step's change lands, as a share of its time. An agent's answer has finished streaming
+    by 0.8 of its step (src/web/PhaseAgent.tsx). */
+export const APPLY_AGENT = 0.8;
+export const APPLY_OTHER = 0.35;
+
 /** Each step's time at normal speed, scaled so the steps together take DEMO_TOTAL_MS. */
 export function stepDurations(steps: DemoStep[]) {
   const weights = steps.map(stepWeight);
@@ -44,12 +49,24 @@ export function useDemo(script: DemoScript | null) {
   const step = steps[Math.min(index, Math.max(0, steps.length - 1))];
   const durations = stepDurations(steps);
   const duration = (durations[index] ?? 2000) / speed;
-  useEffect(() => setStartedAt(Date.now()), [index]);
+  // A step starts from where the last one left off; its own change lands partway through it:
+  // an agent's once its answer has finished, a person's or Mantel's a little after it begins.
+  const [applied, setApplied] = useState(false);
+  useEffect(() => {
+    setStartedAt(Date.now());
+    setApplied(false);
+  }, [index]);
   useEffect(() => {
     if (!script || !playing || index >= steps.length - 1) return;
     const timer = setTimeout(() => setIndex((i) => i + 1), duration);
     return () => clearTimeout(timer);
   }, [script, playing, index, speed]);
+  useEffect(() => {
+    if (!step) return;
+    const at = duration * (step.kind === "agent" ? APPLY_AGENT : APPLY_OTHER);
+    const timer = setTimeout(() => setApplied(true), at);
+    return () => clearTimeout(timer);
+  }, [index, script, speed]);
   return {
     script,
     step,
@@ -60,6 +77,8 @@ export function useDemo(script: DemoScript | null) {
     startedAt,
     /** How long the step now showing plays, at the current speed. */
     duration,
+    /** Whether the step's change has landed yet (before it, the previous step's state shows). */
+    applied,
     go: (i: number) => setIndex(Math.max(0, Math.min(steps.length - 1, i))),
     /** Jump to a phase's first step and play on from there. */
     goPhase: (phase: string) => {

@@ -26,7 +26,7 @@ import {
 } from "./engine-views";
 import { ApiError, call, type PhaseFile } from "./api";
 import { latestBuild } from "./DocumentsPhase";
-import { withConceptSave } from "./phases";
+import { emptyPhaseState, withConceptSave } from "./phases";
 import { normalize } from "./phase-store";
 import { DemoBar, DemoFocus, useDemo } from "./DemoPlayer";
 import type { DemoScript } from "../shared/demo";
@@ -52,6 +52,8 @@ export type PhaseProps = {
   filesVersion: number;
   /** A demo step's focus: the supplier thread (or other item) to show. */
   select?: string;
+  /** During a demo: whether a stored file exists yet at this point of the story. */
+  fileShown?: (file: PhaseFile) => boolean;
 };
 export type EngineFile = {
   name: string;
@@ -114,7 +116,17 @@ export function ProjectShell(
   }, [props.playDemo, projectId]);
   const demo = useDemo(script);
   const step = script ? demo.step : undefined;
-  const data = step ? asOf(props.data, step.revision) : props.data;
+  // What the project looks like right now: the step's result once its change has landed, until
+  // then the previous step's (or a new project's, before the first).
+  const shown = step
+    ? demo.applied
+      ? step
+      : (script!.steps[demo.index - 1] ?? {
+          state: emptyPhaseState(),
+          revision: 0,
+        })
+    : undefined;
+  const data = shown ? asOf(props.data, shown.revision) : props.data;
   const { me } = props;
   const owns = data.project.owner === me.email;
   const store = usePhases(projectId, props.data.project.owner === me.email);
@@ -206,7 +218,7 @@ export function ProjectShell(
     );
   const { state, update } = step
     ? {
-        state: normalize(step.state),
+        state: normalize(shown!.state),
         update: (_: (s: PhaseState) => PhaseState) => {},
       }
     : { state: store.state, update: store.update };
@@ -456,6 +468,11 @@ export function ProjectShell(
     openEngine,
     filesVersion,
     select: step?.select,
+    // In a demo, a phase file shows once the state at this moment records it.
+    fileShown: step
+      ? (f: PhaseFile) =>
+          f.phase !== "art" || f.name.replace(/\.[^.]+$/, "") in state.art.kinds
+      : undefined,
   };
   return (
     <div className={`phase-page phase-${phase}`}>

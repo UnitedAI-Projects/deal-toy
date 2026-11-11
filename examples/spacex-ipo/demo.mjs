@@ -326,11 +326,12 @@ await step(
   },
   () => {
     state.art = {
+      // Keyed by piece: the file name without its extension, as the Art phase groups them.
       kinds: {
-        "rocket-lettering.svg": "lettering",
-        "plaque-front.svg": "lettering",
-        "plaque-listing.svg": "lettering",
-        "plaque-occasion.svg": "lettering",
+        "rocket-lettering": "lettering",
+        "plaque-front": "lettering",
+        "plaque-listing": "lettering",
+        "plaque-occasion": "lettering",
       },
     };
   },
