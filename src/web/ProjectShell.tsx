@@ -136,7 +136,8 @@ export function ProjectShell(
     addEventListener("hashchange", on);
     return () => removeEventListener("hashchange", on);
   }, []);
-  const go = (p: PhaseId) => setPhase(p);
+  // During a demo, choosing a phase jumps the demo there and it plays on.
+  const go = (p: PhaseId) => (script ? demo.goPhase(p) : setPhase(p));
   const [engine, setEngine] = useState<{
     engine: EngineId;
     phase: string;
@@ -227,7 +228,11 @@ export function ProjectShell(
             })),
           live:
             step?.kind === "agent" && step.phase === p
-              ? { id: `demo-${demo.index}`, startedAt: demo.startedAt }
+              ? {
+                  id: `demo-${demo.index}`,
+                  startedAt: demo.startedAt,
+                  ms: demo.duration,
+                }
               : undefined,
         }
       : undefined;
