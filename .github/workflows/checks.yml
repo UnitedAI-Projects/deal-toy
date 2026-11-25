@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version: "0.11.26"
       - run: sudo apt-get update && sudo apt-get install -y libgl1 libglu1-mesa libxrender1 libxext6 fonts-liberation
